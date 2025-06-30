@@ -1,0 +1,193 @@
+// src/app/api/users/route.ts
+import { NextResponse, type NextRequest } from 'next/server';
+import { z } from 'zod';
+import { sql } from '@/lib/db';
+import { formatISO, parseISO } from 'date-fns';
+
+const userCreateSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email format"),
+  role_id: z.string().uuid().nullable().optional(),
+  department: z.string().nullable().optional(),
+  staff_id: z.string().nullable().optional(),
+  status: z.enum(['Active', 'Inactive']).default('Active'),
+});
+
+export async function GET(request: NextRequest) {
+  console.log("API_USERS_GET_START (PostgreSQL): Handler entered.");
+  
+  // Debug environment variables
+  console.log("API_USERS_GET_DEBUG: Environment variables check:");
+  console.log("DATABASE_HOST:", process.env.DATABASE_HOST || 'NOT SET');
+  console.log("DATABASE_NAME:", process.env.DATABASE_NAME || 'NOT SET');
+  console.log("DATABASE_USER:", process.env.DATABASE_USER || 'NOT SET');
+  console.log("DATABASE_PASSWORD:", process.env.DATABASE_PASSWORD ? 'SET (value hidden)' : 'NOT SET');
+  
+  if (!sql) {
+    console.error("API_USERS_GET_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
+    return NextResponse.json({ error: 'Database client not initialized. Check server logs.' }, { status: 503 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const limit = parseInt(searchParams.get('limit') || '10', 10);
+  const searchTerm = searchParams.get('search')?.trim();
+  const roleFilter = searchParams.get('role')?.trim(); // Expects role name for filtering
+  const statusFilter = searchParams.get('status')?.trim();
+  const sortBy = searchParams.get('sortBy') || 'name';
+  const sortOrder = searchParams.get('sortOrder') || 'asc';
+
+  const offset = (page - 1) * limit;
+
+  const whereClauses: any[] = [];
+  if (searchTerm) {
+    whereClauses.push(sql`(LOWER(users.name) LIKE LOWER(${'%' + searchTerm + '%'}) OR LOWER(users.email) LIKE LOWER(${'%' + searchTerm + '%'}) OR LOWER(users.staff_id) LIKE LOWER(${'%' + searchTerm + '%'}))`);
+  }
+  if (statusFilter) {
+    whereClauses.push(sql`users.status = ${statusFilter}`);
+  }
+  if (roleFilter) {
+     // Assuming roleFilter is the role name. Join with roles table to filter by name.
+    whereClauses.push(sql`roles.name = ${roleFilter}`);
+  }
+
+  // Construct WHERE clause by combining all conditions with AND
+  let whereClause = sql``;
+  if (whereClauses.length > 0) {
+    whereClause = sql`WHERE ${ whereClauses[0] }`;
+    for (let i = 1; i < whereClauses.length; i++) {
+      whereClause = sql`${whereClause} AND ${ whereClauses[i] }`;
+    }
+  }
+
+  const allowedSortColumns: Record<string, string> = {
+    id: 'users.id', name: 'users.name', email: 'users.email', 
+    roleName: 'roles.name', // Sort by role name from joined table
+    department: 'users.department', staff_id: 'users.staff_id', status: 'users.status',
+    lastLogin: 'users.last_login_at', created_at: 'users.created_at',
+  };
+  const dbSortColumn = allowedSortColumns[sortBy] || 'users.name';
+  const dbSortOrder = sortOrder.toLowerCase() === 'desc' ? sql`DESC` : sql`ASC`;
+
+  try {
+    console.log("API_USERS_GET (PostgreSQL): Attempting to query users.");
+    const usersQuery = sql`
+      SELECT 
+        users.id, users.name, users.email, users.department, users.staff_id, users.status, 
+        users.last_login_at AS "lastLogin", users.created_at, users.updated_at,
+        users.role_id, roles.name AS "roleName"
+      FROM users
+      LEFT JOIN roles ON users.role_id = roles.id
+      ${whereClause}
+      ORDER BY ${sql(dbSortColumn)} ${dbSortOrder} NULLS LAST
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+    const usersFromDb = await usersQuery;
+
+    const countQuery = sql`
+      SELECT COUNT(*) AS count
+      FROM users
+      ${ roleFilter ? sql`LEFT JOIN roles ON users.role_id = roles.id` : sql`` } 
+      ${whereClause}
+    `;
+    const totalCountResult = await countQuery;
+    const totalCount = Number(totalCountResult[0]?.count || 0);
+
+    console.log(`API_USERS_GET (PostgreSQL): Fetched ${usersFromDb.length} users. Total matched: ${totalCount}`);
+    
+    const users = usersFromDb.map(user => ({
+      ...user,
+      lastLogin: user.lastLogin ? formatISO(new Date(user.lastLogin)) : null,
+      created_at: user.created_at ? formatISO(new Date(user.created_at)) : null,
+      updated_at: user.updated_at ? formatISO(new Date(user.updated_at)) : null,
+    }));
+
+    return NextResponse.json({
+      users,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: page,
+    });
+  } catch (error: any) {
+    console.error("API_USERS_GET_ERROR (PostgreSQL):", error.message, error.stack);
+    return NextResponse.json({ error: 'Failed to fetch users from database.', details: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  console.log("API_USERS_POST_START (PostgreSQL): Handler entered.");
+  if (!sql) {
+    console.error("API_USERS_POST_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
+    return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
+  }
+  try {
+    const body = await request.json();
+    console.log("API_USERS_POST (PostgreSQL): Received body:", body);
+    const validationResult = userCreateSchema.safeParse(body);
+
+    if (!validationResult.success) {
+      console.error("API_USERS_POST_VALIDATION_ERROR (PostgreSQL):", validationResult.error.flatten());
+      return NextResponse.json({ error: "Validation failed", details: validationResult.error.flatten() }, { status: 400 });
+    }
+    const { name, email, role_id, department, staff_id, status } = validationResult.data;
+
+    // Check for duplicate email
+    const existingByEmail = await sql`SELECT id FROM users WHERE email = ${email}`;
+    if (existingByEmail.count > 0) {
+      return NextResponse.json({ error: "User with this email already exists." }, { status: 409 });
+    }
+    // Check for duplicate staff_id if provided
+    if (staff_id) {
+      const existingByStaffId = await sql`SELECT id FROM users WHERE staff_id = ${staff_id}`;
+      if (existingByStaffId.count > 0) {
+        return NextResponse.json({ error: "User with this Staff ID already exists." }, { status: 409 });
+      }
+    }
+
+    let roleName: string | null = null;
+    if (role_id) {
+      const roleResult = await sql`SELECT name FROM roles WHERE id = ${role_id}`;
+      if (roleResult.count > 0) {
+        roleName = roleResult[0].name as string;
+      } else {
+        console.warn(`API_USERS_POST (PostgreSQL): Role ID ${role_id} not found in roles table. User will be created without a role name.`);
+      }
+    }
+    
+    const newUserArray = await sql`
+      INSERT INTO users (name, email, role_id, role, department, staff_id, status, created_at, updated_at)
+      VALUES (${name}, ${email}, ${role_id || null}, ${roleName || null}, ${department || null}, ${staff_id || null}, ${status}, NOW(), NOW())
+      RETURNING id, name, email, role_id, role AS "roleName", department, staff_id, status, last_login_at AS "lastLogin", created_at, updated_at
+    `;
+    const newUser = newUserArray[0];
+    
+    const formattedUser = {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      role_id: newUser.role_id,
+      roleName: newUser.roleName,
+      department: newUser.department,
+      staff_id: newUser.staff_id,
+      status: newUser.status,
+      lastLogin: newUser.lastLogin ? formatISO(new Date(newUser.lastLogin)) : null,
+      created_at: newUser.created_at ? formatISO(new Date(newUser.created_at)) : null,
+      updated_at: newUser.updated_at ? formatISO(new Date(newUser.updated_at)) : null,
+    };
+
+    console.log("API_USERS_POST (PostgreSQL): User created successfully:", formattedUser.id);
+    return NextResponse.json({ user: formattedUser }, { status: 201 });
+
+  } catch (error: any) {
+    console.error("API_USERS_POST_ERROR (PostgreSQL):", error.message, error.stack);
+    if (error.code === '23505') { // Unique constraint violation
+        if (error.constraint_name?.includes('email')) {
+             return NextResponse.json({ error: 'User with this email already exists.', details: error.message }, { status: 409 });
+        }
+        if (error.constraint_name?.includes('staff_id')) {
+             return NextResponse.json({ error: 'User with this Staff ID already exists.', details: error.message }, { status: 409 });
+        }
+    }
+    return NextResponse.json({ error: 'Failed to create user.', details: error.message }, { status: 500 });
+  }
+}

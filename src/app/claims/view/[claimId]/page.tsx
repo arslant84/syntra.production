@@ -1,0 +1,358 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { format, isValid, formatISO } from "date-fns";
+import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+
+// Type aliases to handle both snake_case and camelCase property names
+type AnyObject = Record<string, any>;
+
+// Helper function to safely get a value from an object that might use snake_case or camelCase
+const getPropertyValue = <T,>(obj: AnyObject, snakeCaseKey: string, camelCaseKey: string, defaultValue: T): T => {
+  return (obj[snakeCaseKey] !== undefined ? obj[snakeCaseKey] : 
+         obj[camelCaseKey] !== undefined ? obj[camelCaseKey] : 
+         defaultValue) as T;
+};
+
+const formatDateSafe = (date: Date | string | null | undefined, dateFormat = "PPP") => {
+  if (!date) return "N/A";
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return isValid(d) ? format(d, dateFormat) : "Invalid Date";
+};
+
+const formatNumberSafe = (num: number | string | null | undefined, digits = 2) => {
+  if (num === null || num === undefined || String(num).trim() === '') return "N/A"; 
+  const parsedNum = Number(num);
+  return isNaN(parsedNum) ? String(num) : parsedNum.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+};
+
+const DetailItem = ({ label, value, fullWidth = false, className = "" }: { label: string; value?: string | number | null | React.ReactNode; fullWidth?: boolean; className?: string }) => {
+  if (value === null || value === undefined || (typeof value === 'string' && value.trim() === "")) {
+    return null; 
+  }
+  return (
+    <div className={`${fullWidth ? "col-span-full" : "sm:col-span-1"} print:break-inside-avoid ${className}`}>
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider print:text-[8pt] print:font-semibold">{label}</p>
+      <div className="text-sm text-foreground break-words mt-0.5 print:text-[9pt]">
+        {typeof value === 'string' || typeof value === 'number' ? String(value) : value}
+      </div>
+    </div>
+  );
+};
+
+const getStatusBadge = (status: string) => {
+  switch (status?.toLowerCase()) {
+    case 'approved':
+      return <Badge className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" /> {status}</Badge>;
+    case 'rejected':
+      return <Badge className="bg-red-500"><XCircle className="w-3 h-3 mr-1" /> {status}</Badge>;
+    case 'pending verification':
+    case 'pending approval':
+      return <Badge className="bg-yellow-500"><Clock className="w-3 h-3 mr-1" /> {status}</Badge>;
+    default:
+      return <Badge className="bg-gray-500">{status || 'Unknown'}</Badge>;
+  }
+};
+
+export default function ClaimViewPage() {
+  const params = useParams();
+  const router = useRouter();
+  const [claim, setClaim] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const claimId = params.claimId as string;
+
+  useEffect(() => {
+    const fetchClaimDetails = async () => {
+      try {
+        setLoading(true);
+        console.log(`Fetching claim details for ID: ${claimId}`);
+        
+        // Use the claimId parameter name to match the API route
+        const response = await fetch(`/api/claims/${claimId}`);
+        console.log('API response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching claim: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Claim details:', data);
+        
+        // Check if the data is wrapped in a claimData property
+        if (data.claimData) {
+          console.log('Found claim data in response:', data.claimData);
+          setClaim(data.claimData);
+        } else {
+          console.log('No claim data wrapper found, using response directly');
+          setClaim(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch claim details:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch claim details');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (claimId) {
+      fetchClaimDetails();
+    }
+  }, [claimId]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
+        <ReceiptText className="w-12 h-12 text-primary animate-pulse mb-4" />
+        <p className="text-muted-foreground">Loading Claim Details...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-destructive">Error Loading Claim</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>{error}</p>
+            <Button variant="outline" className="mt-4" asChild>
+              <Link href="/claims">Back to Claims</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!claim) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Claim Not Found</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>The requested claim could not be found.</p>
+            <Button variant="outline" className="mt-4" asChild>
+              <Link href="/claims">Back to Claims</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Extract data from the claim
+  const headerDetails = claim.headerDetails || {};
+  const bankDetails = claim.bankDetails || {};
+  const medicalClaimDetails = claim.medicalClaimDetails || {};
+  const expenseItems = claim.expenseItems || [];
+  const informationOnForeignExchangeRate = claim.informationOnForeignExchangeRate || [];
+  const financialSummary = claim.financialSummary || {};
+  const declaration = claim.declaration || {};
+
+  return (
+    <div className="container mx-auto py-8 px-4">
+      <Card className="shadow-lg">
+        <CardHeader className="bg-muted/30">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <ReceiptText className="w-6 h-6 text-primary" />
+                Expense Claim Details
+              </CardTitle>
+              <CardDescription>
+                Claim ID: {claim.id}
+                {claim.status && (
+                  <span className="ml-2">
+                    {getStatusBadge(claim.status)}
+                  </span>
+                )}
+              </CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => window.print()}
+              className="print:hidden"
+            >
+              Print Claim
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-6">
+          {/* Header Details */}
+          <section>
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+              <FileText className="print:hidden" /> Claim Header Information
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2">
+              <DetailItem label="Document Type" value={headerDetails.documentType} />
+              <DetailItem label="Document Number" value={headerDetails.documentNumber} />
+              <DetailItem label="Claim For Month Of" value={formatDateSafe(headerDetails.claimForMonthOf, "MMMM yyyy")} />
+              <DetailItem label="Staff Name" value={headerDetails.staffName} />
+              <DetailItem label="Staff Number" value={headerDetails.staffNo} />
+              <DetailItem label="Grade" value={headerDetails.gred} />
+              <DetailItem label="Staff Type" value={headerDetails.staffType} />
+              <DetailItem label="Executive Status" value={headerDetails.executiveStatus} />
+              <DetailItem label="Department Code" value={headerDetails.departmentCode} />
+              <DetailItem label="Department Cost Center" value={headerDetails.deptCostCenterCode} />
+              <DetailItem label="Location" value={headerDetails.location} />
+              <DetailItem label="Telephone Extension" value={headerDetails.telExt} />
+              <DetailItem label="Start Time From Home" value={headerDetails.startTimeFromHome} />
+              <DetailItem label="Time of Arrival at Home" value={headerDetails.timeOfArrivalAtHome} />
+            </div>
+          </section>
+
+          {/* Bank Details */}
+          <section>
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+              <CreditCard className="print:hidden" /> Bank Details
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2">
+              <DetailItem label="Bank Name" value={bankDetails.bankName} />
+              <DetailItem label="Account Number" value={bankDetails.accountNumber} />
+              <DetailItem label="Purpose of Claim" value={bankDetails.purposeOfClaim} fullWidth />
+            </div>
+          </section>
+
+          {/* Medical Claim Details (if applicable) */}
+          {medicalClaimDetails.isMedicalClaim && (
+            <section>
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+                <User className="print:hidden" /> Medical Claim Details
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2">
+                <DetailItem label="Medical Claim Type" value={medicalClaimDetails.applicableMedicalType} />
+                <DetailItem label="Is For Family" value={medicalClaimDetails.isForFamily ? "Yes" : "No"} />
+                {medicalClaimDetails.isForFamily && (
+                  <>
+                    <DetailItem label="For Spouse" value={medicalClaimDetails.familyMemberSpouse ? "Yes" : "No"} />
+                    <DetailItem label="For Children" value={medicalClaimDetails.familyMemberChildren ? "Yes" : "No"} />
+                    <DetailItem label="For Other Family Member" value={medicalClaimDetails.familyMemberOther || "No"} />
+                  </>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Expense Items */}
+          {expenseItems.length > 0 && (
+            <section>
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+                <DollarSign className="print:hidden" /> Expense Items
+              </h3>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Details</TableHead>
+                      <TableHead className="text-right">Mileage (KM)</TableHead>
+                      <TableHead className="text-right">Transport</TableHead>
+                      <TableHead className="text-right">Hotel/Accommodation</TableHead>
+                      <TableHead className="text-right">Meals</TableHead>
+                      <TableHead className="text-right">Misc. (10%)</TableHead>
+                      <TableHead className="text-right">Other Expenses</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {expenseItems.map((item: any, index: number) => (
+                      <TableRow key={index}>
+                        <TableCell>{formatDateSafe(item.date, "dd MMM yyyy")}</TableCell>
+                        <TableCell>{item.claimOrTravelDetails}</TableCell>
+                        <TableCell className="text-right">{formatNumberSafe(item.officialMileageKM, 0)}</TableCell>
+                        <TableCell className="text-right">{formatNumberSafe(item.transport)}</TableCell>
+                        <TableCell className="text-right">{formatNumberSafe(item.hotelAccommodationAllowance)}</TableCell>
+                        <TableCell className="text-right">{formatNumberSafe(item.outStationAllowanceMeal)}</TableCell>
+                        <TableCell className="text-right">{formatNumberSafe(item.miscellaneousAllowance10Percent)}</TableCell>
+                        <TableCell className="text-right">{formatNumberSafe(item.otherExpenses)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          )}
+
+          {/* Foreign Exchange Rates (if applicable) */}
+          {informationOnForeignExchangeRate && informationOnForeignExchangeRate.length > 0 && (
+            <section>
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+                <Calendar className="print:hidden" /> Foreign Exchange Rates
+              </h3>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Currency</TableHead>
+                      <TableHead className="text-right">Selling Rate (TT/OD)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {informationOnForeignExchangeRate.map((item: any, index: number) => (
+                      <TableRow key={index}>
+                        <TableCell>{formatDateSafe(item.date, "dd MMM yyyy")}</TableCell>
+                        <TableCell>{item.typeOfCurrency}</TableCell>
+                        <TableCell className="text-right">{formatNumberSafe(item.sellingRateTTOD, 4)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          )}
+
+          {/* Financial Summary */}
+          <section>
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+              <Building className="print:hidden" /> Financial Summary
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2">
+              <DetailItem label="Total Advance Claim Amount" value={`RM ${formatNumberSafe(financialSummary?.totalAdvanceClaimAmount)}`} />
+              <DetailItem label="Less Advance Taken" value={`RM ${formatNumberSafe(financialSummary?.lessAdvanceTaken)}`} />
+              <DetailItem label="Less Corporate Credit Card Payment" value={`RM ${formatNumberSafe(financialSummary?.lessCorporateCreditCardPayment)}`} />
+              <DetailItem label="Balance Claim/Repayment" value={`RM ${formatNumberSafe(financialSummary?.balanceClaimRepayment)}`} />
+              <DetailItem label="Cheque/Receipt No." value={financialSummary?.chequeReceiptNo} />
+            </div>
+          </section>
+
+          {/* Declaration */}
+          <section>
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+              <Info className="print:hidden" /> Declaration
+            </h3>
+            <div className="grid grid-cols-1 gap-4 print:gap-2">
+              <DetailItem 
+                label="Declaration Status" 
+                value={declaration?.iDeclare ? "Declared" : "Not Declared"} 
+              />
+              <DetailItem 
+                label="Declaration Date" 
+                value={formatDateSafe(declaration?.date)} 
+              />
+              <div className="text-xs text-muted-foreground mt-2 border-t pt-2">
+                <p className="font-semibold">Declaration Statement:</p>
+                <p className="mt-1">
+                  I hereby declare that all of the information provided in the Claim Form, as well as all of the information contained in the supporting documents and materials are true and complete.
+                  I understand that any false, fraudulent, or incomplete information on this Claim Form and the related supporting documents may serve as grounds for disciplinary action.
+                </p>
+              </div>
+            </div>
+          </section>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

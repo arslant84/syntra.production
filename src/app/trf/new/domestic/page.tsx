@@ -194,7 +194,13 @@ export default function NewDomesticTRFPage() {
   
   const handleTravelDetailsSubmit = (data: DomesticTravelSpecificDetails) => { 
     setTravelDetails(data); 
-    handleNextStep(); 
+    // Force update the current step to ensure proper progression
+    if (isEditMode) {
+      console.log('Domestic edit flow: forcing step progression to approval step');
+      setCurrentStep(3); // Force set to approval step
+    } else {
+      handleNextStep(); // Normal progression for new requests
+    }
   };
 
   const handleFinalSubmit = async (data: ApprovalSubmissionData) => {

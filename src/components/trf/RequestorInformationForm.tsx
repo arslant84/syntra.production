@@ -45,10 +45,12 @@ export default function RequestorInformationForm({ initialData, onSubmit }: Requ
     if (initialData) {
       console.log("RequestorInformationForm: Resetting form with initialData:", initialData);
       form.reset(initialData);
+      console.log("RequestorInformationForm: Form errors after reset:", form.formState.errors);
     }
   }, [initialData, form]);
   
   const handleFormSubmit = (values: RequestorInformation) => {
+    console.log("RequestorInformationForm: handleFormSubmit called with values:", values);
     onSubmit(values);
   };
 

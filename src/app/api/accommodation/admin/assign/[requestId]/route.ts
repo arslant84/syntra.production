@@ -8,9 +8,9 @@ const assignSchema = z.object({
   // In a real system: assignedRoomId, assignedStaffHouseId
 });
 
-export async function POST(request: NextRequest, context: { params: { requestId: string } }) {
-  const { params } = context;
-  const { requestId } = params; // This is actually TRF ID from current frontend
+export async function POST(request: NextRequest) {
+  const url = new URL(request.url);
+  const requestId = url.pathname.split('/').pop() as string;
   const trfId = requestId; 
   console.log(`API_ACCOM_ADMIN_ASSIGN_POST_START (PostgreSQL): Assigning for TRF ${trfId}.`);
    if (!sql) {

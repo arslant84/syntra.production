@@ -86,10 +86,10 @@ const companyTransportDetailSchema = z.object({
 
 const domesticTravelDetailsSchema = z.object({
   purpose: z.string().min(1, "Purpose of travel is required."),
-  itinerary: z.array(itinerarySegmentSchema),
-  mealProvision: mealProvisionSchema,
-  accommodationDetails: z.array(accommodationDetailSchema),
-  companyTransportDetails: z.array(companyTransportDetailSchema),
+  itinerary: z.array(itinerarySegmentSchema).optional(),
+  mealProvision: mealProvisionSchema.optional(),
+  accommodationDetails: z.array(accommodationDetailSchema).optional(),
+  companyTransportDetails: z.array(companyTransportDetailSchema).optional(),
 });
 
 // Define a type that ensures accommodationType can't be empty string in the form
@@ -132,14 +132,17 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
         : [{ date: null, day: '', from: '', to: '', etd: '', eta: '', flightNumber: '', flightClass: '', remarks: '' }]),
       mealProvision: initialData?.mealProvision || { dateFromTo: "", breakfast: 0, lunch: 0, dinner: 0, supper: 0, refreshment: 0 },
       accommodationDetails: (initialData?.accommodationDetails && initialData.accommodationDetails.length > 0
-        ? initialData.accommodationDetails.map(item => ({ 
-            ...item, 
-            checkInDate: item.checkInDate ? new Date(item.checkInDate) : null,
-            checkOutDate: item.checkOutDate ? new Date(item.checkOutDate) : null,
-            fromDate: item.fromDate ? new Date(item.fromDate) : null,
-            toDate: item.toDate ? new Date(item.toDate) : null,
-            accommodationType: item.accommodationType || "Hotel/Otels",
-          }))
+        ? initialData.accommodationDetails.map(item => ({
+          ...item,
+          checkInDate: item.checkInDate ? new Date(item.checkInDate) : null,
+          checkOutDate: item.checkOutDate ? new Date(item.checkOutDate) : null,
+          fromDate: item.fromDate ? new Date(item.fromDate) : null,
+          toDate: item.toDate ? new Date(item.toDate) : null,
+          accommodationType: item.accommodationType || "Hotel/Otels",
+          location: item.location || "",
+          placeOfStay: item.placeOfStay || "",
+          estimatedCostPerNight: item.estimatedCostPerNight || "0",
+        }))
         : []),
       companyTransportDetails: (initialData?.companyTransportDetails && initialData.companyTransportDetails.length > 0
         ? initialData.companyTransportDetails.map(item => ({
@@ -162,39 +165,32 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
   const { fields: accommodationFields, append: appendAccommodation, remove: removeAccommodation } = useFieldArray({ control: form.control, name: "accommodationDetails" });
   const { fields: transportFields, append: appendTransport, remove: removeTransport } = useFieldArray({ control: form.control, name: "companyTransportDetails" });
 
+  const handleSubmit = form.handleSubmit((data) => {
+    console.log('DomesticTravelDetailsForm onSubmit called!');
+    const formattedData: DomesticTravelSpecificDetails = {
+      purpose: data.purpose,
+      itinerary: data.itinerary.map(item => ({
+        ...item,
+        remarks: item.remarks || '',
+      })),
+      mealProvision: {
+        ...data.mealProvision,
+      },
+      accommodationDetails: (data.accommodationDetails || []).map(item => ({
+        ...item,
+        remarks: item.remarks || '',
+      })),
+      companyTransportDetails: (data.companyTransportDetails || []).map(item => ({
+        ...item,
+        remarks: item.remarks || '',
+      })),
+    };
+    onSubmit(formattedData);
+  });
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit((data) => {
-        console.log('DomesticTravelDetailsForm onSubmit called!');
-        // Convert form data to match DomesticTravelSpecificDetails interface
-        const formattedData: DomesticTravelSpecificDetails = {
-          purpose: data.purpose,
-          itinerary: data.itinerary.map(item => ({
-            id: item.id,
-            date: item.date,
-            day: item.day,
-            from: item.from,
-            to: item.to,
-            etd: item.etd,
-            eta: item.eta,
-            flightNumber: item.flightNumber,
-            flightClass: item.flightClass,
-            remarks: item.remarks
-          })),
-          mealProvision: {
-            dateFromTo: data.mealProvision.dateFromTo,
-            // Keep as string or number to match MealProvisionDetails interface
-            breakfast: data.mealProvision.breakfast,
-            lunch: data.mealProvision.lunch,
-            dinner: data.mealProvision.dinner,
-            supper: data.mealProvision.supper,
-            refreshment: data.mealProvision.refreshment
-          },
-          accommodationDetails: data.accommodationDetails || [],
-          companyTransportDetails: data.companyTransportDetails || []
-        };
-        onSubmit(formattedData);
-      })} className="space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-8">
         <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl md:text-2xl">

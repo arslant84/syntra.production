@@ -10,8 +10,9 @@ const actionSchema = z.object({
   approverName: z.string(),
 });
 
-export async function POST(request: NextRequest, { params }: { params: { requestId: string } }) {
-  const { requestId } = params;
+export async function POST(request: NextRequest) {
+  const url = new URL(request.url);
+  const requestId = url.pathname.split('/').pop() as string;
   console.log(`API_ACCOM_REQ_ACTION_POST_START (PostgreSQL): Processing action for accommodation request ${requestId}.`);
   
   if (!sql) {

@@ -4,8 +4,9 @@ import { getAccommodationRequestById } from '@/lib/accommodation-service';
 import type { AccommodationRequestDetails } from '@/types/accommodation';
 
 
-export async function GET(request: NextRequest, { params }: { params: { requestId: string } }) {
-  const { requestId } = params;
+export async function GET(request: NextRequest) {
+  const url = new URL(request.url);
+  const requestId = url.pathname.split('/').pop() as string;
   console.log(`API_ACCOM_REQ_ID_GET_START: Fetching accommodation request ${requestId}.`);
 
   try {

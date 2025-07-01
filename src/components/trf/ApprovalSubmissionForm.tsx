@@ -371,7 +371,22 @@ export default function ApprovalSubmissionForm({
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((data: any) => onSubmit(data as ApprovalSubmissionData))} className="space-y-6">
+            <form onSubmit={form.handleSubmit(
+  (data: any) => onSubmit(data as ApprovalSubmissionData),
+  (errors: Record<string, any>) => {
+    console.error('ApprovalSubmissionForm validation errors:', errors);
+    // Add toast notification for validation errors
+    const errorMessages: string[] = [];
+    if (errors.confirmPolicy) errorMessages.push("You must confirm compliance with travel policy");
+    if (errors.confirmManagerApproval) errorMessages.push("You must acknowledge manager approval requirement");
+    if (errors.confirmTermsAndConditions) errorMessages.push("You must agree to the terms and conditions");
+    
+    // Alert the user about validation errors
+    if (errorMessages.length > 0) {
+      alert(`Please correct the following issues:\n- ${errorMessages.join('\n- ')}`);
+    }
+  }
+)} className="space-y-6">
               <FormField control={form.control as any} name="additionalComments" render={({ field }) => ( <FormItem> <FormLabel>Additional Comments</FormLabel> <FormControl><Textarea placeholder="Enter any additional information or special requests..." className="min-h-[100px]" {...field} value={field.value || ''}/></FormControl> <FormMessage /> </FormItem> )} />
               <FormField control={form.control as any} name="confirmPolicy" render={({ field }) => ( <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm bg-white dark:bg-slate-700/30"> <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} id="confirmPolicy" /></FormControl> <div className="space-y-1 leading-none"> <FormLabel htmlFor="confirmPolicy" className="font-normal text-sm"> I confirm that all information provided is accurate and in compliance with company travel policy. </FormLabel> <FormMessage /> </div> </FormItem> )} />
               <FormField control={form.control as any} name="confirmManagerApproval" render={({ field }) => ( <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm bg-white dark:bg-slate-700/30"> <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} id="confirmManagerApproval" /></FormControl> <div className="space-y-1 leading-none"> <FormLabel htmlFor="confirmManagerApproval" className="font-normal text-sm"> I understand that this request requires approval from my line manager and/or relevant authorities. </FormLabel> <FormMessage /> </div> </FormItem> )} />

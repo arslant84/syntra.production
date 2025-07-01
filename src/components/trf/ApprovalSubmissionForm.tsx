@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -145,7 +144,7 @@ export default function ApprovalSubmissionForm({
 
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       <Card className="shadow-lg">
         <CardHeader className="bg-muted/10">
           <CardTitle className="flex items-center gap-2 text-xl md:text-2xl">

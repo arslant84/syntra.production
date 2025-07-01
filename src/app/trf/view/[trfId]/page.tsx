@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -110,12 +109,12 @@ export default function ViewTRFPage() {
   }
   
   return (
-    <div className="container mx-auto py-8 px-4 space-y-8 print:py-0 print:px-0 print:space-y-4">
-      <Card className="shadow-xl print:shadow-none print:border-none">
-        <CardHeader className="bg-muted/30 print:bg-transparent print:p-0">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:flex-row print:items-start">
-            <div><CardTitle className="flex items-center gap-2 text-xl print:text-2xl"><FileSpreadsheet className="w-6 h-6 text-primary print:text-black" />Travel Request Form Details</CardTitle><CardDescription className="print:text-sm">Viewing TRF ID: {trfData.id} - Status: <span className="font-semibold">{trfData.status}</span></CardDescription></div>
-            <div className="flex flex-wrap gap-2 print:hidden">
+    <div className="w-full min-h-screen bg-muted/50 py-2 px-2 print:py-0 print:px-0">
+      <Card className="w-full shadow print:shadow-none print:border-none">
+        <CardHeader className="w-full bg-muted/30 print:bg-transparent print:p-0 px-2 py-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:flex-row print:items-start w-full">
+            <div className="w-full"><CardTitle className="flex items-center gap-2 text-xl print:text-2xl"><FileSpreadsheet className="w-6 h-6 text-primary print:text-black" />Travel Request Form Details</CardTitle><CardDescription className="print:text-sm">Viewing TRF ID: {trfData.id} - Status: <span className="font-semibold">{trfData.status}</span></CardDescription></div>
+            <div className="flex flex-wrap gap-2 print:hidden w-full sm:w-auto justify-end">
                 <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
                 {canEdit && (<Button variant="outline" onClick={() => router.push(getEditLink())}><Edit className="mr-2 h-4 w-4" /> Edit TRF</Button>)}
                 {canCancel && (
@@ -128,7 +127,9 @@ export default function ViewTRFPage() {
           </div>
         </CardHeader>
       </Card>
-      <TrfView trfData={trfData} />
+      <div className="w-full mt-2">
+        <TrfView trfData={trfData} />
+      </div>
     </div>
   );
 }

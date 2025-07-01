@@ -374,7 +374,7 @@ export default function NewDomesticTRFPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-2xl">
-                <Building className="w-7 h-7 text-primary" /> {/* Changed icon */}
+                <Building className="w-7 h-7 text-primary" />
                 {isEditMode ? 'Edit Domestic Travel Request' : 'New Domestic Travel Request'}
               </CardTitle>
               <CardDescription>Follow the steps to complete your domestic travel request form.</CardDescription>
@@ -384,7 +384,7 @@ export default function NewDomesticTRFPage() {
         </CardHeader>
         <CardContent className="pt-2 pb-4">
           <TrfStepper currentStep={currentStep} steps={STEPS} onStepClick={(step) => {
-            if (step <= currentStep) { // Allow navigation to previous/current steps
+            if (step <= currentStep) {
               setCurrentStep(step);
             }
           }} />
@@ -392,27 +392,33 @@ export default function NewDomesticTRFPage() {
       </Card>
 
       {currentStep === 1 && (
-        <RequestorInformationForm
-          initialData={initialRequestorInfoForForm} // Pass initial data for pre-fill
-          onSubmit={handleRequestorSubmit}
-        />
+        <div className="w-full">
+          <RequestorInformationForm
+            initialData={initialRequestorInfoForForm}
+            onSubmit={handleRequestorSubmit}
+          />
+        </div>
       )}
       {currentStep === 2 && (
-        <DomesticTravelDetailsForm
-          initialData={initialTravelDetailsForForm} // Pass initial data for pre-fill
-          onSubmit={handleTravelDetailsSubmit}
-          onBack={handlePrevStep}
-        />
+        <div className="w-full">
+          <DomesticTravelDetailsForm
+            initialData={initialTravelDetailsForForm}
+            onSubmit={handleTravelDetailsSubmit}
+            onBack={handlePrevStep}
+          />
+        </div>
       )}
       {currentStep === 3 && (
-        <ApprovalSubmissionForm
-          isEditMode={isEditMode}
-          trfData={trfDataForSummary}
-          approvalWorkflowSteps={approvalWorkflow} // Use dynamic workflow from state
-          initialData={initialApprovalDataForForm} // Pass initial data for pre-fill
-          onSubmit={handleFinalSubmit}
-          onBack={handlePrevStep}
-        />
+        <div className="w-full">
+          <ApprovalSubmissionForm
+            isEditMode={isEditMode}
+            trfData={trfDataForSummary}
+            approvalWorkflowSteps={approvalWorkflow}
+            initialData={initialApprovalDataForForm}
+            onSubmit={handleFinalSubmit}
+            onBack={handlePrevStep}
+          />
+        </div>
       )}
     </div>
   );

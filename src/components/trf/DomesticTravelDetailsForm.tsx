@@ -1,6 +1,3 @@
-
-
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -197,7 +194,7 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
         };
         onSubmit(formattedData);
       })} className="space-y-8">
-        <Card className="w-full max-w-4xl mx-auto shadow-lg">
+        <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl md:text-2xl">
               <Building className="w-6 h-6 md:w-7 md:w-7 text-primary" />

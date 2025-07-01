@@ -190,7 +190,7 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
   return (
     <Form {...form}>
       <form onSubmit={handleSubmit} className="space-y-8">
-        <Card className="w-full max-w-4xl mx-auto shadow-lg">
+        <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Globe className="h-5 w-5 text-primary" />

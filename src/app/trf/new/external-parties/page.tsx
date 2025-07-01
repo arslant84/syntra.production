@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -262,8 +261,8 @@ export default function NewExternalPartiesTRFPage() {
   if (isEditMode && trfLoadError) { return (<div className="container mx-auto py-8 px-4 text-center"><Card className="max-w-lg mx-auto shadow-lg"><CardHeader><CardTitle className="flex items-center justify-center gap-2 text-destructive"><AlertTriangle className="w-6 h-6" /> Error Loading TRF</CardTitle></CardHeader><CardContent><p>{trfLoadError}</p><Button onClick={() => router.push('/trf')} className="mt-4">Back to TRF List</Button></CardContent></Card></div>); }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <Card className="mb-8 shadow-xl">
+    <div className="w-full px-2 md:px-6 py-8 space-y-8">
+      <Card className="w-full shadow-lg">
         <CardHeader className="bg-muted/30">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>

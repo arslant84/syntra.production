@@ -156,357 +156,345 @@ export default function AccommodationRequestPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex flex-col space-y-6 max-w-3xl mx-auto">
-        <div className="flex items-center justify-between">
-          <Button
-            variant="ghost"
-            onClick={() => router.back()}
-            className="mb-4"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Button>
-        </div>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl flex items-center gap-2">
-              <Bed className="h-6 w-6 text-primary" />
-              New Accommodation Request
-            </CardTitle>
-            <CardDescription>
-              Fill in the details below to request accommodation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {submitError && (
-              <Alert variant="destructive" className="mb-6">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{submitError}</AlertDescription>
-              </Alert>
-            )}
-            
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Requestor Information */}
-                  <FormField
-                    control={form.control}
-                    name="requestorName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Requestor Name*</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Full Name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="requestorId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Staff ID</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., PCTSB00123" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="requestorGender"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Gender*</FormLabel>
-                        <Select 
-                          onValueChange={field.onChange} 
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select gender" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Male">Male</SelectItem>
-                            <SelectItem value="Female">Female</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="department"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Department</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Finance" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  {/* Location and TRF Information */}
-                  <FormField
-                    control={form.control}
-                    name="location"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Location*</FormLabel>
-                        <Select 
-                          onValueChange={field.onChange} 
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select location" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Ashgabat">Ashgabat</SelectItem>
-                            <SelectItem value="Kiyanly">Kiyanly</SelectItem>
-                            <SelectItem value="Turkmenbashy">Turkmenbashy</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="trfId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>TRF ID (if applicable)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., TRF-DOM-001" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          Link this request to an existing Travel Request Form
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  {/* Date Selection */}
-                  <FormField
-                    control={form.control}
-                    name="requestedCheckInDate"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Check-in Date*</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={"outline"}
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) =>
-                                date < new Date(new Date().setHours(0, 0, 0, 0))
-                              }
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="requestedCheckOutDate"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Check-out Date*</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={"outline"}
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) => {
-                                const checkInDate = form.getValues("requestedCheckInDate");
-                                return (
-                                  date < new Date(new Date().setHours(0, 0, 0, 0)) ||
-                                  (checkInDate && date < checkInDate)
-                                );
-                              }}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  {/* Room Type */}
-                  <FormField
-                    control={form.control}
-                    name="requestedRoomType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Preferred Room Type</FormLabel>
-                        <Select 
-                          onValueChange={field.onChange} 
-                          defaultValue={field.value || ""}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select room type (optional)" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Single Room">Single Room</SelectItem>
-                            <SelectItem value="Shared Room - Male">Shared Room - Male</SelectItem>
-                            <SelectItem value="Shared Room - Female">Shared Room - Female</SelectItem>
-                            <SelectItem value="Camp Unit - Male Section">Camp Unit - Male Section</SelectItem>
-                            <SelectItem value="Camp Unit - Female Section">Camp Unit - Female Section</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          Select your preferred room type (subject to availability)
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  {/* Flight Information */}
-                  <FormField
-                    control={form.control}
-                    name="flightArrivalTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Flight/Train Arrival Time</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., 14:30 (01 DEC)" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          Format: HH:MM (DD MMM)
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="flightDepartureTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Flight/Train Departure Time</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., 18:00 (05 DEC)" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          Format: HH:MM (DD MMM)
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                
-                {/* Special Requests */}
+    <div className="w-full px-2 md:px-6 py-8 space-y-8">
+      <Card className="w-full shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl flex items-center gap-2">
+            <Bed className="h-6 w-6 text-primary" />
+            New Accommodation Request
+          </CardTitle>
+          <CardDescription>
+            Fill in the details below to request accommodation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {submitError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          )}
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Requestor Information */}
                 <FormField
                   control={form.control}
-                  name="specialRequests"
+                  name="requestorName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Special Requests</FormLabel>
+                      <FormLabel>Requestor Name*</FormLabel>
                       <FormControl>
-                        <Textarea 
-                          placeholder="Any special requirements or preferences" 
-                          className="min-h-[100px]" 
-                          {...field} 
-                        />
+                        <Input placeholder="Full Name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="requestorId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Staff ID</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., PCTSB00123" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="requestorGender"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Gender*</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select gender" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="department"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Department</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Finance" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Location and TRF Information */}
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location*</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select location" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Ashgabat">Ashgabat</SelectItem>
+                          <SelectItem value="Kiyanly">Kiyanly</SelectItem>
+                          <SelectItem value="Turkmenbashy">Turkmenbashy</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="trfId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>TRF ID (if applicable)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., TRF-DOM-001" {...field} />
                       </FormControl>
                       <FormDescription>
-                        E.g., dietary restrictions, accessibility needs, etc.
+                        Link this request to an existing Travel Request Form
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 
-                <div className="flex justify-end space-x-4 pt-4">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => router.back()}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Submitting...
-                      </>
-                    ) : (
-                      'Submit Request'
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      </div>
+                {/* Date Selection */}
+                <FormField
+                  control={form.control}
+                  name="requestedCheckInDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Check-in Date*</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date < new Date(new Date().setHours(0, 0, 0, 0))
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="requestedCheckOutDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Check-out Date*</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) => {
+                              const checkInDate = form.getValues("requestedCheckInDate");
+                              return (
+                                date < new Date(new Date().setHours(0, 0, 0, 0)) ||
+                                (checkInDate && date < checkInDate)
+                              );
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Room Type */}
+                <FormField
+                  control={form.control}
+                  name="requestedRoomType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Preferred Room Type</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value || ""}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select room type (optional)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Single Room">Single Room</SelectItem>
+                          <SelectItem value="Shared Room - Male">Shared Room - Male</SelectItem>
+                          <SelectItem value="Shared Room - Female">Shared Room - Female</SelectItem>
+                          <SelectItem value="Camp Unit - Male Section">Camp Unit - Male Section</SelectItem>
+                          <SelectItem value="Camp Unit - Female Section">Camp Unit - Female Section</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Select your preferred room type (subject to availability)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Flight Information */}
+                <FormField
+                  control={form.control}
+                  name="flightArrivalTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Flight/Train Arrival Time</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., 14:30 (01 DEC)" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Format: HH:MM (DD MMM)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="flightDepartureTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Flight/Train Departure Time</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., 18:00 (05 DEC)" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Format: HH:MM (DD MMM)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              {/* Special Requests */}
+              <FormField
+                control={form.control}
+                name="specialRequests"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Special Requests</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Any special requirements or preferences" 
+                        className="min-h-[100px]" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      E.g., dietary restrictions, accessibility needs, etc.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="flex justify-end space-x-4 pt-4">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => router.back()}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    'Submit Request'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

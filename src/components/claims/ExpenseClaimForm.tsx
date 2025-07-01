@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -206,57 +205,53 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
             <CardTitle className="flex items-center gap-2"><UserSquare className="w-5 h-5 text-primary" /> Staff & Claim Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-center">
               <FormField control={form.control} name="headerDetails.documentType" render={({ field }) => (
-                <FormItem><FormLabel>Document</FormLabel>
-                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex space-x-4">
+                <FormItem className="h-full flex flex-col justify-center"><FormLabel>Document</FormLabel>
+                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex space-x-4 items-center">
                     <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="TR01" /></FormControl><FormLabel className="font-normal">TR01</FormLabel></FormItem>
                     <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="TB35" /></FormControl><FormLabel className="font-normal">TB35</FormLabel></FormItem>
                     <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="TB05" /></FormControl><FormLabel className="font-normal">TB05</FormLabel></FormItem>
                   </RadioGroup><FormMessage />
                 </FormItem>
               )} />
-              <FormField control={form.control} name="headerDetails.documentNumber" render={({ field }) => (<FormItem><FormLabel>Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="headerDetails.documentNumber" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
               <FormField control={form.control} name="headerDetails.claimForMonthOf" render={({ field }) => (
-                <FormItem className="flex flex-col"><FormLabel>Claim for the Month of</FormLabel>
+                <FormItem className="flex flex-col justify-center h-full"><FormLabel>Claim for the Month of</FormLabel>
                   <Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn(!field.value && "text-muted-foreground")}>{field.value ? format(field.value, "MMMM yyyy") : <span>Pick a month</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
                     <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={2020} toYear={2030} /></PopoverContent>
                   </Popover><FormMessage />
                 </FormItem>
               )} />
+              <FormField control={form.control} name="headerDetails.staffName" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>Staff Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="headerDetails.staffNo" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>Staff No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormField control={form.control} name="headerDetails.staffName" render={({ field }) => (<FormItem><FormLabel>Staff Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="headerDetails.staffNo" render={({ field }) => (<FormItem><FormLabel>Staff No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="headerDetails.gred" render={({ field }) => (<FormItem><FormLabel>Gred</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-center">
+              <FormField control={form.control} name="headerDetails.gred" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>Gred</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="headerDetails.staffType" render={({ field }) => (
+                  <FormItem className="h-full flex flex-col justify-center"><FormLabel>Select whichever is applicable:</FormLabel>
+                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex space-x-4 items-center">
+                      <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="PERMANENT STAFF" /></FormControl><FormLabel className="font-normal">Permanent Staff</FormLabel></FormItem>
+                      <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="CONTRACT STAFF" /></FormControl><FormLabel className="font-normal">Contract Staff</FormLabel></FormItem>
+                  </RadioGroup><FormMessage />
+                  </FormItem>
+              )} />
+              <FormField control={form.control} name="headerDetails.executiveStatus" render={({ field }) => (
+                  <FormItem className="h-full flex flex-col justify-center"><FormLabel>Select whichever is applicable:</FormLabel>
+                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex space-x-4 items-center">
+                      <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="EXECUTIVE" /></FormControl><FormLabel className="font-normal">Executive</FormLabel></FormItem>
+                      <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="NON-EXECUTIVE" /></FormControl><FormLabel className="font-normal">Non-Executive</FormLabel></FormItem>
+                  </RadioGroup><FormMessage />
+                  </FormItem>
+              )} />
+              <FormField control={form.control} name="headerDetails.departmentCode" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>Department Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="headerDetails.deptCostCenterCode" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>Dept. Cost Center Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="headerDetails.staffType" render={({ field }) => (
-                    <FormItem><FormLabel>Select whichever is applicable:</FormLabel>
-                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex space-x-4">
-                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="PERMANENT STAFF" /></FormControl><FormLabel className="font-normal">Permanent Staff</FormLabel></FormItem>
-                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="CONTRACT STAFF" /></FormControl><FormLabel className="font-normal">Contract Staff</FormLabel></FormItem>
-                    </RadioGroup><FormMessage />
-                    </FormItem>
-                )} />
-                <FormField control={form.control} name="headerDetails.executiveStatus" render={({ field }) => (
-                    <FormItem><FormLabel>Select whichever is applicable:</FormLabel>
-                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex space-x-4">
-                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="EXECUTIVE" /></FormControl><FormLabel className="font-normal">Executive</FormLabel></FormItem>
-                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="NON-EXECUTIVE" /></FormControl><FormLabel className="font-normal">Non-Executive</FormLabel></FormItem>
-                    </RadioGroup><FormMessage />
-                    </FormItem>
-                )} />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormField control={form.control} name="headerDetails.departmentCode" render={({ field }) => (<FormItem><FormLabel>Department Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="headerDetails.deptCostCenterCode" render={({ field }) => (<FormItem><FormLabel>Dept. Cost Center Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="headerDetails.location" render={({ field }) => (<FormItem><FormLabel>Location</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormField control={form.control} name="headerDetails.telExt" render={({ field }) => (<FormItem><FormLabel>Tel/Ext.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="headerDetails.startTimeFromHome" render={({ field }) => (<FormItem><FormLabel>1. Start time from home to destination</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="headerDetails.timeOfArrivalAtHome" render={({ field }) => (<FormItem><FormLabel>2. Time of arrival at home from official duty</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-center">
+              <FormField control={form.control} name="headerDetails.location" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>Location</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="headerDetails.telExt" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>Tel/Ext.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="headerDetails.startTimeFromHome" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>1. Start time from home to destination</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="headerDetails.timeOfArrivalAtHome" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>2. Time of arrival at home from official duty</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
           </CardContent>
         </Card>

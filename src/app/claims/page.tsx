@@ -88,6 +88,7 @@ export default function ClaimsPage() {
 
   return (
     <div className="space-y-8">
+      {/* Header Section */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <ReceiptText className="w-8 h-8 text-primary" />
@@ -100,10 +101,14 @@ export default function ClaimsPage() {
         </Link>
       </div>
 
-      <Card>
+      {/* Claims Overview Card */}
+      <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>My Claims</CardTitle>
-          <CardDescription>List of your submitted expense claims.</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <ReceiptText className="h-5 w-5" />
+            My Claims
+          </CardTitle>
+          <CardDescription>List of your submitted expense claims and their current status.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -121,36 +126,38 @@ export default function ClaimsPage() {
               <p className="text-sm text-muted-foreground">Click "Submit New Claim" to get started.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Claim ID</TableHead>
-                  <TableHead>Purpose</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted Date</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {claims.map((claim) => (
-                  <TableRow key={claim.id}>
-                    <TableCell className="font-medium">{claim.id}</TableCell>
-                    <TableCell>{claim.purpose}</TableCell>
-                    <TableCell>USD {claim.amount.toFixed(2)}</TableCell>
-                    <TableCell>{getStatusBadge(claim.status)}</TableCell>
-                    <TableCell>{claim.submittedDate ? format(new Date(claim.submittedDate), 'dd MMM yyyy') : '-'}</TableCell>
-                    <TableCell>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/claims/view/${claim.id}`}>
-                          <FileText className="w-4 h-4 mr-1" /> View Details
-                        </Link>
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Claim ID</TableHead>
+                    <TableHead>Purpose</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Submitted Date</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {claims.map((claim) => (
+                    <TableRow key={claim.id}>
+                      <TableCell className="font-medium">{claim.id}</TableCell>
+                      <TableCell>{claim.purpose}</TableCell>
+                      <TableCell>USD {claim.amount.toFixed(2)}</TableCell>
+                      <TableCell>{getStatusBadge(claim.status)}</TableCell>
+                      <TableCell>{claim.submittedDate ? format(new Date(claim.submittedDate), 'dd MMM yyyy') : '-'}</TableCell>
+                      <TableCell>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/claims/view/${claim.id}`}>
+                            <FileText className="w-4 h-4 mr-1" /> View Details
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

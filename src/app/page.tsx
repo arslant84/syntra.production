@@ -88,8 +88,10 @@ export default function HomePage() {
 
     fetchDashboardData();
   }, []);
+
   return (
-    <div className="space-y-10 md:space-y-12">
+    <div className="space-y-8">
+      {/* Hero Section */}
       <div className="text-center py-8 md:py-12">
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-gray-800 dark:text-white">
           Welcome to <span className="text-primary">SynTra</span>
@@ -99,30 +101,45 @@ export default function HomePage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4">
-        <Link href="/trf/new" passHref>
-          <Button size="lg" variant="default">
-            <PlusCircle className="mr-2 h-5 w-5" /> Create New TRF
-          </Button>
-        </Link>
-        <Link href="/claims/new" passHref>
-          <Button size="lg" variant="default">
-            <PlusCircle className="mr-2 h-5 w-5" /> Submit New Claim
-          </Button>
-        </Link>
-        <Link href="/accommodation" passHref>
-          <Button size="lg" variant="default">
-            <PlusCircle className="mr-2 h-5 w-5" /> Book Accommodation
-          </Button>
-        </Link>
-        <Link href="/visa/new" passHref>
-          <Button size="lg" variant="default">
-            <PlusCircle className="mr-2 h-5 w-5" /> Process Visa
-          </Button>
-        </Link>
-      </div>
+      {/* Quick Actions */}
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <PlusCircle className="h-5 w-5" />
+            Quick Actions
+          </CardTitle>
+          <CardDescription>
+            Create new travel requests, submit claims, or manage your travel needs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4">
+            <Link href="/trf/new" passHref>
+              <Button size="lg" variant="default">
+                <PlusCircle className="mr-2 h-5 w-5" /> Create New TRF
+              </Button>
+            </Link>
+            <Link href="/claims/new" passHref>
+              <Button size="lg" variant="default">
+                <PlusCircle className="mr-2 h-5 w-5" /> Submit New Claim
+              </Button>
+            </Link>
+            <Link href="/accommodation" passHref>
+              <Button size="lg" variant="default">
+                <PlusCircle className="mr-2 h-5 w-5" /> Book Accommodation
+              </Button>
+            </Link>
+            <Link href="/visa/new" passHref>
+              <Button size="lg" variant="default">
+                <PlusCircle className="mr-2 h-5 w-5" /> Process Visa
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
         <SummaryCard 
           title="My Pending TRFs" 
           value={(summaryData.pendingTrfs || 0).toString()} 
@@ -139,7 +156,6 @@ export default function HomePage() {
           iconColor="text-blue-600 dark:text-blue-400"
           iconBgColor="bg-blue-100 dark:bg-blue-800/30"
         />
-
         <SummaryCard 
           title="My Draft Claims" 
           value={(summaryData.draftClaims || 0).toString()} 
@@ -156,8 +172,9 @@ export default function HomePage() {
           iconBgColor="bg-indigo-100 dark:bg-indigo-800/30"
           iconColor="text-indigo-600 dark:text-indigo-400"
         />
-      </section>
+      </div>
       
+      {/* Recent Activity */}
       <Card className="shadow-lg">
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>

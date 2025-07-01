@@ -137,8 +137,8 @@ export default function EditClaimPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <Card className="mb-8 shadow-xl">
+    <div className="w-full px-2 md:px-6 py-8 space-y-8">
+      <Card className="w-full shadow-lg">
         <CardHeader className="bg-muted/30">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>

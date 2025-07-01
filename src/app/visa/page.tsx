@@ -80,6 +80,7 @@ export default function VisaApplicationsPage() {
 
   return (
     <div className="space-y-8">
+      {/* Header Section */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <StickyNote className="w-8 h-8 text-primary" />
@@ -92,9 +93,13 @@ export default function VisaApplicationsPage() {
         </Link>
       </div>
 
-      <Card>
+      {/* Visa Applications Card */}
+      <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>Submitted Applications</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <StickyNote className="h-5 w-5" />
+            Submitted Applications
+          </CardTitle>
           <CardDescription>List of your visa applications and their current status.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -109,44 +114,46 @@ export default function VisaApplicationsPage() {
               <p className="text-sm text-muted-foreground">{error}</p>
             </div>
           ) : visaApplications.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Visa ID</TableHead>
-                  <TableHead>Purpose</TableHead>
-                  <TableHead>Destination</TableHead>
-                  <TableHead>Trip Dates</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visaApplications.map((app) => (
-                  <TableRow key={app.id}>
-                    <TableCell className="font-medium">{app.id}</TableCell>
-                    <TableCell>{app.travelPurpose}</TableCell>
-                    <TableCell>{app.destination || 'N/A'}</TableCell>
-                    <TableCell>
-                      {app.tripStartDate ? format(app.tripStartDate, 'PPP') : 'N/A'} - {app.tripEndDate ? format(app.tripEndDate, 'PPP') : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(app.status as VisaStatus)} className={app.status === "Approved" ? "bg-green-600 text-white" : ""}>
-                        {app.status || "Unknown"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{app.submittedDate ? format(app.submittedDate, 'PPP') : 'N/A'}</TableCell>
-                    <TableCell>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/visa/view/${app.id}`} className="flex items-center">
-                           <Eye className="mr-1.5 h-4 w-4" /> View
-                        </Link>
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Visa ID</TableHead>
+                    <TableHead>Purpose</TableHead>
+                    <TableHead>Destination</TableHead>
+                    <TableHead>Trip Dates</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {visaApplications.map((app) => (
+                    <TableRow key={app.id}>
+                      <TableCell className="font-medium">{app.id}</TableCell>
+                      <TableCell>{app.travelPurpose}</TableCell>
+                      <TableCell>{app.destination || 'N/A'}</TableCell>
+                      <TableCell>
+                        {app.tripStartDate ? format(app.tripStartDate, 'PPP') : 'N/A'} - {app.tripEndDate ? format(app.tripEndDate, 'PPP') : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusBadgeVariant(app.status as VisaStatus)} className={app.status === "Approved" ? "bg-green-600 text-white" : ""}>
+                          {app.status || "Unknown"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{app.submittedDate ? format(app.submittedDate, 'PPP') : 'N/A'}</TableCell>
+                      <TableCell>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/visa/view/${app.id}`} className="flex items-center">
+                             <Eye className="mr-1.5 h-4 w-4" /> View
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">
               <StickyNote className="w-16 h-16 text-muted-foreground mb-4" />

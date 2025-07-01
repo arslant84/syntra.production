@@ -1,4 +1,3 @@
-
 "use client";
 
 import ExpenseClaimForm from "@/components/claims/ExpenseClaimForm";
@@ -106,11 +105,10 @@ export default function NewClaimPage() {
     },
   };
 
-
   return (
-    <div className="container mx-auto py-8 px-4">
-      <Card className="mb-8 shadow-xl">
-        <CardHeader className="bg-muted/30">
+    <div className="w-full px-2 md:px-6 py-8 space-y-8">
+      <Card className="w-full shadow-lg">
+        <CardHeader className="bg-muted/30 rounded-t-xl">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-2xl">
@@ -123,12 +121,14 @@ export default function NewClaimPage() {
             </div>
           </div>
         </CardHeader>
+        <CardContent className="py-8 px-4 md:px-8">
+          <ExpenseClaimForm
+            initialData={initialClaimData as ExpenseClaim}
+            onSubmit={handleSubmitClaim}
+            submitButtonText="Submit Claim"
+          />
+        </CardContent>
       </Card>
-      <ExpenseClaimForm
-        initialData={initialClaimData as ExpenseClaim} // Cast as ExpenseClaim, ensure all required fields are eventually provided
-        onSubmit={handleSubmitClaim}
-        submitButtonText="Submit Claim"
-      />
     </div>
   );
 }

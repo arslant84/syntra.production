@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -128,7 +127,7 @@ export default function ReportsPage() {
   }, [year]); // Re-fetch when year changes
   
   return (
-    <div className="space-y-8">
+    <div className="w-full px-2 py-8 space-y-8">
       <div className="flex items-center gap-3">
         <BarChart2 className="w-8 h-8 text-primary" />
         <h1 className="text-3xl font-bold tracking-tight">Travel Reports</h1>
@@ -138,7 +137,7 @@ export default function ReportsPage() {
       </CardDescription>
 
       {/* General Filters - Conceptual */}
-      <Card>
+      <Card className="w-full">
         <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg"><Filter className="h-5 w-5"/> General Report Filters</CardTitle>
         </CardHeader>
@@ -153,7 +152,7 @@ export default function ReportsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* TRF Reports Card */}
-        <Card className="shadow-lg">
+        <Card className="shadow-lg w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><FileText /> TRF Reports</CardTitle>
             <CardDescription>Analyze Travel Request Form trends, statuses, and processing times.</CardDescription>
@@ -210,7 +209,7 @@ export default function ReportsPage() {
         </Card>
 
         {/* Expense Claim Reports Card */}
-        <Card className="shadow-lg">
+        <Card className="shadow-lg w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><ReceiptText /> Expense Claim Reports</CardTitle>
             <CardDescription>Track submitted claims, average amounts, and processing efficiency.</CardDescription>
@@ -236,7 +235,7 @@ export default function ReportsPage() {
         </Card>
 
         {/* Accommodation Reports Card */}
-        <Card className="shadow-lg">
+        <Card className="shadow-lg w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BedDouble /> Accommodation Reports</CardTitle>
             <CardDescription>View occupancy rates, booking patterns, and location demand.</CardDescription>
@@ -261,7 +260,7 @@ export default function ReportsPage() {
         </Card>
 
         {/* Visa Application Reports Card */}
-        <Card className="shadow-lg">
+        <Card className="shadow-lg w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><StickyNote /> Visa Application Reports</CardTitle>
             <CardDescription>Track visa application statuses, processing times, and submissions by destination.</CardDescription>
@@ -289,7 +288,7 @@ export default function ReportsPage() {
         </Card>
         
         {/* User Activity Reports Card */}
-        <Card className="shadow-lg">
+        <Card className="shadow-lg w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Activity /> User Activity Reports</CardTitle>
             <CardDescription>Monitor user actions, form submissions, and system access patterns.</CardDescription>

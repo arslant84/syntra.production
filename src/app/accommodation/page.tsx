@@ -23,8 +23,10 @@ export default async function AccommodationRequestsPage() {
   // Fetch accommodation requests from the database
   // Note: In a real app with authentication, you would filter by user ID
   const accommodationRequests = await getAccommodationRequests();
+  
   return (
     <div className="space-y-8">
+      {/* Header Section */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <BedDouble className="w-8 h-8 text-primary" />
@@ -37,49 +39,55 @@ export default async function AccommodationRequestsPage() {
         </Link>
       </div>
 
-      <Card>
+      {/* Accommodation Requests Card */}
+      <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>Submitted Requests</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <BedDouble className="h-5 w-5" />
+            Submitted Requests
+          </CardTitle>
           <CardDescription>List of your accommodation requests and their current status.</CardDescription>
         </CardHeader>
         <CardContent>
           {accommodationRequests.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Request ID</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Dates</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {accommodationRequests.map((req) => (
-                  <TableRow key={req.id}>
-                    <TableCell className="font-medium">{req.id}</TableCell>
-                    <TableCell>{req.location}</TableCell>
-                    <TableCell>
-                      {format(req.requestedCheckInDate, 'PPP')} - {format(req.requestedCheckOutDate, 'PPP')}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(req.status)} className={req.status === "Confirmed" ? "bg-green-600 text-white" : ""}>
-                        {req.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{format(req.submittedDate, 'PPP')}</TableCell>
-                    <TableCell>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/accommodation/view/${req.id}`} className="flex items-center">
-                           <Eye className="mr-1.5 h-4 w-4" /> View Details
-                        </Link>
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Request ID</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Dates</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {accommodationRequests.map((req) => (
+                    <TableRow key={req.id}>
+                      <TableCell className="font-medium">{req.id}</TableCell>
+                      <TableCell>{req.location}</TableCell>
+                      <TableCell>
+                        {format(req.requestedCheckInDate, 'PPP')} - {format(req.requestedCheckOutDate, 'PPP')}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusBadgeVariant(req.status)} className={req.status === "Confirmed" ? "bg-green-600 text-white" : ""}>
+                          {req.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{format(req.submittedDate, 'PPP')}</TableCell>
+                      <TableCell>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/accommodation/view/${req.id}`} className="flex items-center">
+                             <Eye className="mr-1.5 h-4 w-4" /> View Details
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">
               <BedDouble className="w-16 h-16 text-muted-foreground mb-4" />

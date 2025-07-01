@@ -64,12 +64,12 @@ const claimFormSchema = z.object({
     z.object({
       date: z.date({ required_error: "Date is required." }),
       claimOrTravelDetails: z.string().min(1, "Claim/Travel details are required."),
-      officialMileageKM: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional().or(z.literal(''))),
-      transport: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional().or(z.literal(''))),
-      hotelAccommodationAllowance: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional().or(z.literal(''))),
-      outStationAllowanceMeal: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional().or(z.literal(''))),
-      miscellaneousAllowance10Percent: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional().or(z.literal(''))),
-      otherExpenses: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional().or(z.literal(''))),
+      officialMileageKM: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
+      transport: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
+      hotelAccommodationAllowance: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
+      outStationAllowanceMeal: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
+      miscellaneousAllowance10Percent: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
+      otherExpenses: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
     })
   ).min(1, "At least one expense item is required."),
   informationOnForeignExchangeRate: z.array(
@@ -80,10 +80,10 @@ const claimFormSchema = z.object({
     })
   ).optional(),
   financialSummary: z.object({
-    totalAdvanceClaimAmount: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({required_error: "Total amount is required.", invalid_type_error: "Must be a number"}).nonnegative()),
-    lessAdvanceTaken: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional().or(z.literal(''))),
-    lessCorporateCreditCardPayment: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional().or(z.literal(''))),
-    balanceClaimRepayment: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).optional().or(z.literal(''))), // This will be calculated
+    totalAdvanceClaimAmount: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({required_error: "Total amount is required.", invalid_type_error: "Must be a number"}).nonnegative()),
+    lessAdvanceTaken: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
+    lessCorporateCreditCardPayment: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
+    balanceClaimRepayment: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).optional()), // This will be calculated
     chequeReceiptNo: z.string().optional(),
   }),
   declaration: z.object({
@@ -95,14 +95,49 @@ const claimFormSchema = z.object({
 type ClaimFormValues = z.infer<typeof claimFormSchema>;
 
 interface ExpenseClaimFormProps {
-  initialData: ExpenseClaim;
+  initialData: Partial<ExpenseClaim>;
   onSubmit: (data: ExpenseClaim) => void;
+  submitButtonText: string;
 }
 
-export default function ExpenseClaimForm({ initialData, onSubmit }: ExpenseClaimFormProps) {
+export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonText }: ExpenseClaimFormProps) {
+  // Ensure initialData is properly formatted for the form
+  const formattedInitialData = React.useMemo(() => {
+    if (!initialData) return {};
+    
+    // Deep clone to avoid mutation issues
+    const data = JSON.parse(JSON.stringify(initialData));
+    
+    // Ensure dates are properly formatted as Date objects
+    if (data.headerDetails?.claimForMonthOf) {
+      data.headerDetails.claimForMonthOf = new Date(data.headerDetails.claimForMonthOf);
+    }
+    
+    if (data.declaration?.date) {
+      data.declaration.date = new Date(data.declaration.date);
+    }
+    
+    if (data.expenseItems && Array.isArray(data.expenseItems)) {
+      data.expenseItems = data.expenseItems.map((item: any) => ({
+        ...item,
+        date: item.date ? new Date(item.date) : null,
+      }));
+    }
+    
+    if (data.informationOnForeignExchangeRate && Array.isArray(data.informationOnForeignExchangeRate)) {
+      data.informationOnForeignExchangeRate = data.informationOnForeignExchangeRate.map((item: any) => ({
+        ...item,
+        date: item.date ? new Date(item.date) : null,
+      }));
+    }
+    
+    return data;
+  }, [initialData]);
+  
   const form = useForm<ClaimFormValues>({
     resolver: zodResolver(claimFormSchema),
-    defaultValues: initialData,
+    defaultValues: formattedInitialData as any,
+    mode: "onBlur", // Validate fields when they lose focus
   });
 
   const { fields: expenseFields, append: appendExpense, remove: removeExpense } = useFieldArray({
@@ -120,7 +155,9 @@ export default function ExpenseClaimForm({ initialData, onSubmit }: ExpenseClaim
 
   const calculateColumnTotal = React.useCallback((fieldName: keyof ExpenseItem) => {
     return watchExpenseItems.reduce((acc, item) => {
-      const value = parseFloat(String(item[fieldName]));
+      // Safe access to the field with type checking
+      const fieldValue = item[fieldName as keyof typeof item];
+      const value = parseFloat(String(fieldValue));
       return acc + (isNaN(value) ? 0 : value);
     }, 0);
   }, [watchExpenseItems]);
@@ -144,14 +181,24 @@ export default function ExpenseClaimForm({ initialData, onSubmit }: ExpenseClaim
   }, [calculateBalance, form]);
 
   const handleFormSubmit = (data: ClaimFormValues) => {
+    console.log('handleFormSubmit called!');
     console.log('Form submitted with data:', JSON.stringify(data, null, 2));
+    
+    // Preserve the original ID from initialData if it exists
+    const submissionData = {
+      ...data,
+      id: initialData?.id, // Keep the original ID for updates
+      status: initialData?.status, // Keep the original status
+      submittedAt: initialData?.submittedAt // Keep the original submission timestamp
+    };
+    
     // Convert the form data to the ExpenseClaim format expected by the parent component
-    onSubmit(data as unknown as ExpenseClaim);
+    onSubmit(submissionData as unknown as ExpenseClaim);
   };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8" noValidate>
         {/* Header Details */}
         <Card>
           <CardHeader>
@@ -322,13 +369,13 @@ export default function ExpenseClaimForm({ initialData, onSubmit }: ExpenseClaim
                     <TableCell className="text-right">{totalHotel.toFixed(2)}</TableCell>
                     <TableCell className="text-right">{totalOutstation.toFixed(2)}</TableCell>
                     <TableCell className="text-right">{totalMisc.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{totalOther.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{parseFloat(String(totalOther)) ? Number(parseFloat(String(totalOther))).toFixed(2) : ""}</TableCell>
                     <TableCell></TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={() => appendExpense({ date: new Date(), claimOrTravelDetails: "", officialMileageKM: "", transport: "", hotelAccommodationAllowance: "", outStationAllowanceMeal: "", miscellaneousAllowance10Percent: "", otherExpenses: "" })}>
+            <Button type="button" variant="outline" size="sm" onClick={() => appendExpense({ date: new Date(), claimOrTravelDetails: "", officialMileageKM: undefined, transport: undefined, hotelAccommodationAllowance: undefined, outStationAllowanceMeal: undefined, miscellaneousAllowance10Percent: undefined, otherExpenses: undefined })}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Expense Item
             </Button>
           </CardContent>
@@ -366,7 +413,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit }: ExpenseClaim
                         ))}
                     </TableBody>
                 </Table>
-                <Button type="button" variant="outline" size="sm" onClick={() => appendFx({date: new Date(), typeOfCurrency: "", sellingRateTTOD: ""})} className="mt-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => appendFx({date: new Date(), typeOfCurrency: "", sellingRateTTOD: undefined})} className="mt-2">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add FX Rate
                 </Button>
             </CardContent>
@@ -421,7 +468,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit }: ExpenseClaim
         </Card>
 
         <div className="flex justify-end pt-6">
-          <Button type="submit" size="lg">Submit Claim</Button>
+          <Button type="submit" size="lg">{submitButtonText}</Button>
         </div>
       </form>
     </Form>

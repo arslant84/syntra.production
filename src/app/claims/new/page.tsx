@@ -127,6 +127,7 @@ export default function NewClaimPage() {
       <ExpenseClaimForm
         initialData={initialClaimData as ExpenseClaim} // Cast as ExpenseClaim, ensure all required fields are eventually provided
         onSubmit={handleSubmitClaim}
+        submitButtonText="Submit Claim"
       />
     </div>
   );

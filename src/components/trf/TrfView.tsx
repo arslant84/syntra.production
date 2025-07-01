@@ -270,7 +270,7 @@ export default function TrfView({ trfData }: TrfViewProps) {
                     const checkInDate = acc.check_in_date || acc.checkInDate;
                     const checkOutDate = acc.check_out_date || acc.checkOutDate;
                     const placeOfStay = acc.place_of_stay || acc.placeOfStay;
-                    const estimatedCost = acc.estimated_cost_per_night || acc.estimatedCostPerNight;
+                    const estimatedCost = Number(acc.estimated_cost_per_night || acc.estimatedCostPerNight || 0);
                     
                     return (
                       <div key={acc.id || idx} className="p-2 border rounded-md mb-2 bg-muted/20 print:p-0 print:border-none print:mb-1">

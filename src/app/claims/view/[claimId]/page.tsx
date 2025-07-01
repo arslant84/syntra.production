@@ -6,10 +6,12 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format, isValid, formatISO } from "date-fns";
-import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info } from "lucide-react";
+import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info, ArrowLeft, Edit, Ban, Printer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 // Type aliases to handle both snake_case and camelCase property names
 type AnyObject = Record<string, any>;
@@ -67,7 +69,14 @@ export default function ClaimViewPage() {
   const [claim, setClaim] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isActionPending, setIsActionPending] = useState(false);
+  const { toast } = useToast();
   const claimId = params.claimId as string;
+  
+  // Define which statuses allow editing and cancellation
+  const EDITABLE_STATUSES = ["Pending Verification", "Draft", "Rejected"];
+  const CANCELLABLE_STATUSES = ["Pending Verification", "Pending Approval"];
+  const TERMINAL_STATUSES = ["Approved", "Cancelled", "Processed"];
 
   useEffect(() => {
     const fetchClaimDetails = async () => {
@@ -107,10 +116,47 @@ export default function ClaimViewPage() {
     }
   }, [claimId]);
 
+  const handleCancelClaim = async () => {
+    if (!claim) return;
+  
+    setIsActionPending(true);
+    try {
+      const response = await fetch(`/api/claims/${claimId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          comments: "Cancelled by user.",
+          cancelledBy: claim.requestorName || "User" 
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || "Failed to cancel claim.");
+      }
+
+      const result = await response.json();
+      setClaim(result.claim);
+      toast({ 
+        title: "Claim Cancelled", 
+        description: `Claim ID ${claimId} has been cancelled.` 
+      });
+    } catch (err: any) {
+      console.error('Error cancelling claim:', err);
+      toast({ 
+        title: "Error Cancelling Claim", 
+        description: err.message, 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
-        <ReceiptText className="w-12 h-12 text-primary animate-pulse mb-4" />
+        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
         <p className="text-muted-foreground">Loading Claim Details...</p>
       </div>
     );
@@ -118,15 +164,17 @@ export default function ClaimViewPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto py-8 px-4">
-        <Card>
+      <div className="container mx-auto py-8 px-4 text-center">
+        <Card className="max-w-lg mx-auto shadow-lg">
           <CardHeader>
-            <CardTitle className="text-destructive">Error Loading Claim</CardTitle>
+            <CardTitle className="flex items-center justify-center gap-2 text-destructive">
+              <XCircle className="w-6 h-6" /> Error Loading Claim
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p>{error}</p>
-            <Button variant="outline" className="mt-4" asChild>
-              <Link href="/claims">Back to Claims</Link>
+            <Button onClick={() => router.back()} className="mt-4">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
             </Button>
           </CardContent>
         </Card>
@@ -136,15 +184,15 @@ export default function ClaimViewPage() {
 
   if (!claim) {
     return (
-      <div className="container mx-auto py-8 px-4">
-        <Card>
+      <div className="container mx-auto py-8 px-4 text-center">
+        <Card className="max-w-lg mx-auto shadow-lg">
           <CardHeader>
             <CardTitle>Claim Not Found</CardTitle>
           </CardHeader>
           <CardContent>
-            <p>The requested claim could not be found.</p>
-            <Button variant="outline" className="mt-4" asChild>
-              <Link href="/claims">Back to Claims</Link>
+            <p>The requested Claim (ID: {claimId}) could not be found or loaded.</p>
+            <Button onClick={() => router.back()} className="mt-4">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
             </Button>
           </CardContent>
         </Card>
@@ -161,33 +209,74 @@ export default function ClaimViewPage() {
   const financialSummary = claim.financialSummary || {};
   const declaration = claim.declaration || {};
 
+  // Determine if the claim can be edited or cancelled based on its status
+  const canEdit = claim && claim.status && 
+    EDITABLE_STATUSES.includes(claim.status) && 
+    !TERMINAL_STATUSES.includes(claim.status);
+    
+  const canCancel = claim && claim.status && 
+    CANCELLABLE_STATUSES.includes(claim.status) && 
+    !TERMINAL_STATUSES.includes(claim.status);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
-    <div className="container mx-auto py-8 px-4">
-      <Card className="shadow-lg">
-        <CardHeader className="bg-muted/30">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="container mx-auto py-8 px-4 space-y-8 print:py-0 print:px-0 print:space-y-4">
+      <Card className="shadow-xl print:shadow-none print:border-none">
+        <CardHeader className="bg-muted/30 print:bg-transparent print:p-0">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:flex-row print:items-start">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <ReceiptText className="w-6 h-6 text-primary" />
+              <CardTitle className="flex items-center gap-2 text-xl print:text-2xl">
+                <ReceiptText className="w-6 h-6 text-primary print:text-black" />
                 Expense Claim Details
               </CardTitle>
-              <CardDescription>
-                Claim ID: {claim.id}
-                {claim.status && (
-                  <span className="ml-2">
-                    {getStatusBadge(claim.status)}
-                  </span>
-                )}
+              <CardDescription className="print:text-sm">
+                Viewing Claim ID: {claim.id} - Status: <span className="font-semibold">{claim.status}</span>
               </CardDescription>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => window.print()}
-              className="print:hidden"
-            >
-              Print Claim
-            </Button>
+            <div className="flex flex-wrap gap-2 print:hidden">
+              <Button variant="outline" onClick={() => router.back()}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              {canEdit && (
+                <Button variant="outline" asChild>
+                  <Link href={`/claims/edit/${claimId}`}>
+                    <Edit className="mr-2 h-4 w-4" /> Edit Claim
+                  </Link>
+                </Button>
+              )}
+              {canCancel && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={isActionPending}>
+                      <Ban className="mr-2 h-4 w-4" /> Cancel Claim
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirm Cancellation</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to cancel Claim {claimId}? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isActionPending}>Back</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleCancelClaim} 
+                        disabled={isActionPending} 
+                        className="bg-destructive hover:bg-destructive/90">
+                        {isActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Confirm Cancel
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              <Button onClick={handlePrint}>
+                <Printer className="mr-2 h-4 w-4" /> Print / Save as PDF
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6 pt-6">

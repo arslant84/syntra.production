@@ -149,6 +149,7 @@ export async function POST(request: NextRequest) {
     try {
       rawBody = await request.json();
       console.log("API_TRF_POST (PostgreSQL): Received raw body:", JSON.stringify(rawBody).substring(0, 500) + "...");
+      console.log("API_TRF_POST (PostgreSQL): estimatedCostPerNight in rawBody:", rawBody.externalPartiesTravelDetails?.accommodationDetails?.map((acc: any) => acc.estimatedCostPerNight));
     } catch (error) {
       console.error("API_TRF_POST_ERROR (PostgreSQL): Error parsing request body:", error);
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });

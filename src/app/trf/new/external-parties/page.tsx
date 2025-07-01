@@ -200,7 +200,7 @@ export default function NewExternalPartiesTRFPage() {
           ...acc,
           checkInDate: acc.checkInDate ? formatISO(acc.checkInDate, {representation: 'date'}) : null,
           checkOutDate: acc.checkOutDate ? formatISO(acc.checkOutDate, {representation: 'date'}) : null,
-          estimatedCostPerNight: acc.estimatedCostPerNight, // Explicitly include estimatedCostPerNight
+          estimatedCostPerNight: Number(acc.estimatedCostPerNight || 0), // Ensure estimatedCostPerNight is parsed as number
         })),
         mealProvision: travelDetails.mealProvision, // Explicitly include mealProvision
       },

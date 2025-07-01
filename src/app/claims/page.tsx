@@ -137,7 +137,7 @@ export default function ClaimsPage() {
                   <TableRow key={claim.id}>
                     <TableCell className="font-medium">{claim.id}</TableCell>
                     <TableCell>{claim.purpose}</TableCell>
-                    <TableCell>RM {claim.amount.toFixed(2)}</TableCell>
+                    <TableCell>USD {claim.amount.toFixed(2)}</TableCell>
                     <TableCell>{getStatusBadge(claim.status)}</TableCell>
                     <TableCell>{claim.submittedDate ? format(new Date(claim.submittedDate), 'dd MMM yyyy') : '-'}</TableCell>
                     <TableCell>

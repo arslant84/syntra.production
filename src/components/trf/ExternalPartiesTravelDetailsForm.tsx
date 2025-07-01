@@ -36,7 +36,10 @@ const externalPartyAccommodationDetailSchema = z.object({
   checkInDate: z.date({ required_error: "Check-in date is required."}).nullable(),
   checkOutDate: z.date({ required_error: "Check-out date is required."}).nullable(),
   placeOfStay: z.string().min(1, "Place of stay is required."),
-  estimatedCostPerNight: z.union([z.string(), z.number()]).optional().transform(val => val === "" ? "0" : val),
+  estimatedCostPerNight: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined) ? null : Number(val),
+    z.number().nonnegative("Must be a non-negative number").optional().nullable()
+  ),
   remarks: z.string().optional(),
 }).refine(data => {
     if (!data.checkInDate || !data.checkOutDate || !isValid(data.checkInDate) || !isValid(data.checkOutDate)) return true;

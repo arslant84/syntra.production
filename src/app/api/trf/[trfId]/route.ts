@@ -873,7 +873,8 @@ export async function GET(request: NextRequest, { params }: { params: { trfId: s
             accommodation_type, 
             from_location,
             to_location,
-            remarks
+            remarks,
+            estimated_cost_per_night
           FROM trf_accommodation_details 
           WHERE trf_id = ${trfId}
         `;
@@ -892,13 +893,14 @@ export async function GET(request: NextRequest, { params }: { params: { trfId: s
         placeOfStay: acc.from_location || acc.accommodation_type || "",
         remarks: acc.remarks || "",
         // Additional properties needed by the TrfView component
-        estimatedCostPerNight: acc.estimated_cost_per_night || null,
+        estimatedCostPerNight: Number(acc.estimated_cost_per_night) || 0,
         // Include snake_case versions for compatibility with the TrfView component
         check_in_date: safeParseISO(acc.check_in_date), 
         check_out_date: safeParseISO(acc.check_out_date),
         place_of_stay: acc.from_location || acc.accommodation_type || "",
-        estimated_cost_per_night: 0
+        estimated_cost_per_night: acc.estimated_cost_per_night || null
       }));
+      console.log(`API_TRF_TRFID_GET (PostgreSQL): estimatedCostPerNight after mapping:`, accommodationDetails.map(acc => acc.estimatedCostPerNight));
       
       // Build external parties travel details with proper structure
       trfData.externalPartiesTravelDetails = {
@@ -996,6 +998,7 @@ export async function PUT(request: NextRequest, { params }: { params: { trfId: s
   try {
     const rawBody = await request.json();
     console.log(`API_TRF_TRFID_PUT (PostgreSQL): Validating TRF data for ${trfId}`);
+    console.log(`API_TRF_TRFID_PUT (PostgreSQL): estimatedCostPerNight in rawBody:`, rawBody.externalPartiesTravelDetails?.accommodationDetails?.map((acc: any) => acc.estimatedCostPerNight));
     
     // Ensure all required objects exist and have default values to prevent validation errors
     console.log(`API_TRF_TRFID_PUT (PostgreSQL): Preprocessing request data for ${trfId}`);

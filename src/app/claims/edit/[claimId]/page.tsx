@@ -47,10 +47,16 @@ export default function EditClaimPage() {
   }, [claimId]);
 
   const handleSubmitClaim = async (data: ExpenseClaim) => {
+    console.log("Expense Claim Revising - Starting revision process");
+    console.log("Expense Claim Data Structure:", JSON.stringify(data, null, 2).substring(0, 1000) + "...");
     try {
-      console.log("Updating claim:", data);
-      setIsLoading(true);
-
+      // Ensure all required fields are present and properly formatted
+      if (!data.bankDetails?.purposeOfClaim) {
+        console.error("Missing required field: purposeOfClaim");
+      }
+      
+      // Send data to the backend API
+      console.log("Sending data to API endpoint: /api/claims/" + claimId);
       const response = await fetch(`/api/claims/${claimId}`, {
         method: 'PUT',
         headers: {
@@ -59,31 +65,33 @@ export default function EditClaimPage() {
         body: JSON.stringify(data),
       });
 
+      console.log("API Response Status:", response.status, response.statusText);
+      
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `Error updating claim: ${response.statusText}`);
+        throw new Error(errorData.error || `Error revising claim: ${response.statusText}`);
       }
 
       const result = await response.json();
-      console.log('Claim update result:', result);
+      console.log('Claim revision result:', result);
 
       toast({
-        title: "Expense Claim Updated!",
-        description: "Your expense claim has been successfully updated.",
+        title: "Expense Claim Revised!",
+        description: "Your expense claim has been successfully revised.",
         variant: "default",
       });
-
-      // Redirect to the view page after successful update
-      router.push(`/claims/view/${claimId}`);
-    } catch (error: any) {
-      console.error('Failed to update claim:', error);
+      
+      // Wait a moment to ensure the database has been updated
+      setTimeout(() => {
+        router.push(`/claims/view/${claimId}`); // Redirect to view page
+      }, 1000);
+    } catch (error) {
+      console.error('Failed to revise claim:', error);
       toast({
-        title: "Error Updating Claim",
-        description: error.message || "An unexpected error occurred",
+        title: "Error Revising Claim",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 

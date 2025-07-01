@@ -78,7 +78,7 @@ const claimFormSchema = z.object({
       typeOfCurrency: z.string().min(1, "Type of currency is required."),
       sellingRateTTOD: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative("Rate must be non-negative.")),
     })
-  ).optional(),
+  ).default([]),
   financialSummary: z.object({
     totalAdvanceClaimAmount: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({required_error: "Total amount is required.", invalid_type_error: "Must be a number"}).nonnegative()),
     lessAdvanceTaken: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
@@ -129,7 +129,11 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
         ...item,
         date: item.date ? new Date(item.date) : null,
       }));
+    } else {
+      data.informationOnForeignExchangeRate = [];
     }
+
+    // The schema will handle type conversion for financial summary values
     
     return data;
   }, [initialData]);
@@ -181,9 +185,6 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
   }, [calculateBalance, form]);
 
   const handleFormSubmit = (data: ClaimFormValues) => {
-    console.log('handleFormSubmit called!');
-    console.log('Form submitted with data:', JSON.stringify(data, null, 2));
-    
     // Preserve the original ID from initialData if it exists
     const submissionData = {
       ...data,
@@ -198,7 +199,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8" noValidate>
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
         {/* Header Details */}
         <Card>
           <CardHeader>
@@ -375,7 +376,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
                 </TableBody>
               </Table>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={() => appendExpense({ date: new Date(), claimOrTravelDetails: "", officialMileageKM: undefined, transport: undefined, hotelAccommodationAllowance: undefined, outStationAllowanceMeal: undefined, miscellaneousAllowance10Percent: undefined, otherExpenses: undefined })}>
+            <Button type="button" variant="outline" size="sm" onClick={() => appendExpense({ date: new Date(), claimOrTravelDetails: "", officialMileageKM: 0, transport: 0, hotelAccommodationAllowance: 0, outStationAllowanceMeal: 0, miscellaneousAllowance10Percent: 0, otherExpenses: 0 })}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Expense Item
             </Button>
           </CardContent>
@@ -413,7 +414,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
                         ))}
                     </TableBody>
                 </Table>
-                <Button type="button" variant="outline" size="sm" onClick={() => appendFx({date: new Date(), typeOfCurrency: "", sellingRateTTOD: undefined})} className="mt-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => appendFx({date: new Date(), typeOfCurrency: "", sellingRateTTOD: 0})} className="mt-2">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add FX Rate
                 </Button>
             </CardContent>
@@ -468,7 +469,9 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
         </Card>
 
         <div className="flex justify-end pt-6">
-          <Button type="submit" size="lg">{submitButtonText}</Button>
+          <Button type="submit" size="lg">
+            {submitButtonText}
+          </Button>
         </div>
       </form>
     </Form>

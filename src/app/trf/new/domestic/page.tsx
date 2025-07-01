@@ -62,8 +62,10 @@ const parseDatesInDomesticTRFData = (data: any): Partial<TravelRequestForm> => {
         ...acc,
         checkInDate: parseDateOrNull(acc.checkInDate),
         checkOutDate: parseDateOrNull(acc.checkOutDate),
-        location: acc.location, // Ensure location is passed
-        remarks: acc.remarks, // Ensure remarks is passed
+        location: acc.location,
+        placeOfStay: acc.placeOfStay,
+        estimatedCostPerNight: acc.estimatedCostPerNight,
+        remarks: acc.remarks,
       }));
     }
     if (parsed.domesticTravelDetails.companyTransportDetails) {

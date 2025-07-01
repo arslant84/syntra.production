@@ -165,6 +165,7 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit((data) => {
+        console.log('DomesticTravelDetailsForm onSubmit called!');
         // Convert form data to match DomesticTravelSpecificDetails interface
         const formattedData: DomesticTravelSpecificDetails = {
           purpose: data.purpose,
@@ -219,28 +220,26 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
                 {itineraryFields.map((item, index) => (
                   <div key={item.id} className="p-4 border rounded-md space-y-3 relative bg-background/50">
                     <h4 className="font-medium text-md">Segment {index + 1}</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-8 gap-4 items-start">
                       <FormField control={form.control} name={`itinerary.${index}.date`} render={({ field }) => (
-                        <FormItem className="flex flex-col"> <FormLabel>Date / Дата</FormLabel>
+                        <FormItem className="xl:col-span-1"> <FormLabel>Date / Дата</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
-                                <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                  {field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
+                                <Button variant={"outline"} className={cn("w-full h-10 pl-3 text-left font-normal", !field.value && "text-muted-foreground")}> {field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button>
                               </FormControl>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ?? undefined} onSelect={field.onChange} initialFocus /></PopoverContent>
                           </Popover> <FormMessage />
                         </FormItem>
                       )} />
-                      <FormField control={form.control} name={`itinerary.${index}.day`} render={({ field }) => (<FormItem><FormLabel>Day / День</FormLabel><FormControl><Input placeholder="e.g. Mon" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`itinerary.${index}.from`} render={({ field }) => (<FormItem><FormLabel>From / Откуда</FormLabel><FormControl><Input placeholder="Origin" {...field} value={field.value || ''}/></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`itinerary.${index}.to`} render={({ field }) => (<FormItem><FormLabel>To / Куда</FormLabel><FormControl><Input placeholder="Destination" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`itinerary.${index}.etd`} render={({ field }) => (<FormItem><FormLabel>ETD / Вылет</FormLabel><FormControl><Input type="time" placeholder="HH:MM" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`itinerary.${index}.eta`} render={({ field }) => (<FormItem><FormLabel>ETA / Прилет</FormLabel><FormControl><Input type="time" placeholder="HH:MM" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`itinerary.${index}.flightNumber`} render={({ field }) => (<FormItem><FormLabel>Flight / Рейс</FormLabel><FormControl><Input placeholder="Flight #" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                       <FormField control={form.control} name={`itinerary.${index}.remarks`} render={({ field }) => (<FormItem className="lg:col-span-full"><FormLabel>Remarks / Примечания</FormLabel><FormControl><Textarea placeholder="Any remarks for this segment..." {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name={`itinerary.${index}.day`} render={({ field }) => (<FormItem className="xl:col-span-1"><FormLabel>Day / День</FormLabel><FormControl><Input placeholder="e.g. Mon" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name={`itinerary.${index}.from`} render={({ field }) => (<FormItem className="xl:col-span-1"><FormLabel>From / Откуда</FormLabel><FormControl><Input placeholder="Origin" {...field} value={field.value || ''}/></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name={`itinerary.${index}.to`} render={({ field }) => (<FormItem className="xl:col-span-1"><FormLabel>To / Куда</FormLabel><FormControl><Input placeholder="Destination" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name={`itinerary.${index}.etd`} render={({ field }) => (<FormItem className="xl:col-span-1"><FormLabel>ETD / Вылет</FormLabel><FormControl><Input type="time" placeholder="HH:MM" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name={`itinerary.${index}.eta`} render={({ field }) => (<FormItem className="xl:col-span-1"><FormLabel>ETA / Прилет</FormLabel><FormControl><Input type="time" placeholder="HH:MM" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name={`itinerary.${index}.flightNumber`} render={({ field }) => (<FormItem className="xl:col-span-1"><FormLabel>Flight / Рейс</FormLabel><FormControl><Input placeholder="Flight #" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                       <FormField control={form.control} name={`itinerary.${index}.remarks`} render={({ field }) => (<FormItem className="xl:col-span-8"><FormLabel>Remarks / Примечания</FormLabel><FormControl><Textarea placeholder="Any remarks for this segment..." {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                     </div>
                     {itineraryFields.length > 1 && <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive/80" onClick={() => removeItinerary(index)}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
@@ -295,15 +294,13 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
                     {form.watch(`accommodationDetails.${index}.accommodationType`) === 'Other' && (
                       <FormField control={form.control} name={`accommodationDetails.${index}.otherTypeDescription`} render={({ field }) => (<FormItem><FormLabel>Other Type Description / Описание другого типа</FormLabel><FormControl><Input placeholder="Specify other accommodation" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                     )}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
                       <FormField control={form.control} name={`accommodationDetails.${index}.checkInDate`} render={({ field }) => (
-                        <FormItem className="flex flex-col"><FormLabel>Check-in Date / Дата заезда</FormLabel>
+                        <FormItem><FormLabel>Check-in Date / Дата заезда</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
-                                <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                  {field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
+                                <Button variant={"outline"} className={cn("w-full h-10 pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button>
                               </FormControl>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ?? undefined} onSelect={field.onChange} initialFocus /></PopoverContent>
@@ -312,13 +309,11 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
                       )} />
                       <FormField control={form.control} name={`accommodationDetails.${index}.checkInTime`} render={({ field }) => (<FormItem><FormLabel>Check-in Time / Время заезда</FormLabel><FormControl><Input type="time" placeholder="HH:MM" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`accommodationDetails.${index}.checkOutDate`} render={({ field }) => (
-                        <FormItem className="flex flex-col"><FormLabel>Check-out Date / Дата выезда</FormLabel>
+                        <FormItem><FormLabel>Check-out Date / Дата выезда</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
-                                <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                  {field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
+                                <Button variant={"outline"} className={cn("w-full h-10 pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button>
                               </FormControl> 
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
@@ -354,15 +349,13 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
                 {transportFields.map((item, index) => (
                   <div key={item.id} className="p-4 border rounded-md space-y-3 relative bg-background/50">
                     <h4 className="font-medium text-md">Transport Request {index + 1}</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
                       <FormField control={form.control} name={`companyTransportDetails.${index}.date`} render={({ field }) => (
-                        <FormItem className="flex flex-col"><FormLabel>Date / Дата</FormLabel>
+                        <FormItem><FormLabel>Date / Дата</FormLabel>
                            <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
-                                <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                  {field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
+                                <Button variant={"outline"} className={cn("w-full h-10 pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button>
                               </FormControl>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ?? undefined} onSelect={field.onChange} initialFocus /></PopoverContent>

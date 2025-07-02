@@ -13,17 +13,12 @@ import { useToast } from '@/hooks/use-toast';
 import { FilterBar } from '@/components/ui/FilterBar';
 
 // Helper function to determine badge variant based on visa status
-const getStatusBadgeVariant = (status: VisaStatus) => {
-  switch (status) {
-    case 'Approved': return 'default'; // Green
-    case 'Rejected': return 'destructive';
-    case 'Pending Department Focal':
-    case 'Pending Line Manager/HOD':
-    case 'Pending Visa Clerk':
-    case 'Processing with Embassy':
-      return 'outline'; // Yellowish/Orange outline
-    default: return 'secondary';
-  }
+const getStatusBadgeVariant = (status: string) => {
+  if (status?.toLowerCase().includes('approved')) return 'default';
+  if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
+  if (status?.toLowerCase().includes('pending')) return 'outline';
+  if ([  "Processing with Embassy"].includes(status)) return 'default';
+  return 'secondary';
 };
 
 export default function VisaApplicationsPage() {

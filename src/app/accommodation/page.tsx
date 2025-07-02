@@ -11,14 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { FilterBar } from '@/components/ui/FilterBar';
 
-const getStatusBadgeVariant = (status: AccommodationRequestDetails['status']) => {
-  switch (status) {
-    case 'Confirmed': return 'default'; // Green
-    case 'Rejected': return 'destructive';
-    case 'Pending Assignment': return 'outline';
-    case 'Blocked': return 'secondary';
-    default: return 'secondary';
-  }
+const getStatusBadgeVariant = (status: string) => {
+  if (status?.toLowerCase().includes('confirmed')) return 'default';
+  if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
+  if (status?.toLowerCase().includes('pending')) return 'outline';
+  if (["Blocked"].includes(status)) return 'secondary';
+  return 'secondary';
 };
 
 export default function AccommodationRequestsPage() {

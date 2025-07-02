@@ -93,17 +93,29 @@ export default function ClaimsPage() {
   });
 
   const getStatusBadge = (status: string) => {
+    let variant: "default" | "destructive" | "outline" | "secondary" = "secondary";
+    let icon = null;
+
     switch (status.toLowerCase()) {
       case 'approved':
-        return <Badge className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" /> {status}</Badge>;
+        variant = 'default';
+        icon = <CheckCircle className="w-3 h-3 mr-1" />;
+        break;
       case 'rejected':
-        return <Badge className="bg-red-500"><XCircle className="w-3 h-3 mr-1" /> {status}</Badge>;
+        variant = 'destructive';
+        icon = <XCircle className="w-3 h-3 mr-1" />;
+        break;
       case 'pending verification':
       case 'pending approval':
-        return <Badge className="bg-yellow-500"><Clock className="w-3 h-3 mr-1" /> {status}</Badge>;
+        variant = 'outline';
+        icon = <Clock className="w-3 h-3 mr-1" />;
+        break;
       default:
-        return <Badge className="bg-gray-500">{status}</Badge>;
+        variant = 'secondary';
+        icon = <FileText className="w-3 h-3 mr-1" />;
+        break;
     }
+    return <Badge variant={variant}>{icon} {status}</Badge>;
   };
 
   return (

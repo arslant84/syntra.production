@@ -251,11 +251,11 @@ export default function AdminApprovalsPage() {
     });
   };
 
-  const getStatusBadgeVariant = (status: TrfStatus) => {
+  const getStatusBadgeVariant = (status: string) => {
     if (status?.toLowerCase().includes('approved')) return 'default';
     if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
     if (status?.toLowerCase().includes('pending')) return 'outline';
-    if (["Processing Flights", "Processing Accommodation", "Awaiting Visa", "TRF Processed"].includes(status)) return 'default'; // Use 'default' for processing states for better visibility
+    if (["Processing Flights", "Processing Accommodation", "Awaiting Visa", "TRF Processed"].includes(status)) return 'default';
     return 'secondary';
   };
 

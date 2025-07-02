@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { format, parseISO } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { FilterBar } from '@/components/ui/FilterBar';
 
 // Helper function to determine badge variant based on visa status
 const getStatusBadgeVariant = (status: VisaStatus) => {
@@ -30,6 +31,11 @@ export default function VisaApplicationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Filter state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [destinationFilter, setDestinationFilter] = useState("ALL");
 
   // Fetch visa applications from the API
   useEffect(() => {
@@ -78,6 +84,22 @@ export default function VisaApplicationsPage() {
     fetchVisaApplications();
   }, [toast]);
 
+  // Filtering logic
+  const filteredApplications = visaApplications.filter((app) => {
+    const matchesSearch =
+      searchTerm === "" ||
+      app.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (app.travelPurpose && app.travelPurpose.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (app.destination && app.destination.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus = statusFilter === "ALL" || app.status === statusFilter;
+    const matchesDestination = destinationFilter === "ALL" || app.destination === destinationFilter;
+    return matchesSearch && matchesStatus && matchesDestination;
+  });
+
+  // Collect unique destinations for filter dropdown
+  const destinationOptions = Array.from(new Set(visaApplications.map(a => a.destination).filter(Boolean)))
+    .map(dest => ({ value: dest!, label: dest! }));
+
   return (
     <div className="space-y-8">
       {/* Header Section */}
@@ -92,6 +114,27 @@ export default function VisaApplicationsPage() {
           </Button>
         </Link>
       </div>
+
+      {/* Filter Bar */}
+      <FilterBar
+        searchPlaceholder="Search by Visa ID, Purpose, Destination..."
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        statusOptions={[
+          { value: "ALL", label: "All Statuses" },
+          { value: "Pending Department Focal", label: "Pending Department Focal" },
+          { value: "Pending Line Manager/HOD", label: "Pending Line Manager/HOD" },
+          { value: "Pending Visa Clerk", label: "Pending Visa Clerk" },
+          { value: "Processing with Embassy", label: "Processing with Embassy" },
+          { value: "Approved", label: "Approved" },
+          { value: "Rejected", label: "Rejected" },
+        ]}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        typeOptions={[{ value: "ALL", label: "All Destinations" }, ...destinationOptions]}
+        typeFilter={destinationFilter}
+        onTypeFilterChange={setDestinationFilter}
+      />
 
       {/* Visa Applications Card */}
       <Card className="shadow-lg">
@@ -113,7 +156,7 @@ export default function VisaApplicationsPage() {
               <p className="text-destructive">Error loading visa applications</p>
               <p className="text-sm text-muted-foreground">{error}</p>
             </div>
-          ) : visaApplications.length > 0 ? (
+          ) : filteredApplications.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -128,7 +171,7 @@ export default function VisaApplicationsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visaApplications.map((app) => (
+                  {filteredApplications.map((app) => (
                     <TableRow key={app.id}>
                       <TableCell className="font-medium">{app.id}</TableCell>
                       <TableCell>{app.travelPurpose}</TableCell>

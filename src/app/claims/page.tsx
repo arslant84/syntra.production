@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { FilterBar } from "@/components/ui/FilterBar";
 
 type Claim = {
   id: string;
@@ -22,6 +23,11 @@ export default function ClaimsPage() {
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
 
   useEffect(() => {
     const fetchClaims = async () => {
@@ -72,6 +78,20 @@ export default function ClaimsPage() {
     fetchClaims();
   }, []);
 
+  // Filtering logic
+  const filteredClaims = claims.filter((claim) => {
+    const matchesSearch =
+      searchTerm === "" ||
+      claim.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      claim.requestor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      claim.purpose.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      statusFilter === "ALL" || claim.status === statusFilter;
+    // For type, you may need to add a 'type' property to Claim if available
+    const matchesType = typeFilter === "ALL" || (claim as any).type === typeFilter;
+    return matchesSearch && matchesStatus && matchesType;
+  });
+
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case 'approved':
@@ -101,6 +121,29 @@ export default function ClaimsPage() {
         </Link>
       </div>
 
+      {/* Filter Bar */}
+      <FilterBar
+        searchPlaceholder="Search by Claimant, TRF ID, Purpose..."
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        statusOptions={[
+          { value: "ALL", label: "All Statuses" },
+          { value: "Pending Verification", label: "Pending Verification" },
+          { value: "Approved", label: "Approved" },
+          { value: "Rejected", label: "Rejected" },
+        ]}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        typeOptions={[
+          { value: "ALL", label: "All Claim Types" },
+          { value: "Travel", label: "Travel" },
+          { value: "Accommodation", label: "Accommodation" },
+          { value: "Other", label: "Other" },
+        ]}
+        typeFilter={typeFilter}
+        onTypeFilterChange={setTypeFilter}
+      />
+
       {/* Claims Overview Card */}
       <Card className="shadow-lg">
         <CardHeader>
@@ -119,7 +162,7 @@ export default function ClaimsPage() {
             <div className="flex flex-col items-center justify-center h-64 text-red-500">
               <p>Error: {error}</p>
             </div>
-          ) : claims.length === 0 ? (
+          ) : filteredClaims.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">
               <ReceiptText className="w-16 h-16 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">No claims found.</p>
@@ -139,7 +182,7 @@ export default function ClaimsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {claims.map((claim) => (
+                  {filteredClaims.map((claim) => (
                     <TableRow key={claim.id}>
                       <TableCell className="font-medium">{claim.id}</TableCell>
                       <TableCell>{claim.purpose}</TableCell>

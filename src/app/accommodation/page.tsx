@@ -1,4 +1,7 @@
+"use client";
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -6,7 +9,7 @@ import { BedDouble, PlusCircle, Eye, Loader2 } from 'lucide-react';
 import type { AccommodationRequestDetails } from '@/types/accommodation';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { getAccommodationRequests } from '@/lib/accommodation-service';
+import { FilterBar } from '@/components/ui/FilterBar';
 
 const getStatusBadgeVariant = (status: AccommodationRequestDetails['status']) => {
   switch (status) {
@@ -18,12 +21,50 @@ const getStatusBadgeVariant = (status: AccommodationRequestDetails['status']) =>
   }
 };
 
+export default function AccommodationRequestsPage() {
+  const [accommodationRequests, setAccommodationRequests] = useState<AccommodationRequestDetails[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-export default async function AccommodationRequestsPage() {
-  // Fetch accommodation requests from the database
-  // Note: In a real app with authentication, you would filter by user ID
-  const accommodationRequests = await getAccommodationRequests();
-  
+  // Filter state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [locationFilter, setLocationFilter] = useState("ALL");
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await fetch('/api/accommodation/requests');
+        if (!response.ok) throw new Error('Failed to fetch accommodation requests');
+        const data = await response.json();
+        setAccommodationRequests(data.accommodationRequests || []);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch accommodation requests');
+        setAccommodationRequests([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRequests();
+  }, []);
+
+  // Filtering logic
+  const filteredRequests = accommodationRequests.filter((req) => {
+    const matchesSearch =
+      searchTerm === "" ||
+      (req.id && req.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (req.location && req.location.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus = statusFilter === "ALL" || req.status === statusFilter;
+    const matchesLocation = locationFilter === "ALL" || req.location === locationFilter;
+    return matchesSearch && matchesStatus && matchesLocation;
+  });
+
+  // Collect unique locations for filter dropdown
+  const locationOptions = Array.from(new Set(accommodationRequests.map(r => r.location)))
+    .map(loc => ({ value: loc, label: loc }));
+
   return (
     <div className="space-y-8">
       {/* Header Section */}
@@ -32,12 +73,31 @@ export default async function AccommodationRequestsPage() {
           <BedDouble className="w-8 h-8 text-primary" />
           <h1 className="text-3xl font-bold tracking-tight">My Accommodation Requests</h1>
         </div>
-        <Link href="/accommodation/request" passHref> {/* Placeholder link for new request */}
+        <Link href="/accommodation/request" passHref>
           <Button>
             <PlusCircle className="mr-2 h-5 w-5" /> Request New Accommodation
           </Button>
         </Link>
       </div>
+
+      {/* Filter Bar */}
+      <FilterBar
+        searchPlaceholder="Search by Request ID, Location..."
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        statusOptions={[
+          { value: "ALL", label: "All Statuses" },
+          { value: "Confirmed", label: "Confirmed" },
+          { value: "Pending Assignment", label: "Pending Assignment" },
+          { value: "Rejected", label: "Rejected" },
+          { value: "Blocked", label: "Blocked" },
+        ]}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        typeOptions={[{ value: "ALL", label: "All Locations" }, ...locationOptions]}
+        typeFilter={locationFilter}
+        onTypeFilterChange={setLocationFilter}
+      />
 
       {/* Accommodation Requests Card */}
       <Card className="shadow-lg">
@@ -49,7 +109,15 @@ export default async function AccommodationRequestsPage() {
           <CardDescription>List of your accommodation requests and their current status.</CardDescription>
         </CardHeader>
         <CardContent>
-          {accommodationRequests.length > 0 ? (
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="animate-spin w-12 h-12 text-primary" />
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-64 text-red-500">
+              <p>Error: {error}</p>
+            </div>
+          ) : filteredRequests.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -63,7 +131,7 @@ export default async function AccommodationRequestsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {accommodationRequests.map((req) => (
+                  {filteredRequests.map((req) => (
                     <TableRow key={req.id}>
                       <TableCell className="font-medium">{req.id}</TableCell>
                       <TableCell>{req.location}</TableCell>

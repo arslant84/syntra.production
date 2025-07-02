@@ -163,6 +163,7 @@ export default function EditClaimPage() {
         initialData={claimData}
         onSubmit={handleSubmitClaim}
         submitButtonText="Revise Claim"
+        claimId={claimId} // Pass the claimId to the form
       />
     </div>
   );

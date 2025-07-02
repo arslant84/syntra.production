@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO } from 'date-fns';
+import { generateRequestId } from '@/utils/requestIdGenerator';
 
 const accommodationRequestSchema = z.object({
   trfId: z.string().optional().nullable(), // Can be optional if not directly tied to a TRF
@@ -36,13 +37,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Validation failed", details: validationResult.error.flatten() }, { status: 400 });
     }
     const data = validationResult.data;
+    
+    // Generate a unified request ID for the accommodation request
+    // Use the location as context for the request ID
+    const contextForAccomId = data.location.substring(0, 5).toUpperCase();
+    const accomRequestId = generateRequestId('ACCOM', contextForAccomId);
+    console.log("API_ACCOM_REQ_POST (PostgreSQL): Generated Accommodation Request ID:", accomRequestId);
 
     // First, create a travel request entry to get a TRF ID
     const [newTravelRequest] = await sql`
       INSERT INTO travel_requests (
-        requestor_name, staff_id, department, travel_type, status, additional_comments, submitted_at
+        id, requestor_name, staff_id, department, travel_type, status, additional_comments, submitted_at
       ) VALUES (
-        ${data.requestorName}, ${data.requestorId || null}, ${data.department || null}, 
+        ${accomRequestId}, ${data.requestorName}, ${data.requestorId || null}, ${data.department || null}, 
         'Domestic', 'Pending Department Focal', ${data.specialRequests || null}, NOW()
       ) RETURNING *
     `;
@@ -83,7 +90,11 @@ export async function POST(request: NextRequest) {
     };
     console.log("API_ACCOM_REQ_POST (PostgreSQL): Accommodation request created:", newRequest.id);
     // TODO: Notification
-    return NextResponse.json({ message: 'Accommodation request submitted successfully!', accommodationRequest: newRequest }, { status: 201 });
+    return NextResponse.json({ 
+      message: 'Accommodation request submitted successfully!', 
+      accommodationRequest: newRequest,
+      requestId: accomRequestId
+    }, { status: 201 });
   } catch (error: any) {
     console.error("API_ACCOM_REQ_POST_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to create accommodation request.', details: error.message }, { status: 500 });

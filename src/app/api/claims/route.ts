@@ -3,13 +3,14 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db'; // Assuming PostgreSQL setup
 import { formatISO } from 'date-fns';
+import { generateRequestId } from '@/utils/requestIdGenerator';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const expenseClaimCreateSchema = z.object({
   headerDetails: z.object({
     documentType: z.enum(["TR01", "TB35", "TB05", ""]),
-    documentNumber: z.string().min(1),
+    documentNumber: z.string().min(1).optional(), // Made optional since we'll generate it
     claimForMonthOf: z.coerce.date(),
     staffName: z.string().min(1),
     staffNo: z.string().min(1),
@@ -88,6 +89,12 @@ export async function POST(request: NextRequest) {
     }
     const data = validationResult.data;
     const { headerDetails, bankDetails, medicalClaimDetails, expenseItems, informationOnForeignExchangeRate, financialSummary, declaration, trfId } = data;
+    
+    // Generate a unified request ID for the claim
+    // Use the claim purpose as context (first word or first few characters)
+    const purposeWords = bankDetails.purposeOfClaim.split(' ');
+    const contextWord = purposeWords[0].length > 5 ? purposeWords[0].substring(0, 5) : purposeWords[0];
+    const claimRequestId = generateRequestId('CLM', contextWord.toUpperCase());
 
     const newClaim = await sql.begin(async tx => {
       const [claim] = await tx`
@@ -100,7 +107,7 @@ export async function POST(request: NextRequest) {
           less_corporate_credit_card_payment, balance_claim_repayment, cheque_receipt_no,
           i_declare, declaration_date, status, submitted_at, created_at, updated_at
         ) VALUES (
-          ${trfId || null}, ${headerDetails.documentType || null}, ${headerDetails.documentNumber}, ${formatISO(headerDetails.claimForMonthOf, {representation: 'date'})},
+          ${trfId || null}, ${headerDetails.documentType || null}, ${headerDetails.documentNumber || claimRequestId}, ${formatISO(headerDetails.claimForMonthOf, {representation: 'date'})},
           ${headerDetails.staffName}, ${headerDetails.staffNo}, ${headerDetails.gred}, ${headerDetails.staffType || null},
           ${headerDetails.executiveStatus || null}, ${headerDetails.departmentCode}, ${headerDetails.deptCostCenterCode},
           ${headerDetails.location}, ${headerDetails.telExt}, ${headerDetails.startTimeFromHome},
@@ -144,8 +151,13 @@ export async function POST(request: NextRequest) {
     });
     
     console.log("API_CLAIMS_POST (PostgreSQL): Expense claim created successfully:", newClaim);
+    console.log("API_CLAIMS_POST (PostgreSQL): Generated claim ID:", claimRequestId);
      // TODO: Notification
-    return NextResponse.json({ message: 'Expense claim submitted successfully!', claimId: newClaim }, { status: 201 });
+    return NextResponse.json({ 
+      message: 'Expense claim submitted successfully!', 
+      claimId: newClaim,
+      requestId: claimRequestId 
+    }, { status: 201 });
   } catch (error: any) {
     console.error("API_CLAIMS_POST_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to create expense claim.', details: error.message }, { status: 500 });

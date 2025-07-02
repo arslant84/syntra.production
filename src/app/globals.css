@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -107,8 +106,9 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
     line-height: 1.5; /* Set default line height */
+    /* Background styles moved to layout.tsx */
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold; /* Changed from font-bold to font-semibold for a slightly softer look */
@@ -170,3 +170,5 @@
     break-inside: avoid;
   }
 }
+
+/* Background styles moved to layout.tsx */

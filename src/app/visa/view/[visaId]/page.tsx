@@ -114,7 +114,7 @@ export default function ViewVisaApplicationDetailsPage() {
   }
   
   return (
-    <div className="container mx-auto py-8 px-4 space-y-6">
+    <div className="w-full min-h-screen bg-transparent py-2 px-2 space-y-6">
       <Card className="shadow-xl print:shadow-none">
         <CardHeader className="bg-muted/30 print:bg-transparent">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -140,7 +140,9 @@ export default function ViewVisaApplicationDetailsPage() {
           </div>
         </CardHeader>
       </Card>
-      <VisaApplicationView visaData={visaData} />
+      <div className="mt-6">
+        <VisaApplicationView visaData={visaData} />
+      </div>
     </div>
   );
 }

@@ -145,12 +145,6 @@ export default function AccommodationAdminPage() {
     }
   }, [toast]);
 
-  // Fetch data on component mount
-  useEffect(() => {
-    fetchTrfsAwaitingAccommodation();
-    fetchAccommodationData();
-  }, [fetchTrfsAwaitingAccommodation]);
-
   const fetchAccommodationData = async () => {
     try {
       setIsLoading(true);
@@ -218,7 +212,12 @@ export default function AccommodationAdminPage() {
         });
       });
       
-      setPendingAccommodationTRFs(pendingRequests);
+      // Ensure uniqueness of TRF IDs to prevent React duplicate key warnings
+      const uniquePendingRequests = Array.from(
+        new Map(pendingRequests.map((item: AdminTrfForAccommodation) => [item.id, item])).values()
+      ) as AdminTrfForAccommodation[];
+      
+      setPendingAccommodationTRFs(uniquePendingRequests);
     } catch (err: any) {
       console.error('Error fetching accommodation data:', err);
       setError(err.message || 'Failed to load accommodation data');
@@ -231,6 +230,13 @@ export default function AccommodationAdminPage() {
       setIsLoading(false);
     }
   };
+
+  // Fetch data on component mount
+  useEffect(() => {
+    // Only fetch accommodation data, which will handle all TRFs
+    fetchAccommodationData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getDisplayLocation = (trf: AdminTrfForAccommodation | null): string => {
     if (!trf) return "N/A";
@@ -317,7 +323,7 @@ export default function AccommodationAdminPage() {
         body: JSON.stringify({
           staffHouseId: selectedStaffHouse.id,
           roomId: selectedRoom.id,
-          staffId: selectedTRF.staffId,
+          staffId: selectedTRF.requestorId, // Use requestorId instead of staffId
           date: format(dateRange.from, 'yyyy-MM-dd'), // API expects 'date' field
           status: "Confirmed", // Using 'Confirmed' which is now valid in both API and database
           notes: blockReason || `Accommodation for ${selectedTRF.requestorName} (${selectedTRF.department || 'N/A'})`,

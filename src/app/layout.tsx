@@ -29,6 +29,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <style dangerouslySetInnerHTML={{ __html: `
+          body {
+            background-image: url('/background.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            min-height: 100vh;
+          }
+        `}} />
+      </head>
       <body className="antialiased">
         <AppProviders>{children}</AppProviders>
         <Toaster />

@@ -94,12 +94,13 @@ const claimFormSchema = z.object({
 type ClaimFormValues = z.infer<typeof claimFormSchema>;
 
 interface ExpenseClaimFormProps {
-  initialData: Partial<ExpenseClaim>;
+  initialData?: Partial<ExpenseClaim>;
   onSubmit: (data: ExpenseClaim) => void;
-  submitButtonText: string;
+  submitButtonText?: string;
+  claimId?: string; // Add claimId to the props
 }
 
-export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonText }: ExpenseClaimFormProps) {
+export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonText = "Submit", claimId }: ExpenseClaimFormProps) {
   // Ensure initialData is properly formatted for the form
   const formattedInitialData = React.useMemo(() => {
     if (!initialData) return {};
@@ -185,15 +186,19 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
 
   const handleFormSubmit = (data: ClaimFormValues) => {
     // Preserve the original ID from initialData if it exists
-    const submissionData = {
-      ...data,
-      id: initialData?.id, // Keep the original ID for updates
-      status: initialData?.status, // Keep the original status
-      submittedAt: initialData?.submittedAt // Keep the original submission timestamp
+    const dataToSubmit: ExpenseClaim = {
+      ...values,
+      id: claimId || initialData?.id || '', // Include the claimId in the submitted data
+      expenseItems: values.expenseItems.map(item => ({
+        ...item,
+        date: item.date ? new Date(item.date) : null,
+      })),
+      informationOnForeignExchangeRate: values.informationOnForeignExchangeRate.map(fx => ({
+        ...fx,
+        date: fx.date ? new Date(fx.date) : null,
+      })),
     };
-    
-    // Convert the form data to the ExpenseClaim format expected by the parent component
-    onSubmit(submissionData as unknown as ExpenseClaim);
+    onSubmit(dataToSubmit);
   };
 
   return (

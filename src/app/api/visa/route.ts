@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db'; // Assuming PostgreSQL setup
 import { formatISO, parseISO } from 'date-fns';
+import { generateRequestId } from '@/utils/requestIdGenerator';
 
 const visaApplicationCreateSchema = z.object({
   requestorName: z.string().min(1, "Requestor name is required"),
@@ -37,15 +38,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Validation failed", details: validationResult.error.flatten() }, { status: 400 });
     }
     const data = validationResult.data;
+    
+    // Generate a unified request ID for the visa application
+    // Use the destination country as context for the request ID
+    let contextForVisaId = data.destination.substring(0, 5).toUpperCase();
+    const visaRequestId = generateRequestId('VIS', contextForVisaId);
+    console.log("API_VISA_POST (PostgreSQL): Generated Visa ID:", visaRequestId);
 
     const [newVisaApp] = await sql`
       INSERT INTO visa_applications (
-        requestor_name, travel_purpose, destination, staff_id, department,
+        id, requestor_name, travel_purpose, destination, staff_id, department,
         position, email, visa_type, trip_start_date, trip_end_date, 
         passport_number, passport_expiry_date, status, additional_comments,
         submitted_date, last_updated_date, created_at, updated_at
       ) VALUES (
-        ${data.requestorName}, ${data.travelPurpose}, ${data.destination}, 
+        ${visaRequestId}, ${data.requestorName}, ${data.travelPurpose}, ${data.destination}, 
         ${data.staffId || null}, ${data.department || null},
         ${data.position || null}, ${data.email || null}, ${data.visaType},
         ${formatISO(data.tripStartDate, { representation: 'date' })}, 
@@ -72,7 +79,8 @@ export async function POST(request: NextRequest) {
     console.log("API_VISA_POST (PostgreSQL): Visa application created successfully:", newVisaApp.id);
     return NextResponse.json({ 
       message: 'Visa application submitted successfully!', 
-      visaApplication: newVisaApp 
+      visaApplication: newVisaApp,
+      requestId: visaRequestId
     }, { status: 201 });
   } catch (error: any) {
     console.error("API_VISA_POST_ERROR (PostgreSQL):", error.message, error.stack);

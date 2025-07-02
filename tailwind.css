@@ -1,0 +1,10 @@
+/* This file helps VS Code recognize Tailwind directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .example {
+    @apply text-center;
+  }
+}

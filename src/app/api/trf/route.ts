@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO, parseISO, isValid } from 'date-fns';
 import { mapFrontendItineraryToDb } from './itinerary-fix';
+import { generateRequestId } from '@/utils/requestIdGenerator';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -283,11 +284,34 @@ export async function POST(request: NextRequest) {
     requestorNameVal = externalFullNameVal; // For approval step log
   }
 
-  const newTrfId = `TRF-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`; // More unique ID
-
+  // Generate a unified request ID for the TRF
+  // Use the destination from the first itinerary segment as context
+  let contextForTrfId = 'TRF';
+  if (validatedData.travelType === "Domestic") {
+    const itinerary = validatedData.domesticTravelDetails.itinerary;
+    if (itinerary && itinerary.length > 0 && itinerary[0].to) {
+      contextForTrfId = itinerary[0].to.substring(0, 3).toUpperCase();
+    }
+  } else if (validatedData.travelType === "Overseas" || validatedData.travelType === "Home Leave Passage") {
+    const itinerary = validatedData.overseasTravelDetails.itinerary;
+    if (itinerary && itinerary.length > 0 && itinerary[0].to) {
+      contextForTrfId = itinerary[0].to.substring(0, 3).toUpperCase();
+    }
+  } else if (validatedData.travelType === "External Parties") {
+    const itinerary = validatedData.externalPartiesTravelDetails.itinerary;
+    if (itinerary && itinerary.length > 0 && itinerary[0].to) {
+      contextForTrfId = itinerary[0].to.substring(0, 3).toUpperCase();
+    }
+  }
+  
+  const trfRequestId = generateRequestId('TRF', contextForTrfId);
+  console.log("API_TRF_POST (PostgreSQL): Generated TRF ID:", trfRequestId);
+  
   try {
-    console.log("API_TRF_POST (PostgreSQL): Starting database transaction for TRF ID:", newTrfId);
+    console.log("API_TRF_POST (PostgreSQL): Starting database transaction for TRF ID:", trfRequestId);
     const resultTrfId = await sql.begin(async tx => {
+      // Insert main TRF record
+      console.log("API_TRF_POST (PostgreSQL): Inserting main TRF record.");
       const [mainTrf] = await tx`
         INSERT INTO travel_requests (
           id, requestor_name, staff_id, department, position, cost_center, tel_email, email,
@@ -295,7 +319,7 @@ export async function POST(request: NextRequest) {
           external_full_name, external_organization, external_ref_to_authority_letter, external_cost_center,
           submitted_at, created_at, updated_at
         ) VALUES (
-          ${newTrfId}, ${requestorNameVal}, ${staffIdVal}, ${departmentVal}, ${positionVal}, ${costCenterVal}, ${telEmailVal}, ${emailVal},
+          ${trfRequestId}, ${requestorNameVal}, ${staffIdVal}, ${departmentVal}, ${positionVal}, ${costCenterVal}, ${telEmailVal}, ${emailVal},
           ${validatedData.travelType}, 'Pending Department Focal', ${purposeVal}, ${validatedData.additionalComments || null},
           ${externalFullNameVal}, ${externalOrganizationVal}, ${externalRefToAuthorityLetterVal}, ${externalCostCenterVal},
           NOW(), NOW(), NOW()
@@ -485,7 +509,11 @@ export async function POST(request: NextRequest) {
     const notificationLog = `Placeholder: Send Notification - New TRF Submitted - ID: ${resultTrfId}. To Requestor: ${requestorNameVal}. To Dept Focal: [Dept Focal Email/User ID]`;
     console.log(notificationLog);
 
-    return NextResponse.json({ message: 'TRF submitted successfully!', trfId: resultTrfId, trf: { id: resultTrfId, ...validatedData, status: 'Pending Department Focal' } }, { status: 201 });
+    return NextResponse.json({ 
+      message: 'Travel request submitted successfully!', 
+      trfId: resultTrfId,
+      requestId: trfRequestId 
+    }, { status: 201 });
 
   } catch (error: any) {
     console.error("API_TRF_POST_ERROR (PostgreSQL): Failed to create TRF.", error.message, error.stack, error.code, error.constraint_name);

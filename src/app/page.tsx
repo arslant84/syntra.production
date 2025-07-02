@@ -102,35 +102,26 @@ export default function HomePage() {
       </div>
 
       {/* Quick Actions */}
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <PlusCircle className="h-5 w-5" />
-            Quick Actions
-          </CardTitle>
-          <CardDescription>
-            Create new travel requests, submit claims, or manage your travel needs.
-          </CardDescription>
-        </CardHeader>
+      <Card className="bg-transparent shadow-none border-none">
         <CardContent>
-          <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4">
+          <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4 border-none shadow-none">
             <Link href="/trf/new" passHref>
-              <Button size="lg" variant="default">
+              <Button size="lg" variant="default" className="w-48 whitespace-normal text-center">
                 <PlusCircle className="mr-2 h-5 w-5" /> Create New TRF
               </Button>
             </Link>
             <Link href="/claims/new" passHref>
-              <Button size="lg" variant="default">
+              <Button size="lg" variant="default" className="w-48 whitespace-normal text-center">
                 <PlusCircle className="mr-2 h-5 w-5" /> Submit New Claim
               </Button>
             </Link>
             <Link href="/accommodation" passHref>
-              <Button size="lg" variant="default">
+              <Button size="lg" variant="default" className="w-48 whitespace-normal text-center">
                 <PlusCircle className="mr-2 h-5 w-5" /> Book Accommodation
               </Button>
             </Link>
             <Link href="/visa/new" passHref>
-              <Button size="lg" variant="default">
+              <Button size="lg" variant="default" className="w-48 whitespace-normal text-center">
                 <PlusCircle className="mr-2 h-5 w-5" /> Process Visa
               </Button>
             </Link>

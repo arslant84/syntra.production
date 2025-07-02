@@ -153,6 +153,7 @@ export async function PUT(request: NextRequest, { params }: { params: { claimId:
                     cheque_receipt_no = ${claimData.financialSummary.chequeReceiptNo},
                     i_declare = ${claimData.declaration.iDeclare},
                     declaration_date = ${claimData.declaration.date},
+                    status = 'Pending Verification', // Reset status on revision
                     updated_at = NOW()
                 WHERE id = ${claimId}
             `;

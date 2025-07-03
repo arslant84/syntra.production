@@ -38,7 +38,7 @@ const mealProvisionSchema = z.object({
 });
 
 const accommodationDetailSchema = z.object({
-  accommodationType: z.enum(['Hotel/Otels', 'Staff House/PKC Kampung/Kinyahli camp', 'Other'], { required_error: "Accommodation type is required." }),
+  accommodationType: z.enum(['Hotel/Отели', 'Staff House/PKC Kampung/Kiyanly camp', 'Other'], { required_error: "Accommodation type is required." }),
   checkInDate: z.date({ required_error: "Check-in date is required."}).nullable(),
   checkInTime: z.string().optional().refine(val => val === '' || /^([01]\d|2[0-3]):([0-5]\d)$/.test(val!), { message: "Invalid time format (HH:MM)" }),
   checkOutDate: z.date({ required_error: "Check-out date is required."}).nullable(),
@@ -311,7 +311,7 @@ export default function TravelDetailsForm({ initialData, onSubmit, onBack }: Tra
                   {accommodationFields.map((item, index) => (
                     <div key={item.id} className="p-4 border rounded-md space-y-3 relative">
                       <h4 className="font-medium">Accommodation {index + 1}</h4>
-                      <FormField control={form.control} name={`accommodationDetails.${index}.accommodationType`} render={({ field }) => ( <FormItem><FormLabel>Type</FormLabel> <Select onValueChange={field.onChange} value={field.value || undefined} defaultValue={item.accommodationType || undefined}> <FormControl><SelectTrigger><SelectValue placeholder="Select accommodation type" /></SelectTrigger></FormControl> <SelectContent> <SelectItem value="Hotel/Otels">Hotel/Otels</SelectItem> <SelectItem value="Staff House/PKC Kampung/Kinyahli camp">Staff House/PKC Kampung/Kinyahli camp</SelectItem> <SelectItem value="Other">Other</SelectItem> </SelectContent> </Select> <FormMessage /> </FormItem>)} />
+                      <FormField control={form.control} name={`accommodationDetails.${index}.accommodationType`} render={({ field }) => ( <FormItem><FormLabel>Type</FormLabel> <Select onValueChange={field.onChange} value={field.value || undefined} defaultValue={item.accommodationType || undefined}> <FormControl><SelectTrigger><SelectValue placeholder="Select accommodation type" /></SelectTrigger></FormControl> <SelectContent> <SelectItem value="Hotel/Отели">Hotel/Отели</SelectItem> <SelectItem value="Staff House/PKC Kampung/Kinyahli camp">Staff House/PKC Kampung/Kinyahli camp</SelectItem> <SelectItem value="Other">Other</SelectItem> </SelectContent> </Select> <FormMessage /> </FormItem>)} />
                       {form.watch(`accommodationDetails.${index}.accommodationType`) === 'Other' && ( <FormField control={form.control} name={`accommodationDetails.${index}.otherTypeDescription`} render={({ field }) => ( <FormItem><FormLabel>Other Type Description</FormLabel><FormControl><Input placeholder="Specify other type" {...field} /></FormControl><FormMessage /></FormItem>)} /> )}
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <FormField control={form.control} name={`accommodationDetails.${index}.checkInDate`} render={({ field }) => (
@@ -367,7 +367,7 @@ export default function TravelDetailsForm({ initialData, onSubmit, onBack }: Tra
                       {accommodationFields.length > 0 && <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive/80" onClick={() => removeAccommodation(index)}><Trash2 className="h-4 w-4" /></Button>}
                     </div>
                   ))}
-                  <Button type="button" variant="outline" size="sm" onClick={() => appendAccommodation({ accommodationType: 'Hotel/Otels', checkInDate: null, checkInTime: '', checkOutDate: null, checkOutTime: '', remarks: '', otherTypeDescription: '' })}> <PlusCircle className="mr-2 h-4 w-4" /> Add Accommodation </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => appendAccommodation({ accommodationType: 'Hotel/Отели', checkInDate: null, checkInTime: '', checkOutDate: null, checkOutTime: '', remarks: '', otherTypeDescription: '' })}> <PlusCircle className="mr-2 h-4 w-4" /> Add Accommodation </Button>
                 </CardContent>
               </Card>
             )}

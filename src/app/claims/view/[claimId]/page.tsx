@@ -74,7 +74,7 @@ export default function ClaimViewPage() {
   const claimId = params.claimId as string;
   
   // Define which statuses allow editing and cancellation
-  const EDITABLE_STATUSES = ["Pending Verification", "Draft", "Rejected"];
+  const EDITABLE_STATUSES = ["Pending Verification", "Draft", "Rejected", "Pending Approval"];
   const CANCELLABLE_STATUSES = ["Pending Verification", "Pending Approval"];
   const TERMINAL_STATUSES = ["Approved", "Cancelled", "Processed"];
 
@@ -213,6 +213,9 @@ export default function ClaimViewPage() {
   const canEdit = claim && claim.status && 
     EDITABLE_STATUSES.includes(claim.status) && 
     !TERMINAL_STATUSES.includes(claim.status);
+
+  console.log("Claim Status:", claim?.status);
+  console.log("Can Edit:", canEdit);
     
   const canCancel = claim && claim.status && 
     CANCELLABLE_STATUSES.includes(claim.status) && 

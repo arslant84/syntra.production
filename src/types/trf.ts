@@ -38,7 +38,7 @@ export interface MealProvisionDetails {
   refreshment: number | string;
 }
 
-export type AccommodationType = 'Hotel/Otels' | 'Staff House/PKC Kampung/Kinyahli camp' | 'Other';
+export type AccommodationType = 'Hotel/Отели' | 'Staff House/PKC Kampung/Kiyanly camp' | 'Other';
 
 export interface AccommodationDetail {
   id?: string; 

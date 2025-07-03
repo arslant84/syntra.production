@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function EditClaimPage() {
   const { claimId } = useParams<{ claimId: string }>();
+  console.log("EditClaimPage rendered for claimId:", claimId);
   const router = useRouter();
   const { toast } = useToast();
   const [claimData, setClaimData] = useState<ExpenseClaim | null>(null);
@@ -47,7 +48,7 @@ export default function EditClaimPage() {
   }, [claimId]);
 
   const handleSubmitClaim = async (data: ExpenseClaim) => {
-    console.log("Expense Claim Revising - Starting revision process");
+    console.log("Expense Claim Revising - Starting revision process for claim ID:", claimId);
     console.log("Expense Claim Data Structure:", JSON.stringify(data, null, 2).substring(0, 1000) + "...");
     try {
       // Ensure all required fields are present and properly formatted
@@ -55,15 +56,26 @@ export default function EditClaimPage() {
         console.error("Missing required field: purposeOfClaim");
       }
       
+      // Add claimId to the data object to ensure it's included in the PUT request
+      const dataWithId = {
+        ...data,
+        id: claimId
+      };
+      
       // Send data to the backend API
-      console.log("Sending data to API endpoint: /api/claims/" + claimId);
-      const response = await fetch(`/api/claims/${claimId}`, {
+      const apiEndpoint = `/api/claims/${claimId}`;
+      console.log("Sending data to API endpoint:", apiEndpoint);
+      console.log("Request body size:", JSON.stringify(dataWithId).length, "bytes");
+      console.log("Request method: PUT");
+
+      const response = await fetch(apiEndpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(dataWithId),
       });
+      console.log("Fetch call completed. Checking response status...");
 
       console.log("API Response Status:", response.status, response.statusText);
       

@@ -70,6 +70,7 @@ const DetailItem: React.FC<{ label: string; value?: string | number | null | Rea
 
 
 export default function TrfView({ trfData }: TrfViewProps) {
+  console.log("TRF Data in TrfView:", trfData);
   const {
     travelType,
     requestorName, staffId, department, position, costCenter, telEmail,
@@ -243,14 +244,17 @@ export default function TrfView({ trfData }: TrfViewProps) {
                   <div key={acc.id || idx} className="p-2 border rounded-md mb-2 bg-muted/20 print:p-0 print:border-none print:mb-1">
                     <h4 className="font-medium text-sm mb-1 text-muted-foreground print:hidden">Entry {idx + 1}</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 print:grid-cols-3">
-                      {accommodationType === 'Hotel/Otels' && <DetailItem label="Accommodation Type" value="Hotel/Otels" />}
-                      {accommodationType === 'Staff House/PKC Kampung/Kinyahli camp' && <DetailItem label="Accommodation Type" value="Staff House/PKC Kampung/Kinyahli camp" />}
+                      {accommodationType === 'Hotel/Отели' && <DetailItem label="Accommodation Type" value="Hotel/Отели" />}
+                      {accommodationType === 'Staff House/PKC Kampung/Kiyanly camp' && <DetailItem label="Accommodation Type" value="Staff House/PKC Kampung/Kiyanly camp" />}
                       {accommodationType === 'Other' && <DetailItem label="Accommodation Type" value="Other" />}
                       {accommodationType === 'Other' && <DetailItem label="Other Description" value={otherTypeDesc} />}
-                      <DetailItem label="Check-in Date" value={formatDateSafe(checkInDate)} />
-                      <DetailItem label="Check-in Time" value={formatTimeSafe(checkInTime)} />
-                      <DetailItem label="Check-out Date" value={formatDateSafe(checkOutDate)} />
-                      <DetailItem label="Check-out Time" value={formatTimeSafe(checkOutTime)} />
+                      {(accommodationType === 'Hotel/Отели' || accommodationType === 'Other') && (
+                        <>
+                          <DetailItem label="Location" value={acc.location || 'N/A'} />
+                          <DetailItem label="Place of Stay" value={acc.placeOfStay || 'N/A'} />
+                          <DetailItem label="Est. Cost/Night" value={formatNumberSafe(acc.estimatedCostPerNight, 2)} />
+                        </>
+                      )}
                     </div>
                     <DetailItem label="Remarks" value={acc.remarks || 'N/A'} fullWidth className="mt-2 print:mt-1" />
                   </div>

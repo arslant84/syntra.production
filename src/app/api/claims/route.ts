@@ -9,7 +9,7 @@ const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const expenseClaimCreateSchema = z.object({
   headerDetails: z.object({
-    documentType: z.enum(["TR01", "TB35", "TB05", ""]),
+    documentType: z.enum(["TR01", "TB35", "TB05", ""], { required_error: "Document type is required."}).refine(val => val !== "", "Document type is required."),
     documentNumber: z.string().min(1).optional(), // Made optional since we'll generate it
     claimForMonthOf: z.coerce.date(),
     staffName: z.string().min(1),
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
           less_corporate_credit_card_payment, balance_claim_repayment, cheque_receipt_no,
           i_declare, declaration_date, status, submitted_at, created_at, updated_at
         ) VALUES (
-          ${trfId || null}, ${headerDetails.documentType || null}, ${headerDetails.documentNumber || claimRequestId}, ${formatISO(headerDetails.claimForMonthOf, {representation: 'date'})},
+          ${trfId || null}, ${headerDetails.documentType || null}, ${claimRequestId}, ${formatISO(headerDetails.claimForMonthOf, {representation: 'date'})},
           ${headerDetails.staffName}, ${headerDetails.staffNo}, ${headerDetails.gred}, ${headerDetails.staffType || null},
           ${headerDetails.executiveStatus || null}, ${headerDetails.departmentCode}, ${headerDetails.deptCostCenterCode},
           ${headerDetails.location}, ${headerDetails.telExt}, ${headerDetails.startTimeFromHome},
@@ -169,8 +169,6 @@ export async function GET(request: NextRequest) {
   if (!sql) {
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
   }
-  // Basic list, assumes fetching for current user (user ID would come from session)
-  // For now, returns all.
   try {
     console.log("Executing SQL query to fetch claims");
     const claims = await sql`

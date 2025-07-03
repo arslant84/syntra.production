@@ -154,7 +154,7 @@ const mealProvisionSchemaDb = z.object({
   dinner: z.coerce.number().int().default(0), supper: z.coerce.number().int().default(0), refreshment: z.coerce.number().int().default(0),
 });
 const accommodationDetailSchemaDb = z.object({
-  id: z.string().optional(), accommodationType: z.enum(['Hotel/Otels', 'Staff House/PKC Kampung/Kinyahli camp', 'Other']), 
+  id: z.string().optional(), accommodationType: z.enum(['Hotel/Отели', 'Staff House/PKC Kampung/Kiyanly camp', 'Other']), 
   checkInDate: z.coerce.date().nullable(), checkInTime: z.string().regex(timeRegex).optional().nullable().or(z.literal("")),
   checkOutDate: z.coerce.date().nullable(), checkOutTime: z.string().regex(timeRegex).optional().nullable().or(z.literal("")), remarks: z.string().optional().nullable(),
   otherTypeDescription: z.string().optional().nullable(), // Add this field to the schema

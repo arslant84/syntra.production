@@ -46,7 +46,7 @@ const mealProvisionSchema = z.object({
 const accommodationDetailSchema = z.object({
   id: z.string().optional(),
   // Ensure accommodationType is one of the valid types from AccommodationType or empty string
-  accommodationType: z.enum(["Hotel/Otels", "Staff House/PKC Kampung/Kinyahli camp", "Other", ""]).transform(val => val === "" ? "Hotel/Otels" : val),
+  accommodationType: z.enum(["Hotel/Отели", "Staff House/PKC Kampung/Kiyanly camp", "Other", ""]).transform(val => val === "" ? "Hotel/Отели" : val),
   checkInDate: z.date().nullable(),
   checkInTime: z.string().regex(timeRegex, "Invalid check-in time (HH:MM)").optional().or(z.literal("")).transform(val => val || ""),
   checkOutDate: z.date().nullable(),
@@ -94,7 +94,7 @@ const domesticTravelDetailsSchema = z.object({
 
 // Define a type that ensures accommodationType can't be empty string in the form
 type AccommodationDetailForm = Omit<AccommodationDetail, 'accommodationType'> & {
-  accommodationType: "Hotel/Otels" | "Staff House/PKC Kampung/Kinyahli camp" | "Other";
+  accommodationType: "Hotel/Отели" | "Staff House/PKC Kampung/Kiyanly camp" | "Other";
 };
 
 // Define FormValues type from the schema with the accommodation type fix
@@ -113,8 +113,8 @@ interface DomesticTravelDetailsFormProps {
 }
 
 const accommodationTypeOptions: { value: AccommodationType; label: string }[] = [
-  { value: 'Hotel/Otels', label: 'Hotel/Otels' },
-  { value: 'Staff House/PKC Kampung/Kinyahli camp', label: 'Staff House/PKC Kampung/Kinyahli camp' },
+  { value: 'Hotel/Отели', label: 'Hotel/Отели' },
+  { value: 'Staff House/PKC Kampung/Kiyanly camp', label: 'Staff House/PKC Kampung/Kiyanly camp' },
   { value: 'Other', label: 'Other/Другое' },
 ];
 
@@ -138,7 +138,7 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
           checkOutDate: item.checkOutDate ? new Date(item.checkOutDate) : null,
           fromDate: item.fromDate ? new Date(item.fromDate) : null,
           toDate: item.toDate ? new Date(item.toDate) : null,
-          accommodationType: item.accommodationType || "Hotel/Otels",
+          accommodationType: item.accommodationType || "Hotel/Отели",
           location: item.location || "",
           placeOfStay: item.placeOfStay || "",
           estimatedCostPerNight: item.estimatedCostPerNight || "0",
@@ -277,7 +277,7 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
                               form.setValue(`accommodationDetails.${index}.otherTypeDescription`, '');
                             }
                           }}
-                          defaultValue={field.value || "Hotel/Otels"}>
+                          defaultValue={field.value || "Hotel/Отели"}>
                           <FormControl><SelectTrigger><SelectValue placeholder="Select accommodation type" /></SelectTrigger></FormControl>
                           <SelectContent>
                             {accommodationTypeOptions.map(opt => (
@@ -326,15 +326,19 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
                       <FormField control={form.control} name={`accommodationDetails.${index}.checkOutTime`} render={({ field }) => (<FormItem><FormLabel>Check-out Time / Время выезда</FormLabel><FormControl><Input type="time" placeholder="HH:MM" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                       
                       {/* New DB schema fields */}
-                      <FormField control={form.control} name={`accommodationDetails.${index}.location`} render={({ field }) => (<FormItem><FormLabel>Location / Местоположение</FormLabel><FormControl><Input placeholder="Location" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`accommodationDetails.${index}.placeOfStay`} render={({ field }) => (<FormItem><FormLabel>Place of Stay / Место проживания</FormLabel><FormControl><Input placeholder="Place of Stay" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`accommodationDetails.${index}.estimatedCostPerNight`} render={({ field }) => (<FormItem><FormLabel>Est. Cost Per Night / Примерная стоимость за ночь</FormLabel><FormControl><Input placeholder="0" {...field} value={field.value || '0'} /></FormControl><FormMessage /></FormItem>)} />
+                      {form.watch(`accommodationDetails.${index}.accommodationType`) !== 'Staff House/PKC Kampung/Kiyanly camp' && (
+                        <>
+                          <FormField control={form.control} name={`accommodationDetails.${index}.location`} render={({ field }) => (<FormItem><FormLabel>Location / Местоположение</FormLabel><FormControl><Input placeholder="Location" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                          <FormField control={form.control} name={`accommodationDetails.${index}.placeOfStay`} render={({ field }) => (<FormItem><FormLabel>Place of Stay / Место проживания</FormLabel><FormControl><Input placeholder="Place of Stay" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                          <FormField control={form.control} name={`accommodationDetails.${index}.estimatedCostPerNight`} render={({ field }) => (<FormItem><FormLabel>Est. Cost Per Night / Примерная стоимость за ночь</FormLabel><FormControl><Input placeholder="0" {...field} value={field.value || '0'} /></FormControl><FormMessage /></FormItem>)} />
+                        </>
+                      )}
                     </div>
                     <FormField control={form.control} name={`accommodationDetails.${index}.remarks`} render={({ field }) => (<FormItem><FormLabel>Remarks / Примечания</FormLabel><FormControl><Textarea placeholder="Accommodation remarks..." {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                     {accommodationFields.length > 1 && <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive/80" onClick={() => removeAccommodation(index)}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
                 ))}
-                <Button type="button" variant="outline" size="sm" onClick={() => appendAccommodation({ accommodationType: "Hotel/Otels", checkInDate: null, checkInTime: "", checkOutDate: null, checkOutTime: "", otherTypeDescription: "", remarks: "", location: "", fromDate: null, toDate: null, fromLocation: "", toLocation: "", btNoRequired: "", accommodationTypeN: "", address: "", placeOfStay: "", estimatedCostPerNight: "0" })}> <PlusCircle className="mr-2 h-4 w-4" /> Add Accommodation Entry</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => appendAccommodation({ accommodationType: "Hotel/Отели", checkInDate: null, checkInTime: "", checkOutDate: null, checkOutTime: "", otherTypeDescription: "", remarks: "", location: "", fromDate: null, toDate: null, fromLocation: "", toLocation: "", btNoRequired: "", accommodationTypeN: "", address: "", placeOfStay: "", estimatedCostPerNight: "0" })}> <PlusCircle className="mr-2 h-4 w-4" /> Add Accommodation Entry</Button>
               </CardContent>
             </Card>
             

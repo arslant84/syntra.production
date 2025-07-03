@@ -49,7 +49,7 @@ const mealProvisionSchemaDb = z.object({
 
 const accommodationDetailSchemaDb = z.object({
   id: z.string().optional(),
-  accommodationType: z.enum(['Hotel/Otels', 'Staff House/PKC Kampung/Kinyahli camp', 'Other'], { required_error: "Accommodation type is required." }),
+  accommodationType: z.enum(['Hotel/Отели', 'Staff House/PKC Kampung/Kiyanly camp', 'Other'], { required_error: "Accommodation type is required." }),
   otherTypeDescription: z.string().optional().nullable(),
   checkInDate: z.coerce.date({invalid_type_error: "Invalid check-in date format."}).nullable(),
   checkInTime: z.string().regex(timeRegex, "Invalid Check-in Time (HH:MM)").optional().nullable().or(z.literal("")),

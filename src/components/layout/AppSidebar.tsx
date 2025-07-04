@@ -74,7 +74,7 @@ export default function AppSidebar() {
         {/* Expanded Logo and Text */}
         <div
           className={cn(
-            "flex items-center gap-2",
+            "flex items-center gap-3",
             "group-data-[state=expanded]:flex",
             "group-data-[state=collapsed]:hidden"
           )}
@@ -88,7 +88,7 @@ export default function AppSidebar() {
             priority
             data-ai-hint="company logo expanded"
           />
-          <span className="font-bold text-sidebar-foreground text-base whitespace-nowrap">
+          <span className="font-bold text-sidebar-foreground text-base whitespace-nowrap self-center">
             Synchronised Travel
           </span>
         </div>

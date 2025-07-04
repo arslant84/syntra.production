@@ -30,7 +30,7 @@ const formatDateSafe = (date: Date | string | null | undefined, dateFormat = "PP
 };
 
 const formatNumberSafe = (num: number | string | null | undefined, digits = 2) => {
-  if (num === null || num === undefined || String(num).trim() === '') return "N/A"; 
+  if (num === null || num === undefined || String(num).trim() === '') return digits === 0 ? "0" : "0.00"; 
   const parsedNum = Number(num);
   return isNaN(parsedNum) ? String(num) : parsedNum.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 };
@@ -236,7 +236,7 @@ export default function ClaimViewPage() {
                 Expense Claim Details
               </CardTitle>
               <CardDescription className="print:text-sm">
-                Viewing Claim ID: {claim.id} - Status: <span className="font-semibold">{claim.status}</span>
+                Viewing Claim ID: {claim.document_number || claim.documentNumber} - Status: <span className="font-semibold">{claim.status}</span>
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
@@ -412,11 +412,14 @@ export default function ClaimViewPage() {
               <Building className="print:hidden" /> Financial Summary
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2">
-              <DetailItem label="Total Advance Claim Amount" value={`RM ${formatNumberSafe(financialSummary?.totalAdvanceClaimAmount)}`} />
-              <DetailItem label="Less Advance Taken" value={`RM ${formatNumberSafe(financialSummary?.lessAdvanceTaken)}`} />
-              <DetailItem label="Less Corporate Credit Card Payment" value={`RM ${formatNumberSafe(financialSummary?.lessCorporateCreditCardPayment)}`} />
-              <DetailItem label="Balance Claim/Repayment" value={`RM ${formatNumberSafe(financialSummary?.balanceClaimRepayment)}`} />
-              <DetailItem label="Cheque/Receipt No." value={financialSummary?.chequeReceiptNo} />
+              <DetailItem label="Total Advance Claim Amount" value={`USD ${formatNumberSafe(financialSummary?.totalAdvanceClaimAmount)}`} />
+              <DetailItem label="Less Advance Taken" value={`USD ${formatNumberSafe(financialSummary?.lessAdvanceTaken)}`} />
+              <DetailItem label="Less Corporate Credit Card Payment" value={`USD ${formatNumberSafe(financialSummary?.lessCorporateCreditCardPayment)}`} />
+              <DetailItem label="Balance Claim/Repayment" value={`USD ${formatNumberSafe(financialSummary?.balanceClaimRepayment)}`} />
+              <div className="sm:col-span-2 flex justify-between items-center">
+                <div className="font-medium text-xs text-muted-foreground uppercase tracking-wider print:text-[8pt] print:font-semibold">Cheque/Receipt No.</div>
+                <div className="text-sm text-foreground break-words mt-0.5 print:text-[9pt]">{financialSummary?.chequeReceiptNo || ""}</div>
+              </div>
             </div>
           </section>
 

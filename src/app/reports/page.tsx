@@ -586,8 +586,14 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-2">
-              <Select disabled>
-                <SelectTrigger className="w-full sm:flex-1">
+              <Select 
+                onValueChange={(value) => {
+                  console.log('Department filter changed:', value);
+                  // Add your department filter logic here
+                }}
+                aria-label="Department filter"
+              >
+                <SelectTrigger className="w-full sm:flex-1" aria-label="Filter by Department">
                   <SelectValue placeholder="Filter by Department" />
                 </SelectTrigger>
                 <SelectContent>
@@ -596,8 +602,14 @@ export default function ReportsPage() {
                   <SelectItem value="exploration">Exploration</SelectItem>
                 </SelectContent>
               </Select>
-               <Select disabled>
-                <SelectTrigger className="w-full sm:flex-1">
+               <Select 
+                onValueChange={(value) => {
+                  console.log('TRF Status filter changed:', value);
+                  // Add your status filter logic here
+                }}
+                aria-label="TRF Status filter"
+              >
+                <SelectTrigger className="w-full sm:flex-1" aria-label="Filter by TRF Status">
                   <SelectValue placeholder="Filter by TRF Status" />
                 </SelectTrigger>
                 <SelectContent>

@@ -114,9 +114,9 @@ export async function POST(request: NextRequest) {
           ${headerDetails.timeOfArrivalAtHome}, ${bankDetails.bankName}, ${bankDetails.accountNumber},
           ${bankDetails.purposeOfClaim}, ${medicalClaimDetails.isMedicalClaim}, ${medicalClaimDetails.applicableMedicalType || null},
           ${medicalClaimDetails.isForFamily}, ${medicalClaimDetails.familyMemberSpouse}, ${medicalClaimDetails.familyMemberChildren},
-          ${medicalClaimDetails.familyMemberOther || null}, ${Number(financialSummary.totalAdvanceClaimAmount)},
-          ${Number(financialSummary.lessAdvanceTaken || 0)}, ${Number(financialSummary.lessCorporateCreditCardPayment || 0)},
-          ${Number(financialSummary.balanceClaimRepayment || 0)}, ${financialSummary.chequeReceiptNo || null},
+          ${medicalClaimDetails.familyMemberOther || null}, ${financialSummary.totalAdvanceClaimAmount === null ? null : Number(financialSummary.totalAdvanceClaimAmount)},
+          ${financialSummary.lessAdvanceTaken === null ? null : Number(financialSummary.lessAdvanceTaken)}, ${financialSummary.lessCorporateCreditCardPayment === null ? null : Number(financialSummary.lessCorporateCreditCardPayment)},
+          ${financialSummary.balanceClaimRepayment === null ? null : Number(financialSummary.balanceClaimRepayment)}, ${financialSummary.chequeReceiptNo || null},
           ${declaration.iDeclare}, ${formatISO(declaration.date, {representation: 'date'})}, 'Pending Verification', NOW(), NOW(), NOW()
         ) RETURNING id
       `;
@@ -128,12 +128,12 @@ export async function POST(request: NextRequest) {
           claim_id: claimId,
           item_date: item.date ? formatISO(item.date, { representation: 'date' }) : null,
           claim_or_travel_details: item.claimOrTravelDetails,
-          official_mileage_km: Number(item.officialMileageKM || 0),
-          transport: Number(item.transport || 0),
-          hotel_accommodation_allowance: Number(item.hotelAccommodationAllowance || 0),
-          out_station_allowance_meal: Number(item.outStationAllowanceMeal || 0),
-          miscellaneous_allowance_10_percent: Number(item.miscellaneousAllowance10Percent || 0),
-          other_expenses: Number(item.otherExpenses || 0),
+          official_mileage_km: item.officialMileageKM === null ? null : Number(item.officialMileageKM),
+          transport: item.transport === null ? null : Number(item.transport),
+          hotel_accommodation_allowance: item.hotelAccommodationAllowance === null ? null : Number(item.hotelAccommodationAllowance),
+          out_station_allowance_meal: item.outStationAllowanceMeal === null ? null : Number(item.outStationAllowanceMeal),
+          miscellaneous_allowance_10_percent: item.miscellaneousAllowance10Percent === null ? null : Number(item.miscellaneousAllowance10Percent),
+          other_expenses: item.otherExpenses === null ? null : Number(item.otherExpenses),
         }));
         await tx`INSERT INTO expense_claim_items ${tx(itemsToInsert, 'claim_id', 'item_date', 'claim_or_travel_details', 'official_mileage_km', 'transport', 'hotel_accommodation_allowance', 'out_station_allowance_meal', 'miscellaneous_allowance_10_percent', 'other_expenses')}`;
       }
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
           claim_id: claimId,
           fx_date: fx.date ? formatISO(fx.date, { representation: 'date' }) : null,
           type_of_currency: fx.typeOfCurrency,
-          selling_rate_tt_od: Number(fx.sellingRateTTOD || 0),
+          selling_rate_tt_od: fx.sellingRateTTOD,
         }));
         await tx`INSERT INTO expense_claim_fx_rates ${tx(fxToInsert, 'claim_id', 'fx_date', 'type_of_currency', 'selling_rate_tt_od')}`;
       }
@@ -172,7 +172,7 @@ export async function GET(request: NextRequest) {
   try {
     console.log("Executing SQL query to fetch claims");
     const claims = await sql`
-      SELECT id, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+      SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
       FROM expense_claims 
       ORDER BY submitted_at DESC
     `;
@@ -184,6 +184,7 @@ export async function GET(request: NextRequest) {
     
     const formattedClaims = claims.map(claim => ({
         id: claim.id,
+        document_number: claim.document_number, // Include document_number in the response
         requestor: claim.staff_name, // For consistency with admin claims page display
         purpose: claim.purpose_of_claim,
         amount: Number(claim.total_advance_claim_amount) || 0, // Ensure it's a number

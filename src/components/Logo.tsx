@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Logo() {
   return (
@@ -7,8 +8,19 @@ export default function Logo() {
       className="flex items-center text-primary hover:text-primary/90 transition-colors h-full" 
       aria-label="Synchronised Travel Homepage" 
     >
-      {/* The visible text "Synchronised Travel" has been removed. */}
-      {/* An icon could be placed here if desired in the future. */}
+      <div className="flex items-center">
+        <div className="relative h-8 w-8 mr-3">
+          <Image 
+            src="/open.jpg" 
+            alt="PETRONAS Logo" 
+            width={32}
+            height={32}
+            className="object-contain"
+            priority
+          />
+        </div>
+        <span className="font-medium text-lg self-center">Synchronised Travel</span>
+      </div>
     </Link>
   );
 }

@@ -31,7 +31,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="space-y-8 max-w-2xl mx-auto">
+    <div className="w-full px-2 md:px-6 py-8 space-y-8">
       <div className="flex items-center space-x-4">
         <UserIcon className="w-10 h-10 text-primary" />
         <h1 className="text-3xl font-bold tracking-tight">User Profile</h1>

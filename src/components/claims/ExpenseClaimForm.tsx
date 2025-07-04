@@ -10,9 +10,13 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input";
 
 // Wrapper for Input component to ensure values are never null
-const SafeInput = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(({ value, ...props }, ref) => {
+type SafeInputProps = Omit<React.ComponentProps<typeof Input>, 'value'> & {
+  value?: string | number | null | undefined;
+};
+
+const SafeInput = React.forwardRef<HTMLInputElement, SafeInputProps>(({ value, ...props }, ref) => {
   // Convert null to empty string to avoid React warnings
-  const safeValue = value === null ? "" : value;
+  const safeValue = value === null ? "" : value === undefined ? "" : value;
   return <Input value={safeValue} {...props} ref={ref} />;
 });
 SafeInput.displayName = "SafeInput";
@@ -71,26 +75,26 @@ const claimFormSchema = z.object({
     z.object({
       date: z.date({ required_error: "Date is required." }),
       claimOrTravelDetails: z.string().min(1, "Claim/Travel details are required."),
-      officialMileageKM: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
-      transport: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
-      hotelAccommodationAllowance: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
-      outStationAllowanceMeal: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
-      miscellaneousAllowance10Percent: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
-      otherExpenses: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
+      officialMileageKM: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
+      transport: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
+      hotelAccommodationAllowance: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
+      outStationAllowanceMeal: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
+      miscellaneousAllowance10Percent: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
+      otherExpenses: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
     })
   ).min(1, "At least one expense item is required."),
   informationOnForeignExchangeRate: z.array(
     z.object({
       date: z.date({ required_error: "Date is required." }),
       typeOfCurrency: z.string().min(1, "Type of currency is required."),
-      sellingRateTTOD: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative("Rate must be non-negative.")),
+      sellingRateTTOD: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative("Rate must be non-negative.").nullable()),
     })
   ).default([]),
   financialSummary: z.object({
-    totalAdvanceClaimAmount: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({required_error: "Total amount is required.", invalid_type_error: "Must be a number"}).nonnegative()),
-    lessAdvanceTaken: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
-    lessCorporateCreditCardPayment: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().optional()),
-    balanceClaimRepayment: z.preprocess(val => String(val) === '' ? undefined : Number(val), z.number({invalid_type_error: "Must be a number"}).optional()), // This will be calculated
+    totalAdvanceClaimAmount: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({required_error: "Total amount is required.", invalid_type_error: "Must be a number"}).nonnegative().nullable()),
+    lessAdvanceTaken: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
+    lessCorporateCreditCardPayment: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
+    balanceClaimRepayment: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nullable().optional()), // This will be calculated
     chequeReceiptNo: z.string().optional(),
   }),
   declaration: z.object({
@@ -205,25 +209,18 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
         const baseItem = {
           date: item.date ? new Date(item.date) : new Date(),
           claimOrTravelDetails: "",
-          officialMileageKM: 0,
-          transport: 0,
-          hotelAccommodationAllowance: 0,
-          outStationAllowanceMeal: 0,
-          miscellaneousAllowance10Percent: 0,
-          otherExpenses: 0
+          officialMileageKM: null,
+          transport: null,
+          hotelAccommodationAllowance: null,
+          outStationAllowanceMeal: null,
+          miscellaneousAllowance10Percent: null,
+          otherExpenses: null
         };
         
-        // Merge with item data, ensuring numeric fields remain numbers
+        // Merge with item data, allowing null to pass through
         return {
           ...baseItem,
           ...item,
-          // Ensure these are always numbers
-          officialMileageKM: typeof item.officialMileageKM === 'number' ? item.officialMileageKM : baseItem.officialMileageKM,
-          transport: typeof item.transport === 'number' ? item.transport : baseItem.transport,
-          hotelAccommodationAllowance: typeof item.hotelAccommodationAllowance === 'number' ? item.hotelAccommodationAllowance : baseItem.hotelAccommodationAllowance,
-          outStationAllowanceMeal: typeof item.outStationAllowanceMeal === 'number' ? item.outStationAllowanceMeal : baseItem.outStationAllowanceMeal,
-          miscellaneousAllowance10Percent: typeof item.miscellaneousAllowance10Percent === 'number' ? item.miscellaneousAllowance10Percent : baseItem.miscellaneousAllowance10Percent,
-          otherExpenses: typeof item.otherExpenses === 'number' ? item.otherExpenses : baseItem.otherExpenses,
           // Ensure date is a valid Date object
           date: item.date ? new Date(item.date) : new Date()
         };
@@ -236,15 +233,13 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
         const baseItem = {
           date: item.date ? new Date(item.date) : new Date(),
           typeOfCurrency: "",
-          sellingRateTTOD: 0
+          sellingRateTTOD: null
         };
         
-        // Merge with item data
+        // Merge with item data, allowing null to pass through
         return {
           ...baseItem,
           ...item,
-          // Ensure sellingRateTTOD is always a number
-          sellingRateTTOD: typeof item.sellingRateTTOD === 'number' ? item.sellingRateTTOD : baseItem.sellingRateTTOD,
           // Ensure date is a valid Date object
           date: item.date ? new Date(item.date) : new Date()
         };
@@ -323,6 +318,11 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
   const totalMisc = calculateColumnTotal("miscellaneousAllowance10Percent");
   const totalOther = calculateColumnTotal("otherExpenses");
 
+  React.useEffect(() => {
+    const grandTotal = totalTransport + totalHotel + totalOutstation + totalMisc + totalOther;
+    form.setValue("financialSummary.totalAdvanceClaimAmount", grandTotal, { shouldValidate: true });
+  }, [totalTransport, totalHotel, totalOutstation, totalMisc, totalOther, form]);
+
   const calculateBalance = React.useCallback(() => {
     const total = parseFloat(String(watchFinancialSummary.totalAdvanceClaimAmount)) || 0;
     const advance = parseFloat(String(watchFinancialSummary.lessAdvanceTaken)) || 0;
@@ -335,73 +335,34 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
   }, [calculateBalance, form]);
 
   const handleFormSubmit = (data: ClaimFormValues) => {
-    // Process form data to ensure no null values
-    const processValue = (value: any): any => {
-      if (value === null) return "";
-      
-      // Preserve arrays
-      if (Array.isArray(value)) {
-        return value.map(item => processValue(item));
-      }
-      
-      if (typeof value === "object" && value !== null && !(value instanceof Date)) {
-        return Object.entries(value).reduce((acc, [key, val]) => {
-          acc[key] = processValue(val);
-          return acc;
-        }, {} as Record<string, any>);
-      }
-      
-      return value;
-    };
-    
-    // Deep clone and process data to remove null values
-    const processedData = processValue(data);
-    
-    console.log("Processed data:", processedData);
-    
-    // Ensure arrays exist even if they're undefined after processing
-    const expenseItems = Array.isArray(processedData.expenseItems) ? 
-      processedData.expenseItems : 
-      (data.expenseItems ? [...data.expenseItems] : []);
-      
-    const fxRates = Array.isArray(processedData.informationOnForeignExchangeRate) ? 
-      processedData.informationOnForeignExchangeRate : 
-      (data.informationOnForeignExchangeRate ? [...data.informationOnForeignExchangeRate] : []);
-    
     // Preserve the original ID from initialData if it exists
-    const dataToSubmit = {
-      ...processedData,
+    const dataToSubmit: ExpenseClaim = {
+      ...data,
       id: claimId || initialData?.id || '', // Include the claimId in the submitted data
-      expenseItems: expenseItems.map((item: any) => {
-        // Ensure all numeric fields are properly typed
-        return {
-          ...item,
-          date: item.date ? new Date(item.date) : new Date(),
-          officialMileageKM: Number(item.officialMileageKM) || 0,
-          transport: Number(item.transport) || 0,
-          hotelAccommodationAllowance: Number(item.hotelAccommodationAllowance) || 0,
-          outStationAllowanceMeal: Number(item.outStationAllowanceMeal) || 0,
-          miscellaneousAllowance10Percent: Number(item.miscellaneousAllowance10Percent) || 0,
-          otherExpenses: Number(item.otherExpenses) || 0
-        };
-      }),
-      informationOnForeignExchangeRate: fxRates.map((fx: any) => ({
-        ...fx,
-        date: fx.date ? new Date(fx.date) : new Date(),
-        sellingRateTTOD: Number(fx.sellingRateTTOD) || 0
+      expenseItems: data.expenseItems.map(item => ({
+        ...item,
+        date: item.date ? new Date(item.date) : null,
+        officialMileageKM: item.officialMileageKM === undefined ? null : item.officialMileageKM,
+        transport: item.transport === undefined ? null : item.transport,
+        hotelAccommodationAllowance: item.hotelAccommodationAllowance === undefined ? null : item.hotelAccommodationAllowance,
+        outStationAllowanceMeal: item.outStationAllowanceMeal === undefined ? null : item.outStationAllowanceMeal,
+        miscellaneousAllowance10Percent: item.miscellaneousAllowance10Percent === undefined ? null : item.miscellaneousAllowance10Percent,
+        otherExpenses: item.otherExpenses === undefined ? null : item.otherExpenses,
       })),
-      // Ensure medicalClaimDetails has the correct type
-      medicalClaimDetails: {
-        ...processedData.medicalClaimDetails,
-        applicableMedicalType: processedData.medicalClaimDetails?.applicableMedicalType || "",
-        familyMemberOther: processedData.medicalClaimDetails?.familyMemberOther || ""
-      }
+      informationOnForeignExchangeRate: data.informationOnForeignExchangeRate.map(fx => ({
+        ...fx,
+        date: fx.date ? new Date(fx.date) : null,
+        sellingRateTTOD: fx.sellingRateTTOD === undefined ? null : fx.sellingRateTTOD,
+      })),
+      financialSummary: {
+        ...data.financialSummary,
+        totalAdvanceClaimAmount: data.financialSummary.totalAdvanceClaimAmount === undefined ? null : data.financialSummary.totalAdvanceClaimAmount,
+        lessAdvanceTaken: data.financialSummary.lessAdvanceTaken === undefined ? null : data.financialSummary.lessAdvanceTaken,
+        lessCorporateCreditCardPayment: data.financialSummary.lessCorporateCreditCardPayment === undefined ? null : data.financialSummary.lessCorporateCreditCardPayment,
+        balanceClaimRepayment: data.financialSummary.balanceClaimRepayment === undefined ? null : data.financialSummary.balanceClaimRepayment,
+      },
     };
-    
-    console.log("Submitting data:", dataToSubmit);
-    
-    // Type assertion after ensuring all fields are properly typed
-    onSubmit(dataToSubmit as ExpenseClaim);
+    onSubmit(dataToSubmit);
   };
 
   return (
@@ -556,12 +517,12 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
                         )} />
                       </TableCell>
                       <TableCell><FormField control={form.control} name={`expenseItems.${index}.claimOrTravelDetails`} render={({ field: itemField }) => <Textarea {...itemField} placeholder="Details..." className="min-h-[40px]" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.officialMileageKM`} render={({ field: itemField }) => <Input type="number" {...itemField} placeholder="0" className="text-center" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.transport`} render={({ field: itemField }) => <Input type="number" {...itemField} placeholder="0.00" className="text-right" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.hotelAccommodationAllowance`} render={({ field: itemField }) => <Input type="number" {...itemField} placeholder="0.00" className="text-right" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.outStationAllowanceMeal`} render={({ field: itemField }) => <Input type="number" {...itemField} placeholder="0.00" className="text-right" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.miscellaneousAllowance10Percent`} render={({ field: itemField }) => <Input type="number" {...itemField} placeholder="0.00" className="text-right" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.otherExpenses`} render={({ field: itemField }) => <Input type="number" {...itemField} placeholder="0.00" className="text-right" />} /></TableCell>
+                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.officialMileageKM`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0" className="text-center" />} /></TableCell>
+                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.transport`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
+                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.hotelAccommodationAllowance`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
+                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.outStationAllowanceMeal`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
+                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.miscellaneousAllowance10Percent`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
+                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.otherExpenses`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
                       <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => removeExpense(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button></TableCell>
                     </TableRow>
                   ))}
@@ -611,7 +572,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
                                     )} />
                                 </TableCell>
                                 <TableCell><FormField control={form.control} name={`informationOnForeignExchangeRate.${index}.typeOfCurrency`} render={({ field: itemField }) => <Input {...itemField} placeholder="e.g. USD" />} /></TableCell>
-                                <TableCell><FormField control={form.control} name={`informationOnForeignExchangeRate.${index}.sellingRateTTOD`} render={({ field: itemField }) => <Input type="number" {...itemField} placeholder="0.0000" className="text-right" />} /></TableCell>
+                                <TableCell><FormField control={form.control} name={`informationOnForeignExchangeRate.${index}.sellingRateTTOD`} render={({ field: itemField }) => <SafeInput type="number" {...itemField} placeholder="0.0000" className="text-right" />} /></TableCell>
                                 <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => removeFx(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button></TableCell>
                             </TableRow>
                         ))}
@@ -627,7 +588,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
         <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><Banknote className="w-5 h-5 text-primary" /> Financial Summary</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-                <FormField control={form.control} name="financialSummary.totalAdvanceClaimAmount" render={({ field }) => (<FormItem><FormLabel>Total Advance/Claim Amount</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right" /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="financialSummary.totalAdvanceClaimAmount" render={({ field }) => (<FormItem><FormLabel>Total Advance/Claim Amount</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right font-semibold" readOnly /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="financialSummary.lessAdvanceTaken" render={({ field }) => (<FormItem><FormLabel>Less: Advance Taken</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right" /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="financialSummary.lessCorporateCreditCardPayment" render={({ field }) => (<FormItem><FormLabel>Less: Corporate Credit Card Payment</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right" /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="financialSummary.balanceClaimRepayment" render={({ field }) => (<FormItem><FormLabel>Balance of Claim/Repayment</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right font-semibold" readOnly /></FormControl><FormMessage /></FormItem>)} />

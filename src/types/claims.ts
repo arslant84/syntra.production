@@ -2,7 +2,7 @@
 export type DocumentType = "TR01" | "TB35" | "TB05" | "";
 export type StaffType = "PERMANENT STAFF" | "CONTRACT STAFF" | "";
 export type ExecutiveStatus = "EXECUTIVE" | "NON-EXECUTIVE" | "";
-export type MedicalClaimApplicable = "Inpatient" | "Outpatient" | "";
+export type MedicalClaimApplicable = "Inpatient" | "Outpatient" | "" | undefined;
 
 export interface ClaimHeaderDetails {
   documentType: DocumentType;
@@ -29,38 +29,38 @@ export interface ClaimantBankDetails {
 
 export interface MedicalClaimDetails {
   isMedicalClaim: boolean;
-  applicableMedicalType: MedicalClaimApplicable;
+  applicableMedicalType?: MedicalClaimApplicable;
   isForFamily: boolean;
   familyMemberSpouse: boolean;
   familyMemberChildren: boolean;
-  familyMemberOther: string; // Description for other
+  familyMemberOther?: string; // Description for other
 }
 
 export interface ExpenseItem {
   id?: string;
   date: Date | null;
   claimOrTravelDetails: string; // From - To / Place of Stay
-  officialMileageKM: string | number; // B
-  transport: string | number; // C
-  hotelAccommodationAllowance: string | number; // D
-  outStationAllowanceMeal: string | number; // E
-  miscellaneousAllowance10Percent: string | number; // F
-  otherExpenses: string | number; // G
+  officialMileageKM: string | number | null; // B
+  transport: string | number | null; // C
+  hotelAccommodationAllowance: string | number | null; // D
+  outStationAllowanceMeal: string | number | null; // E
+  miscellaneousAllowance10Percent: string | number | null; // F
+  otherExpenses: string | number | null; // G
 }
 
 export interface ForeignExchangeRate {
   id?: string;
   date: Date | null;
   typeOfCurrency: string;
-  sellingRateTTOD: string | number;
+  sellingRateTTOD: string | number | null;
 }
 
 export interface ClaimFinancialSummary {
-  totalAdvanceClaimAmount: string | number;
-  lessAdvanceTaken: string | number;
-  lessCorporateCreditCardPayment: string | number;
-  balanceClaimRepayment: string | number; // Calculated
-  chequeReceiptNo: string;
+  totalAdvanceClaimAmount: string | number | null;
+  lessAdvanceTaken: string | number | null;
+  lessCorporateCreditCardPayment: string | number | null;
+  balanceClaimRepayment: string | number | null; // Calculated
+  chequeReceiptNo?: string;
 }
 
 export interface ClaimDeclaration {

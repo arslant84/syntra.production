@@ -69,10 +69,29 @@ export default function UserManagementPage() {
   const [isClient, setIsClient] = useState(false);
   useEffect(() => { setIsClient(true); }, []);
 
+  // Function to implement retry logic for API calls
+  const fetchWithRetry = async (url: string, options = {}, retries = 3, delay = 1000) => {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (err) {
+      if (retries <= 1) throw err;
+      
+      // Wait for the specified delay
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // Retry with one less retry attempt and increased delay (exponential backoff)
+      console.log(`Retrying fetch to ${url}, ${retries-1} attempts left`);
+      return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+    }
+  };
+
   const fetchAvailableRoles = useCallback(async () => {
     console.log("CLIENT_FETCH_ROLES: Fetching available roles...");
     try {
-      const response = await fetch('/api/roles');
+      // Use the retry-enabled fetch function
+      const response = await fetchWithRetry('/api/roles');
+      
       if (!response.ok) {
         let errorDetails = `Failed to fetch roles: ${response.status}`;
         try {
@@ -81,12 +100,17 @@ export default function UserManagementPage() {
         } catch (e) { /* Ignore if parsing fails, use status */ }
         throw new Error(errorDetails);
       }
+      
       const data = await response.json();
       console.log("CLIENT_FETCH_ROLES: Fetched roles:", data.roles);
       setAvailableRoles(data.roles || []);
     } catch (err: any) {
       console.error("CLIENT_FETCH_ROLES: Error fetching available roles:", err);
-      toast({ title: "Error Fetching Roles", description: err.message, variant: "destructive" });
+      toast({ 
+        title: "Error Fetching Roles", 
+        description: "Network error occurred. Please try again later.", 
+        variant: "destructive" 
+      });
       setAvailableRoles([]);
     }
   }, [toast]);

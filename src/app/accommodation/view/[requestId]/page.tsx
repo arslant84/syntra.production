@@ -103,7 +103,7 @@ export default function ViewAccommodationRequestPage() {
   }
 
   return (
-    <div className="container py-8 max-w-5xl">
+    <div className="w-full px-2 md:px-6 py-8 space-y-8">
       <div className="mb-6">
         <Button variant="outline" onClick={() => router.back()} className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" />

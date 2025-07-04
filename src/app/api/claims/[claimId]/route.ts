@@ -41,12 +41,12 @@ const expenseClaimCreateSchema = z.object({
     z.object({
       date: z.coerce.date(),
       claimOrTravelDetails: z.string().min(1),
-      officialMileageKM: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
-      transport: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
-      hotelAccommodationAllowance: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
-      outStationAllowanceMeal: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
-      miscellaneousAllowance10Percent: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
-      otherExpenses: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
+      officialMileageKM: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
+      transport: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
+      hotelAccommodationAllowance: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
+      outStationAllowanceMeal: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
+      miscellaneousAllowance10Percent: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
+      otherExpenses: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
     })
   ).min(1),
   informationOnForeignExchangeRate: z.array(
@@ -156,10 +156,10 @@ export async function PUT(request: NextRequest, { params }: { params: { claimId:
             family_member_spouse = ${medicalClaimDetails.familyMemberSpouse},
             family_member_children = ${medicalClaimDetails.familyMemberChildren},
             family_member_other = ${medicalClaimDetails.familyMemberOther || null},
-            total_advance_claim_amount = ${Number(financialSummary.totalAdvanceClaimAmount)},
-            less_advance_taken = ${Number(financialSummary.lessAdvanceTaken || 0)},
-            less_corporate_credit_card_payment = ${Number(financialSummary.lessCorporateCreditCardPayment || 0)},
-            balance_claim_repayment = ${Number(financialSummary.balanceClaimRepayment || 0)},
+            total_advance_claim_amount = ${financialSummary.totalAdvanceClaimAmount === null ? null : Number(financialSummary.totalAdvanceClaimAmount)},
+            less_advance_taken = ${financialSummary.lessAdvanceTaken === null ? null : Number(financialSummary.lessAdvanceTaken)},
+            less_corporate_credit_card_payment = ${financialSummary.lessCorporateCreditCardPayment === null ? null : Number(financialSummary.lessCorporateCreditCardPayment)},
+            balance_claim_repayment = ${financialSummary.balanceClaimRepayment === null ? null : Number(financialSummary.balanceClaimRepayment)},
             cheque_receipt_no = ${financialSummary.chequeReceiptNo || null},
             i_declare = ${declaration.iDeclare},
             declaration_date = ${formatISO(declaration.date, {representation: 'date'})},
@@ -179,17 +179,28 @@ export async function PUT(request: NextRequest, { params }: { params: { claimId:
         
         if (expenseItems && expenseItems.length > 0) {
           console.log("API_CLAIMS_PUT: Inserting", expenseItems.length, "expense items");
-          const itemsToInsert = expenseItems.map(item => ({
-            claim_id: claimId,
-            item_date: item.date ? formatISO(item.date, { representation: 'date' }) : null,
-            claim_or_travel_details: item.claimOrTravelDetails,
-            official_mileage_km: Number(item.officialMileageKM || 0),
-            transport: Number(item.transport || 0),
-            hotel_accommodation_allowance: Number(item.hotelAccommodationAllowance || 0),
-            out_station_allowance_meal: Number(item.outStationAllowanceMeal || 0),
-            miscellaneous_allowance_10_percent: Number(item.miscellaneousAllowance10Percent || 0),
-            other_expenses: Number(item.otherExpenses || 0),
-          }));
+          const itemsToInsert = expenseItems.map(item => {
+            // Ensure all numeric values are properly converted to numbers
+            // Use explicit 0 for empty values instead of null or undefined
+            const officialMileageKM = item.officialMileageKM === null || item.officialMileageKM === undefined ? null : Number(item.officialMileageKM);
+            const transport = item.transport === null || item.transport === undefined ? null : Number(item.transport);
+            const hotelAccommodationAllowance = item.hotelAccommodationAllowance === null || item.hotelAccommodationAllowance === undefined ? null : Number(item.hotelAccommodationAllowance);
+            const outStationAllowanceMeal = item.outStationAllowanceMeal === null || item.outStationAllowanceMeal === undefined ? null : Number(item.outStationAllowanceMeal);
+            const miscellaneousAllowance10Percent = item.miscellaneousAllowance10Percent === null || item.miscellaneousAllowance10Percent === undefined ? null : Number(item.miscellaneousAllowance10Percent);
+            const otherExpenses = item.otherExpenses === null || item.otherExpenses === undefined ? null : Number(item.otherExpenses);
+            
+            return {
+              claim_id: claimId,
+              item_date: item.date ? formatISO(item.date, { representation: 'date' }) : null,
+              claim_or_travel_details: item.claimOrTravelDetails,
+              official_mileage_km: officialMileageKM,
+              transport: transport,
+              hotel_accommodation_allowance: hotelAccommodationAllowance,
+              out_station_allowance_meal: outStationAllowanceMeal,
+              miscellaneous_allowance_10_percent: miscellaneousAllowance10Percent,
+              other_expenses: otherExpenses,
+            };
+          });
           console.log("API_CLAIMS_PUT: First expense item sample:", JSON.stringify(itemsToInsert[0]).substring(0, 200));
           await tx`INSERT INTO expense_claim_items ${tx(itemsToInsert, 'claim_id', 'item_date', 'claim_or_travel_details', 'official_mileage_km', 'transport', 'hotel_accommodation_allowance', 'out_station_allowance_meal', 'miscellaneous_allowance_10_percent', 'other_expenses')}`;
           console.log("API_CLAIMS_PUT: Expense items inserted successfully");
@@ -207,7 +218,7 @@ export async function PUT(request: NextRequest, { params }: { params: { claimId:
             claim_id: claimId,
             fx_date: fx.date ? formatISO(fx.date, { representation: 'date' }) : null,
             type_of_currency: fx.typeOfCurrency,
-            selling_rate_tt_od: Number(fx.sellingRateTTOD || 0),
+            selling_rate_tt_od: fx.sellingRateTTOD === null ? null : Number(fx.sellingRateTTOD),
           }));
           await tx`INSERT INTO expense_claim_fx_rates ${tx(fxToInsert, 'claim_id', 'fx_date', 'type_of_currency', 'selling_rate_tt_od')}`;
           console.log("API_CLAIMS_PUT: FX rates inserted successfully");
@@ -344,16 +355,23 @@ export async function GET(request: NextRequest, { params }: { params: { claimId:
       expenseItems: expenseItems.map((item: any) => ({
         ...item,
         date: formatISO(new Date(item.date), { representation: 'date' }),
+        officialMileageKM: item.officialMileageKM === null ? null : Number(item.officialMileageKM),
+        transport: item.transport === null ? null : Number(item.transport),
+        hotelAccommodationAllowance: item.hotelAccommodationAllowance === null ? null : Number(item.hotelAccommodationAllowance),
+        outStationAllowanceMeal: item.outStationAllowanceMeal === null ? null : Number(item.outStationAllowanceMeal),
+        miscellaneousAllowance10Percent: item.miscellaneousAllowance10Percent === null ? null : Number(item.miscellaneousAllowance10Percent),
+        otherExpenses: item.otherExpenses === null ? null : Number(item.otherExpenses),
       })),
       informationOnForeignExchangeRate: fxRates.map((fx: any) => ({
         ...fx,
         date: formatISO(new Date(fx.date), { representation: 'date' }),
+        sellingRateTTOD: fx.sellingRateTTOD === null ? null : Number(fx.sellingRateTTOD),
       })),
       financialSummary: {
-        totalAdvanceClaimAmount: Number(claim.total_advance_claim_amount),
-        lessAdvanceTaken: Number(claim.less_advance_taken),
-        lessCorporateCreditCardPayment: Number(claim.less_corporate_credit_card_payment),
-        balanceClaimRepayment: Number(claim.balance_claim_repayment),
+        totalAdvanceClaimAmount: claim.total_advance_claim_amount === null ? null : Number(claim.total_advance_claim_amount),
+        lessAdvanceTaken: claim.less_advance_taken === null ? null : Number(claim.less_advance_taken),
+        lessCorporateCreditCardPayment: claim.less_corporate_credit_card_payment === null ? null : Number(claim.less_corporate_credit_card_payment),
+        balanceClaimRepayment: claim.balance_claim_repayment === null ? null : Number(claim.balance_claim_repayment),
         chequeReceiptNo: claim.cheque_receipt_no,
       },
       declaration: {

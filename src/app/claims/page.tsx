@@ -12,6 +12,8 @@ import { FilterBar } from "@/components/ui/FilterBar";
 
 type Claim = {
   id: string;
+  document_number?: string;
+  documentNumber?: string;
   requestor: string;
   purpose: string;
   amount: number;
@@ -82,7 +84,7 @@ export default function ClaimsPage() {
   const filteredClaims = claims.filter((claim) => {
     const matchesSearch =
       searchTerm === "" ||
-      claim.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (claim.document_number || claim.documentNumber || claim.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
       claim.requestor.toLowerCase().includes(searchTerm.toLowerCase()) ||
       claim.purpose.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
@@ -196,7 +198,7 @@ export default function ClaimsPage() {
                 <TableBody>
                   {filteredClaims.map((claim) => (
                     <TableRow key={claim.id}>
-                      <TableCell className="font-medium">{claim.id}</TableCell>
+                      <TableCell className="font-medium">{claim.document_number || claim.documentNumber || claim.id}</TableCell>
                       <TableCell>{claim.purpose}</TableCell>
                       <TableCell>USD {claim.amount.toFixed(2)}</TableCell>
                       <TableCell>{getStatusBadge(claim.status)}</TableCell>

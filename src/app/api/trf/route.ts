@@ -56,6 +56,17 @@ const accommodationDetailSchemaDb = z.object({
   checkOutDate: z.coerce.date({invalid_type_error: "Invalid check-out date format."}).nullable(),
   checkOutTime: z.string().regex(timeRegex, "Invalid Check-out Time (HH:MM)").optional().nullable().or(z.literal("")),
   remarks: z.string().optional().nullable(),
+  // Additional fields from DB schema
+  location: z.string().optional().nullable(),
+  fromDate: z.coerce.date().optional().nullable(),
+  toDate: z.coerce.date().optional().nullable(),
+  fromLocation: z.string().optional().nullable(),
+  toLocation: z.string().optional().nullable(),
+  btNoRequired: z.string().optional().nullable(),
+  accommodationTypeN: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  placeOfStay: z.string().optional().nullable(),
+  estimatedCostPerNight: z.union([z.string(), z.number()]).optional().nullable(),
 }).refine(data => data.accommodationType !== 'Other' || (data.accommodationType === 'Other' && data.otherTypeDescription && data.otherTypeDescription.trim().length > 0), {
   message: "Description for 'Other' accommodation type is required.",
   path: ["otherTypeDescription"],
@@ -351,25 +362,65 @@ export async function POST(request: NextRequest) {
         console.log(`API_TRF_POST (PostgreSQL): First itinerary segment fields:`, Object.keys(itineraryInserts[0]).join(', '));
       }
       
-      await tx`INSERT INTO trf_itinerary_segments ${tx(itineraryInserts, 'trf_id', 'segment_date', 'day_of_week', 'from_location', 'to_location', 'departure_time', 'arrival_time', 'flight_number', 'purpose', 'breakfast', 'lunch', 'dinner', 'supper', 'refreshment', 'flight_class')}`;
+      await tx`INSERT INTO trf_itinerary_segments ${tx(itineraryInserts, 'trf_id', 'segment_date', 'day_of_week', 'from_location', 'to_location', 'departure_time', 'arrival_time', 'flight_number', 'purpose', 'flight_class')}`;
       console.log(`API_TRF_POST (PostgreSQL): Successfully inserted ${itineraryInserts.length} itinerary segments.`);
+      
+      // Handle meal provisions for all travel types that have them
+      let mealProvisionData: any = null;
+      if (validatedData.travelType === "Domestic") {
+        mealProvisionData = validatedData.domesticTravelDetails.mealProvision;
+      } else if (validatedData.travelType === "External Parties") {
+        mealProvisionData = validatedData.externalPartiesTravelDetails.mealProvision;
+      }
+      
+      if (mealProvisionData) {
+        console.log("API_TRF_POST (PostgreSQL): Inserting meal provisions for TRF ID:", trfId);
+        await tx`INSERT INTO trf_meal_provisions (
+          trf_id, 
+          date_from_to, 
+          breakfast, 
+          lunch, 
+          dinner, 
+          supper, 
+          refreshment
+        ) VALUES (
+          ${trfId}, 
+          ${mealProvisionData.dateFromTo || ''}, 
+          ${Number(mealProvisionData.breakfast || 0)}, 
+          ${Number(mealProvisionData.lunch || 0)}, 
+          ${Number(mealProvisionData.dinner || 0)}, 
+          ${Number(mealProvisionData.supper || 0)}, 
+          ${Number(mealProvisionData.refreshment || 0)}
+        )`;
+        console.log("API_TRF_POST (PostgreSQL): Successfully inserted meal provisions.");
+      }
       
       // Type-specific details
       if (validatedData.travelType === "Domestic") {
         const details = validatedData.domesticTravelDetails;
         console.log("API_TRF_POST (PostgreSQL): Inserting domestic details for TRF ID:", trfId);
-        // Note: Meal provisions are stored in the trf_itinerary_segments table
-        // The meal provision data is handled at the itinerary level, not as a separate table
         if (details.accommodationDetails && details.accommodationDetails.length > 0) {
           const accomInserts = details.accommodationDetails.map(acc => ({
             trf_id: trfId, 
             accommodation_type: acc.accommodationType,
             check_in_date: acc.checkInDate ? formatISO(acc.checkInDate, { representation: 'date' }) : null,
+            check_in_time: acc.checkInTime || null,
             check_out_date: acc.checkOutDate ? formatISO(acc.checkOutDate, { representation: 'date' }) : null,
-            location: acc.otherTypeDescription || null, // Using otherTypeDescription as location
+            check_out_time: acc.checkOutTime || null,
+            location: acc.location || null,
+            from_date: acc.fromDate ? formatISO(acc.fromDate, { representation: 'date' }) : null,
+            to_date: acc.toDate ? formatISO(acc.toDate, { representation: 'date' }) : null,
+            from_location: acc.fromLocation || null,
+            to_location: acc.toLocation || null,
+            bt_no_required: acc.btNoRequired || null,
+            accommodation_type_n: acc.accommodationTypeN || null,
+            address: acc.address || null,
+            place_of_stay: acc.placeOfStay || null,
+            estimated_cost_per_night: acc.estimatedCostPerNight ? Number(acc.estimatedCostPerNight) : null,
+            other_type_description: acc.otherTypeDescription || null,
             remarks: acc.remarks || null,
           }));
-          await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, 'trf_id', 'accommodation_type', 'check_in_date', 'check_out_date', 'location', 'remarks')}`;
+          await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, 'trf_id', 'accommodation_type', 'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time', 'location', 'from_date', 'to_date', 'from_location', 'to_location', 'bt_no_required', 'accommodation_type_n', 'address', 'place_of_stay', 'estimated_cost_per_night', 'other_type_description', 'remarks')}`;
         }
         // Note: Company transport details are handled differently in the database schema
         // We're not inserting them separately as there's no dedicated table for this in the current schema
@@ -489,9 +540,6 @@ export async function POST(request: NextRequest) {
             remarks: acc.remarks || null,
           }));
           await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, 'trf_id', 'accommodation_type', 'check_in_date', 'check_out_date', 'place_of_stay', 'estimated_cost_per_night', 'remarks')}`;
-        }
-        if (details.mealProvision) {
-          await tx`INSERT INTO trf_meal_provisions (trf_id, date_from_to, breakfast, lunch, dinner, supper, refreshment) VALUES (${trfId}, ${details.mealProvision.dateFromTo}, ${Number(details.mealProvision.breakfast || 0)}, ${Number(details.mealProvision.lunch || 0)}, ${Number(details.mealProvision.dinner || 0)}, ${Number(details.mealProvision.supper || 0)}, ${Number(details.mealProvision.refreshment || 0)})`;
         }
       }
 

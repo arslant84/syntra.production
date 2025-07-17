@@ -30,12 +30,13 @@ export interface ItinerarySegment {
 }
 
 export interface MealProvisionDetails {
-  dateFromTo: string;
-  breakfast: number | string; 
-  lunch: number | string;
-  dinner: number | string;
-  supper: number | string;
-  refreshment: number | string;
+  dateFromTo?: string;
+  date_from_to?: string;
+  breakfast?: number | string; 
+  lunch?: number | string;
+  dinner?: number | string;
+  supper?: number | string;
+  refreshment?: number | string;
 }
 
 export type AccommodationType = 'Hotel/Отели' | 'Staff House/PKC Kampung/Kiyanly camp' | 'Other';

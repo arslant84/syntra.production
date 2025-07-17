@@ -40,7 +40,11 @@ const expenseClaimCreateSchema = z.object({
   expenseItems: z.array(
     z.object({
       date: z.coerce.date(),
-      claimOrTravelDetails: z.string().min(1),
+      claimOrTravelDetails: z.object({
+        from: z.string().optional(),
+        to: z.string().optional(),
+        placeOfStay: z.string().optional(),
+      }),
       officialMileageKM: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
       transport: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
       hotelAccommodationAllowance: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
@@ -53,7 +57,7 @@ const expenseClaimCreateSchema = z.object({
     z.object({
       date: z.coerce.date(),
       typeOfCurrency: z.string().min(1),
-      sellingRateTTOD: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative()),
+      sellingRateTTOD: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
     })
   ).optional(),
   financialSummary: z.object({
@@ -192,7 +196,7 @@ export async function PUT(request: NextRequest, { params }: { params: { claimId:
             return {
               claim_id: claimId,
               item_date: item.date ? formatISO(item.date, { representation: 'date' }) : null,
-              claim_or_travel_details: item.claimOrTravelDetails,
+              claim_or_travel_details: JSON.stringify(item.claimOrTravelDetails),
               official_mileage_km: officialMileageKM,
               transport: transport,
               hotel_accommodation_allowance: hotelAccommodationAllowance,

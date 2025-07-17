@@ -213,10 +213,7 @@ export default function TrfView({ trfData }: TrfViewProps) {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
                 <DetailItem 
                   label="Date From/To" 
-                  value={
-                    (domesticTravelDetails.mealProvision as AnyObject).date_from_to || 
-                    domesticTravelDetails.mealProvision.dateFromTo
-                  } 
+                  value={domesticTravelDetails.mealProvision.dateFromTo || domesticTravelDetails.mealProvision.date_from_to} 
                 />
                 <DetailItem label="Breakfast" value={formatNumberSafe(domesticTravelDetails.mealProvision.breakfast)} />
                 <DetailItem label="Lunch" value={formatNumberSafe(domesticTravelDetails.mealProvision.lunch)} />
@@ -262,7 +259,7 @@ export default function TrfView({ trfData }: TrfViewProps) {
               })}
             </section>
           )}
-          
+
           {isExternal && externalPartiesTravelDetails && (
             <>
               {externalPartiesTravelDetails.accommodationDetails && externalPartiesTravelDetails.accommodationDetails.length > 0 && (
@@ -298,10 +295,7 @@ export default function TrfView({ trfData }: TrfViewProps) {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
                     <DetailItem 
                       label="Date From/To" 
-                      value={
-                        (externalPartiesTravelDetails.mealProvision as AnyObject).date_from_to || 
-                        externalPartiesTravelDetails.mealProvision.dateFromTo
-                      } 
+                      value={externalPartiesTravelDetails.mealProvision.dateFromTo || externalPartiesTravelDetails.mealProvision.date_from_to} 
                     />
                     <DetailItem label="Breakfast" value={formatNumberSafe(externalPartiesTravelDetails.mealProvision.breakfast)} />
                     <DetailItem label="Lunch" value={formatNumberSafe(externalPartiesTravelDetails.mealProvision.lunch)} />

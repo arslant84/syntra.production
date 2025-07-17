@@ -41,11 +41,5 @@ export function mapFrontendItineraryToDb(frontendSegment: any, trfId: string) {
     flight_class: frontendSegment.flightNumber || "",
     remarks: frontendSegment.remarks || "",
     purpose: null, // Set to null as it's not collected per segment from frontend
-    // Add meal provision fields with default values
-    breakfast: 0,
-    lunch: 0,
-    dinner: 0,
-    supper: 0,
-    refreshment: 0,
   };
 }

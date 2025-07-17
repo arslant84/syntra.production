@@ -171,27 +171,32 @@ export default function FlightsAdminPage() {
             const res = await fetch(`/api/trf/${trfItem.id}`);
             if (!res.ok) throw new Error('Failed to fetch full TRF details');
             const fullTrfData = await res.json();
-            const fetchedTrf = fullTrfData.trf as TravelRequestForm; // Cast to full type
-            
+            const fetchedTrf = fullTrfData.trf as TravelRequestForm;
+
             // Map to AdminTrfListItemForFlights structure for consistency
             let destinationSummary = 'N/A';
             let mainRequestedDate = fetchedTrf.submittedAt; // Fallback
             let itinerary = undefined;
+            let purpose = 'N/A';
 
             if (fetchedTrf.domesticTravelDetails?.itinerary?.length) {
                 destinationSummary = fetchedTrf.domesticTravelDetails.itinerary.map(s => `${s.from_location || s.from} > ${s.to_location || s.to}`).join(', ');
                 mainRequestedDate = fetchedTrf.domesticTravelDetails.itinerary[0].date || mainRequestedDate;
                 itinerary = fetchedTrf.domesticTravelDetails.itinerary;
+                purpose = fetchedTrf.domesticTravelDetails.purpose;
             } else if (fetchedTrf.overseasTravelDetails?.itinerary?.length) {
                 destinationSummary = fetchedTrf.overseasTravelDetails.itinerary.map(s => `${s.from_location || s.from} > ${s.to_location || s.to}`).join(', ');
                 mainRequestedDate = fetchedTrf.overseasTravelDetails.itinerary[0].date || mainRequestedDate;
                 itinerary = fetchedTrf.overseasTravelDetails.itinerary;
+                purpose = fetchedTrf.overseasTravelDetails.purpose;
             } else if (fetchedTrf.externalPartiesTravelDetails?.itinerary?.length) {
                 destinationSummary = fetchedTrf.externalPartiesTravelDetails.itinerary.map(s => `${s.from_location || s.from} > ${s.to_location || s.to}`).join(', ');
                 mainRequestedDate = fetchedTrf.externalPartiesTravelDetails.itinerary[0].date || mainRequestedDate;
                 itinerary = fetchedTrf.externalPartiesTravelDetails.itinerary;
+                purpose = fetchedTrf.externalPartiesTravelDetails.purpose;
             } else {
                  destinationSummary = fetchedTrf.purpose?.substring(0,50) + '...' || "N/A";
+                 purpose = fetchedTrf.purpose || 'N/A';
             }
 
             setSelectedTrf({
@@ -203,7 +208,7 @@ export default function FlightsAdminPage() {
                 status: fetchedTrf.status,
                 staffId: fetchedTrf.staffId || 'N/A',
                 department: fetchedTrf.department || 'N/A',
-                purpose: fetchedTrf.purpose || 'N/A',
+                purpose: purpose,
                 itinerary: itinerary,
             });
         } catch (err) {
@@ -324,6 +329,8 @@ export default function FlightsAdminPage() {
                   <p className="text-sm text-muted-foreground">Status: <span className="font-medium">{selectedTrf.status}</span></p>
                 </div>
                 
+                
+
                 {selectedTrf.status === 'Approved' && (
                     <div className="space-y-3 pt-2 border-t">
                         <div className="grid grid-cols-2 gap-3">

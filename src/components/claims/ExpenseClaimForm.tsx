@@ -8,6 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { TimeInput } from "@/components/ui/time-input";
 
 // Wrapper for Input component to ensure values are never null
 type SafeInputProps = Omit<React.ComponentProps<typeof Input>, 'value'> & {
@@ -74,7 +75,11 @@ const claimFormSchema = z.object({
   expenseItems: z.array(
     z.object({
       date: z.date({ required_error: "Date is required." }),
-      claimOrTravelDetails: z.string().min(1, "Claim/Travel details are required."),
+      claimOrTravelDetails: z.object({
+        from: z.string().optional(),
+        to: z.string().optional(),
+        placeOfStay: z.string().optional(),
+      }),
       officialMileageKM: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
       transport: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
       hotelAccommodationAllowance: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative().nullable().optional()),
@@ -87,7 +92,7 @@ const claimFormSchema = z.object({
     z.object({
       date: z.date({ required_error: "Date is required." }),
       typeOfCurrency: z.string().min(1, "Type of currency is required."),
-      sellingRateTTOD: z.preprocess(val => String(val) === '' ? null : Number(val), z.number({invalid_type_error: "Must be a number"}).nonnegative("Rate must be non-negative.").nullable()),
+      sellingRateTTOD: z.preprocess(val => String(val) === '' ? null : val, z.string().nullable()),
     })
   ).default([]),
   financialSummary: z.object({
@@ -419,8 +424,8 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-center">
               <FormField control={form.control} name="headerDetails.location" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>Location</FormLabel><FormControl><SafeInput {...field} /></FormControl><FormMessage /></FormItem>)} />
               <FormField control={form.control} name="headerDetails.telExt" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>Tel/Ext.</FormLabel><FormControl><SafeInput {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="headerDetails.startTimeFromHome" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>1. Start time from home to destination</FormLabel><FormControl><SafeInput type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="headerDetails.timeOfArrivalAtHome" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>2. Time of arrival at home from official duty</FormLabel><FormControl><SafeInput type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="headerDetails.startTimeFromHome" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>1. Start time from home to destination</FormLabel><FormControl><TimeInput {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="headerDetails.timeOfArrivalAtHome" render={({ field }) => (<FormItem className="h-full flex flex-col justify-center"><FormLabel>2. Time of arrival at home from official duty</FormLabel><FormControl><TimeInput {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
           </CardContent>
         </Card>
@@ -516,7 +521,13 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
                           </Popover>
                         )} />
                       </TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.claimOrTravelDetails`} render={({ field: itemField }) => <Textarea {...itemField} placeholder="Details..." className="min-h-[40px]" />} /></TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-2">
+                          <FormField control={form.control} name={`expenseItems.${index}.claimOrTravelDetails.from`} render={({ field: itemField }) => <Input {...itemField} placeholder="From..." className="min-h-[40px]" />} />
+                          <FormField control={form.control} name={`expenseItems.${index}.claimOrTravelDetails.to`} render={({ field: itemField }) => <Input {...itemField} placeholder="To..." className="min-h-[40px]" />} />
+                          <FormField control={form.control} name={`expenseItems.${index}.claimOrTravelDetails.placeOfStay`} render={({ field: itemField }) => <Input {...itemField} placeholder="Place of Stay..." className="min-h-[40px]" />} />
+                        </div>
+                      </TableCell>
                       <TableCell><FormField control={form.control} name={`expenseItems.${index}.officialMileageKM`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0" className="text-center" />} /></TableCell>
                       <TableCell><FormField control={form.control} name={`expenseItems.${index}.transport`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
                       <TableCell><FormField control={form.control} name={`expenseItems.${index}.hotelAccommodationAllowance`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
@@ -540,7 +551,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
                 </TableBody>
               </Table>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={() => appendExpense({ date: new Date(), claimOrTravelDetails: "", officialMileageKM: 0, transport: 0, hotelAccommodationAllowance: 0, outStationAllowanceMeal: 0, miscellaneousAllowance10Percent: 0, otherExpenses: 0 })}>
+            <Button type="button" variant="outline" size="sm" onClick={() => appendExpense({ date: new Date(), claimOrTravelDetails: { from: '', to: '', placeOfStay: '' }, officialMileageKM: 0, transport: 0, hotelAccommodationAllowance: 0, outStationAllowanceMeal: 0, miscellaneousAllowance10Percent: 0, otherExpenses: 0 })}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Expense Item
             </Button>
           </CardContent>

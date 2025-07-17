@@ -374,7 +374,11 @@ export default function ApprovalSubmissionForm({
             <form onSubmit={form.handleSubmit(
   (data: any) => onSubmit(data as ApprovalSubmissionData),
   (errors: Record<string, any>) => {
-    console.error('ApprovalSubmissionForm validation errors:', errors);
+    // Only log validation errors in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.log('ApprovalSubmissionForm validation errors:', errors);
+    }
+    
     // Add toast notification for validation errors
     const errorMessages: string[] = [];
     if (errors.confirmPolicy) errorMessages.push("You must confirm compliance with travel policy");

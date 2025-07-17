@@ -10,8 +10,14 @@ const bookFlightSchema = z.object({
     flightNumber: z.string().optional().nullable(),
     departureAirport: z.string().optional().nullable(),
     arrivalAirport: z.string().optional().nullable(),
-    departureDateTime: z.string().datetime({ message: "Invalid departure date/time format" }).optional().nullable(),
-    arrivalDateTime: z.string().datetime({ message: "Invalid arrival date/time format" }).optional().nullable(),
+    departureDateTime: z.string().optional().nullable().refine(
+        (val) => !val || isValid(parseISO(val)),
+        { message: "Invalid departure date/time format" }
+    ),
+    arrivalDateTime: z.string().optional().nullable().refine(
+        (val) => !val || isValid(parseISO(val)),
+        { message: "Invalid arrival date/time format" }
+    ),
     cost: z.preprocess(
         (val) => (typeof val === 'string' && val.trim() === '') ? null : Number(val),
         z.number().positive("Cost must be a positive number").optional().nullable()
@@ -30,7 +36,7 @@ function getNextStatusAfterFlightBooking(trf: { travel_type?: string | null, has
 }
 
 export async function POST(request: NextRequest, { params }: { params: { trfId: string } }) {
-  const { trfId } = params;
+  const { trfId } = await Promise.resolve(params);
   console.log(`API_TRF_ADMIN_BOOKFLIGHT_POST_START (PostgreSQL): Booking flight for TRF ${trfId}.`);
   if (!sql) {
     console.error("API_TRF_ADMIN_BOOKFLIGHT_POST_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -52,11 +58,54 @@ export async function POST(request: NextRequest, { params }: { params: { trfId: 
   }
   const { pnr, airline, flightNumber, departureAirport, arrivalAirport, departureDateTime, arrivalDateTime, cost, flightNotes } = validationResult.data;
 
+  // Parse and split datetime fields for the new table
+  let departure_date = null, departure_time = null, arrival_date = null, arrival_time = null;
+  if (departureDateTime && isValid(parseISO(departureDateTime))) {
+    const depDateObj = parseISO(departureDateTime);
+    departure_date = formatISO(depDateObj, { representation: 'date' });
+    departure_time = depDateObj.toISOString().substring(11, 16); // 'HH:MM'
+  }
+  if (arrivalDateTime && isValid(parseISO(arrivalDateTime))) {
+    const arrDateObj = parseISO(arrivalDateTime);
+    arrival_date = formatISO(arrDateObj, { representation: 'date' });
+    arrival_time = arrDateObj.toISOString().substring(11, 16); // 'HH:MM'
+  }
+
+  // Validate required fields for flight booking
+  if (!flightNumber || !departureAirport || !arrivalAirport) {
+    return NextResponse.json({ 
+      error: "Missing required flight information",
+      details: "Flight number, departure airport, and arrival airport are required"
+    }, { status: 400 });
+  }
+
+  // Validate that departure is before arrival
+  if (departure_date && arrival_date && departure_time && arrival_time) {
+    const depDateTime = new Date(`${departure_date}T${departure_time}`);
+    const arrDateTime = new Date(`${arrival_date}T${arrival_time}`);
+    
+    if (depDateTime >= arrDateTime) {
+      return NextResponse.json({ 
+        error: "Invalid flight times: Departure must be before arrival",
+        details: {
+          departure: `${departure_date} ${departure_time}`,
+          arrival: `${arrival_date} ${arrival_time}`
+        }
+      }, { status: 400 });
+    }
+  } else if (!departure_date || !arrival_date || !departure_time || !arrival_time) {
+    return NextResponse.json({ 
+      error: "Missing flight times",
+      details: "Both departure and arrival dates/times are required"
+    }, { status: 400 });
+  }
+
   try {
     const [currentTrf] = await sql`
         SELECT 
             tr.id, tr.status, tr.travel_type, tr.requestor_name, tr.external_full_name,
-            EXISTS (SELECT 1 FROM trf_accommodation_details tad WHERE tad.trf_id = tr.id) as has_accommodation_request
+            EXISTS (SELECT 1 FROM trf_accommodation_details tad WHERE tad.trf_id = tr.id) as has_accommodation_request,
+            (SELECT json_agg(tmp) FROM trf_meal_provisions tmp WHERE tmp.trf_id = tr.id) as meal_provisions
         FROM travel_requests tr
         WHERE tr.id = ${trfId}
     `;
@@ -76,14 +125,52 @@ export async function POST(request: NextRequest, { params }: { params: { trfId: 
     if(airline) bookingSummary += ` Airline: ${airline}.`;
     if(flightNumber) bookingSummary += ` FlightNo: ${flightNumber}.`;
     if(departureAirport && arrivalAirport) bookingSummary += ` Route: ${departureAirport}-${arrivalAirport}.`;
-    if(departureDateTime) bookingSummary += ` Departs: ${formatISO(parseISO(departureDateTime))}.`;
-    if(arrivalDateTime) bookingSummary += ` Arrives: ${formatISO(parseISO(arrivalDateTime))}.`;
+    if(departureDateTime && isValid(parseISO(departureDateTime))) {
+        bookingSummary += ` Departs: ${formatISO(parseISO(departureDateTime))}.`;
+    }
+    if(arrivalDateTime && isValid(parseISO(arrivalDateTime))) {
+        bookingSummary += ` Arrives: ${formatISO(parseISO(arrivalDateTime))}.`;
+    }
     if(cost) bookingSummary += ` Cost: ${cost}.`;
     bookingSummary += ` Notes: ${flightNotes || 'N/A'}`;
     
-    // TODO: Save actual flight details to a new table `trf_flight_bookings` linked to trfId
+    // Insert into trf_flight_bookings
+    try {
+      await sql`
+        INSERT INTO trf_flight_bookings (
+          trf_id, flight_number, flight_class, departure_location, arrival_location,
+          departure_date, arrival_date, departure_time, arrival_time,
+          booking_reference, status, remarks, created_by
+        ) VALUES (
+          ${trfId},
+          ${flightNumber || ''},
+          ${'Economy'}, -- Default flight class
+          ${departureAirport || ''},
+          ${arrivalAirport || ''},
+          ${departure_date},
+          ${arrival_date},
+          ${departure_time},
+          ${arrival_time},
+          ${pnr || ''},
+          ${'Confirmed'},
+          ${flightNotes || ''},
+          ${adminName}
+        )
+      `;
+      console.log(`API_TRF_ADMIN_BOOKFLIGHT_POST (PostgreSQL): Successfully inserted flight booking for TRF ${trfId}`);
+    } catch (insertError: any) {
+      console.error(`API_TRF_ADMIN_BOOKFLIGHT_POST_ERROR (PostgreSQL): Failed to insert flight booking:`, insertError.message);
+      if (insertError.code === '23514') { // Check constraint violation
+        return NextResponse.json({ 
+          error: "Invalid flight booking data",
+          details: "Flight times violate database constraints. Please check departure and arrival times.",
+          constraint: insertError.constraint
+        }, { status: 400 });
+      }
+      throw insertError; // Re-throw other errors
+    }
 
-    const [updated] = await sql.begin(async tx => {
+    const updated = await sql.begin(async tx => {
         const [updatedTrfResult] = await tx`
             UPDATE travel_requests
             SET status = ${nextStatus}, 

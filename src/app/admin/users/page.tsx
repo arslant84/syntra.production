@@ -166,7 +166,15 @@ export default function UserManagementPage() {
   }, [debouncedSearchTerm, roleFilter, statusFilter, sortConfig]); // Removed fetchUsers from here
 
   const handleOpenAddModal = () => { setEditingUser(null); setIsUserModalOpen(true); };
-  const handleOpenEditModal = (user: User) => { setEditingUser(user); setIsUserModalOpen(true); };
+  const handleOpenEditModal = (user: User) => {
+    console.log("User passed to edit modal:", user);
+    if (!availableRoles || availableRoles.length === 0) {
+      alert("Roles are still loading. Please wait and try again.");
+      return;
+    }
+    setEditingUser(user);
+    setIsUserModalOpen(true);
+  };
   const handleCloseUserModal = () => { setIsUserModalOpen(false); setEditingUser(null); };
 
   const handleUserFormSubmit = useCallback(async (formData: UserFormValues): Promise<void> => {
@@ -177,18 +185,33 @@ export default function UserManagementPage() {
     try {
         const response = await fetch(endpoint, {
             method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData),
+            credentials: 'include',
         });
         if (!response.ok) {
-            const responseText = await response.text();
-            let parsedError: any = {}; let message = `Server error ${response.status}: ${response.statusText || 'Status text not available'}.`;
+            let responseText = '';
             try {
-                parsedError = JSON.parse(responseText);
-                if (parsedError.details || parsedError.error || parsedError.message) { throw parsedError; }
-                message += ` Raw response: ${responseText.substring(0,100)}...`;
-            } catch (e) { message += ` Raw response: ${responseText.substring(0,100)}...`; }
-            throw new Error(message);
+                responseText = await response.text();
+                let parsedError = {};
+                let message = `Server error ${response.status}: ${response.statusText || 'Status text not available'}.`;
+                try {
+                    parsedError = JSON.parse(responseText);
+                    if (parsedError.details || parsedError.error || parsedError.message) { throw parsedError; }
+                    message += ` Raw response: ${responseText.substring(0,100)}...`;
+                } catch (e) {
+                    // If not JSON, show generic error
+                    message += ` Raw response: ${responseText.substring(0,100)}...`;
+                }
+                throw new Error(message);
+            } catch (e) {
+                throw new Error(`Server error ${response.status}: Unable to parse error response.`);
+            }
         }
-        const result = await response.json();
+        let result;
+        try {
+            result = await response.json();
+        } catch {
+            throw new Error("Server error: Invalid response from server.");
+        }
         toast({ title: `User ${isEditMode ? 'Updated' : 'Created'}!`, description: `User "${result.user?.name || formData.name}" ${isEditMode ? 'updated' : 'created'}.` });
         fetchUsers(isEditMode ? currentPage : 1); // Refresh current page on edit, go to first on add
         handleCloseUserModal();
@@ -210,6 +233,7 @@ export default function UserManagementPage() {
       try {
         const response = await fetch(`/api/users/${userId}/role`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role_id: newRoleId }),
+          credentials: 'include',
         });
         if (!response.ok) {
           const responseText = await response.text(); let errorDetails = `Failed to update role: ${response.status}.`;
@@ -231,6 +255,7 @@ export default function UserManagementPage() {
       try {
         const response = await fetch(`/api/users/${user.id}/status`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }),
+          credentials: 'include',
         });
         if (!response.ok) {
           const responseText = await response.text(); let errorDetails = `Failed to update status: ${response.status}.`;
@@ -251,7 +276,7 @@ export default function UserManagementPage() {
     if (!userToDelete || !userToDelete.id) return;
     startUpdateTransition(async () => {
       try {
-        const response = await fetch(`/api/users/${userToDelete.id!}`, { method: 'DELETE' });
+        const response = await fetch(`/api/users/${userToDelete.id!}`, { method: 'DELETE', credentials: 'include' });
         if (!response.ok) {
           const responseText = await response.text(); let errorDetails = `Failed to delete user: ${response.status}.`;
           try { const errorJson = JSON.parse(responseText); errorDetails = errorJson.details || errorJson.error || errorDetails; } catch (e) { errorDetails += ` Server: ${responseText.substring(0,100)}...`;}

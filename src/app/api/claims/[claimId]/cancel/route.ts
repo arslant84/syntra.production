@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 
-export async function POST(request: Request, { params }: { params: { claimId: string } }) {
-  const { claimId } = params;
+export async function POST(request: Request, { params }: { params: Promise<{ claimId: string }> }) {
+  const { claimId } = await params;
   console.log(`API_CLAIMS_CANCEL_POST (PostgreSQL): Attempting to cancel claim with ID: ${claimId}`);
 
   if (!sql) {

@@ -2,7 +2,7 @@
 
 ## Core Features:
 
-- TRF Management: Streamlined TRF creation and submission process.
+- TSR Management: Streamlined TSR creation and submission process.
 - Booking Portal: Intuitive flight and accommodation booking interfaces.
 - Expense Claims: Automated claim submission and status tracking.
 - Travel Insights: AI tool to analyze travel history and suggest optimal booking times or cost-saving alternatives.

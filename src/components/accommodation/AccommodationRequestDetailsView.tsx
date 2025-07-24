@@ -70,7 +70,7 @@ export default function AccommodationRequestDetailsView({ requestData }: Accommo
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 pt-4">
           <DetailItem label="Request ID" value={id} />
-          <DetailItem label="TRF Reference" value={trfId ? <Link href={`/trf/view/${trfId}`} className="text-primary hover:underline flex items-center gap-1">{trfId} <LinkIcon className="h-3 w-3"/></Link> : "N/A"} />
+          <DetailItem label="TSR Reference" value={trfId ? <Link href={`/trf/view/${trfId}`} className="text-primary hover:underline flex items-center gap-1">{trfId} <LinkIcon className="h-3 w-3"/></Link> : "N/A"} />
           <DetailItem label="Requestor Name" value={requestorName} />
           <DetailItem label="Department" value={department} />
           <DetailItem label="Gender" value={requestorGender} />

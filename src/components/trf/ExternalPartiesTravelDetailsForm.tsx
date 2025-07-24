@@ -11,11 +11,12 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import type { ExternalPartiesTravelSpecificDetails, ItinerarySegment, ExternalPartyAccommodationDetail, MealProvisionDetails } from "@/types/trf";
+import type { ExternalPartiesTravelSpecificDetails, ItinerarySegment, ExternalPartyAccommodationDetail, MealProvisionDetails, TripType } from "@/types/trf";
 import { cn } from "@/lib/utils";
 import { format, isValid, startOfDay } from "date-fns";
 import { CalendarIcon, PlusCircle, Trash2, ClipboardList, Utensils, Bed, FileText, Users } from "lucide-react"; // Removed Car
 import React, { useEffect } from 'react'; 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
 
@@ -56,10 +57,11 @@ const mealProvisionSchema = z.object({
 });
 
 const externalPartiesTravelDetailsSchema = z.object({
-  purpose: z.string().min(10, "Purpose of travel must be at least 10 characters."),
-  itinerary: z.array(itinerarySegmentSchema).min(1, "At least one itinerary segment is required."),
+  purpose: z.string().min(1, "Purpose of travel is required."),
+  tripType: z.enum(['One Way', 'Round Trip']).default('One Way'),
+  itinerary: z.array(itinerarySegmentSchema).optional(),
   accommodationDetails: z.array(externalPartyAccommodationDetailSchema).optional(),
-  mealProvision: mealProvisionSchema,
+  mealProvision: mealProvisionSchema.optional(),
 });
 
 interface ExternalPartiesTravelDetailsFormProps {
@@ -73,6 +75,7 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
     resolver: zodResolver(externalPartiesTravelDetailsSchema),
     defaultValues: {
       purpose: initialData?.purpose || "",
+      tripType: initialData?.tripType || "One Way",
       itinerary: (initialData?.itinerary && initialData.itinerary.length > 0
         ? initialData.itinerary.map(item => ({ 
             ...item, 
@@ -102,6 +105,20 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
   const { fields: itineraryFields, append: appendItinerary, remove: removeItinerary } = useFieldArray({ control: form.control, name: "itinerary" });
   const { fields: accommodationFields, append: appendAccommodation, remove: removeAccommodation } = useFieldArray({ control: form.control, name: "accommodationDetails" });
 
+  // Watch trip type and clear itinerary when switching to One Way
+  const tripType = form.watch('tripType');
+  useEffect(() => {
+    if (tripType === 'One Way') {
+      if (itineraryFields.length === 0) {
+        appendItinerary({ date: null, day: '', from: '', to: '', etd: '', eta: '', flightNumber: '', remarks: '' });
+      } else if (itineraryFields.length > 1) {
+        form.setValue('itinerary', [itineraryFields[0]]);
+      }
+    } else if (tripType === 'Round Trip' && itineraryFields.length === 0) {
+      appendItinerary({ date: null, day: '', from: '', to: '', etd: '', eta: '', flightNumber: '', remarks: '' });
+    }
+  }, [tripType, itineraryFields.length]);
+
   const handleFormSubmit = (data: z.infer<typeof externalPartiesTravelDetailsSchema>) => {
     const formattedData: ExternalPartiesTravelSpecificDetails = {
       ...data,
@@ -130,7 +147,7 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
-        <Card className="w-full max-w-4xl mx-auto shadow-lg">
+        <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl md:text-2xl">
               <Users className="w-6 h-6 md:w-7 md:w-7 text-primary" />
@@ -148,7 +165,24 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
               </FormItem>
             )} />
 
-            {/* Itinerary */}
+            {/* Trip Type */}
+            <FormField control={form.control} name="tripType" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-lg font-semibold flex items-center gap-2"><ClipboardList /> Trip Type / Тип поездки</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a trip type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="One Way">One Way</SelectItem>
+                    <SelectItem value="Round Trip">Round Trip</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            {/* Always show itinerary section */}
             <Card className="border-dashed">
               <CardHeader><CardTitle className="text-lg font-semibold flex items-center gap-2"><ClipboardList /> Itinerary / Маршрут</CardTitle></CardHeader>
               <CardContent className="space-y-4">
@@ -173,15 +207,21 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
                       <FormField control={form.control} name={`itinerary.${index}.day`} render={({ field }) => (<FormItem><FormLabel>Day / День</FormLabel><FormControl><Input placeholder="e.g. Mon" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`itinerary.${index}.from`} render={({ field }) => (<FormItem><FormLabel>From / Откуда</FormLabel><FormControl><Input placeholder="Origin" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`itinerary.${index}.to`} render={({ field }) => (<FormItem><FormLabel>To / Куда</FormLabel><FormControl><Input placeholder="Destination" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`itinerary.${index}.etd`} render={({ field }) => (<FormItem><FormLabel>ETD / Вылет</FormLabel><FormControl><Input type="time" placeholder="HH:MM" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`itinerary.${index}.eta`} render={({ field }) => (<FormItem><FormLabel>ETA / Прилет</FormLabel><FormControl><Input type="time" placeholder="HH:MM" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name={`itinerary.${index}.etd`} render={({ field }) => (<FormItem><FormLabel>ETD / Вылет</FormLabel><FormControl><Input type="time" placeholder="HH:MM" step="900" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name={`itinerary.${index}.eta`} render={({ field }) => (<FormItem><FormLabel>ETA / Прилет</FormLabel><FormControl><Input type="time" placeholder="HH:MM" step="900" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`itinerary.${index}.flightNumber`} render={({ field }) => (<FormItem><FormLabel>Flight / Рейс</FormLabel><FormControl><Input placeholder="Flight #" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                        <FormField control={form.control} name={`itinerary.${index}.remarks`} render={({ field }) => (<FormItem className="lg:col-span-full"><FormLabel>Remarks / Примечания</FormLabel><FormControl><Textarea placeholder="Any remarks for this segment..." {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                     </div>
-                    {itineraryFields.length > 1 && <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive/80" onClick={() => removeItinerary(index)}><Trash2 className="h-4 w-4" /></Button>}
+                    {/* Only allow removing if more than 1 segment and tripType is Round Trip */}
+                    {itineraryFields.length > 1 && tripType === 'Round Trip' && (
+                      <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive/80" onClick={() => removeItinerary(index)}><Trash2 className="h-4 w-4" /></Button>
+                    )}
                   </div>
                 ))}
-                <Button type="button" variant="outline" size="sm" onClick={() => appendItinerary({ date: null, day: '', from: '', to: '', etd: '', eta: '', flightNumber: '', remarks: '' })}> <PlusCircle className="mr-2 h-4 w-4" /> Add Itinerary Segment </Button>
+                {/* Add button logic: show for Round Trip only */}
+                {tripType === 'Round Trip' && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => appendItinerary({ date: null, day: '', from: '', to: '', etd: '', eta: '', flightNumber: '', remarks: '' })}> <PlusCircle className="mr-2 h-4 w-4" /> Add Itinerary Segment </Button>
+                )}
               </CardContent>
             </Card>
 

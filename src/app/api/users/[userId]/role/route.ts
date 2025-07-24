@@ -8,8 +8,8 @@ const roleUpdateSchema = z.object({
   role_id: z.string().uuid("Invalid Role ID format").nullable(), // Allow null to remove role
 });
 
-export async function PATCH(request: NextRequest, { params }: { params: { userId: string } }) {
-  const { userId } = params;
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params;
   console.log(`API_USERID_ROLE_PATCH_START (PostgreSQL): Updating role for user ${userId}.`);
   if (!sql) {
     console.error("API_USERID_ROLE_PATCH_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");

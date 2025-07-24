@@ -27,7 +27,7 @@ import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 
 
-// Define the type for TRF status data
+// Define the type for TSR status data
 interface TrfStatusData {
   month: string;
   pending: number;
@@ -88,7 +88,7 @@ const visaChartConfig = {
 
 const userActivityChartConfig = {
   logins: { label: "Logins", color: "hsl(var(--chart-1))" },
-  trf_submitted: { label: "TRF Submitted", color: "hsl(var(--chart-2))" },
+      trf_submitted: { label: "TSR Submitted", color: "hsl(var(--chart-2))" },
   claim_created: { label: "Claim Created", color: "hsl(var(--chart-3))" },
 } satisfies ChartConfig;
 
@@ -184,7 +184,7 @@ export default function ReportsPage() {
     }
   };
 
-  // Fetch TRF status data
+      // Fetch TSR status data
   useEffect(() => {
     async function fetchTrfStatusData() {
       setIsLoadingTrf(true);
@@ -201,11 +201,11 @@ export default function ReportsPage() {
         }
         
         url += `?${params.toString()}`;
-        console.log('Fetching TRF data with URL:', url);
+        console.log('Fetching TSR data with URL:', url);
         
         const response = await fetch(url);
         if (!response.ok) {
-          throw new Error(`Failed to fetch TRF status data: ${response.status} ${response.statusText}`);
+          throw new Error(`Failed to fetch TSR status data: ${response.status} ${response.statusText}`);
         }
         const data = await response.json();
         if (data.statusByMonth && Array.isArray(data.statusByMonth)) {
@@ -213,12 +213,12 @@ export default function ReportsPage() {
         } else {
           const trfs = data.trfs || [];
           
-          // Filter TRFs by date range if applicable
+          // Filter TSRs by date range if applicable
           const filteredTrfs = dateRange?.from && dateRange?.to
             ? trfs.filter((trf: any) => isDateInRange(trf.submittedAt))
             : trfs;
             
-          console.log(`Filtered ${trfs.length} TRFs to ${filteredTrfs.length} based on date range`);
+                      console.log(`Filtered ${trfs.length} TSRs to ${filteredTrfs.length} based on date range`);
           
           // Generate months based on date range
           const months = generateMonthsFromDateRange().map(m => ({ ...m, pending: 0, approved: 0, rejected: 0 }));
@@ -248,8 +248,8 @@ export default function ReportsPage() {
           })));
         }
       } catch (err: any) {
-        console.error('Error fetching TRF status data:', err);
-        setErrorTrf(err.message || 'Failed to fetch TRF status data');
+        console.error('Error fetching TSR status data:', err);
+        setErrorTrf(err.message || 'Failed to fetch TSR status data');
         
         // Generate fallback data based on date range
         const fallbackMonths = generateMonthsFromDateRange();
@@ -578,11 +578,11 @@ export default function ReportsPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* TRF Reports Card */}
+        {/* TSR Reports Card */}
         <Card className="shadow-lg w-full">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><FileText /> TRF Reports</CardTitle>
-            <CardDescription>Analyze Travel Request Form trends, statuses, and processing times.</CardDescription>
+                          <CardTitle className="flex items-center gap-2"><FileText /> TSR Reports</CardTitle>
+            <CardDescription>Analyze Travel & Service Request trends, statuses, and processing times.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-2">
@@ -604,13 +604,13 @@ export default function ReportsPage() {
               </Select>
                <Select 
                 onValueChange={(value) => {
-                  console.log('TRF Status filter changed:', value);
+                  console.log('TSR Status filter changed:', value);
                   // Add your status filter logic here
                 }}
-                aria-label="TRF Status filter"
+                aria-label="TSR Status filter"
               >
-                <SelectTrigger className="w-full sm:flex-1" aria-label="Filter by TRF Status">
-                  <SelectValue placeholder="Filter by TRF Status" />
+                                  <SelectTrigger className="w-full sm:flex-1" aria-label="Filter by TSR Status">
+                    <SelectValue placeholder="Filter by TSR Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="approved">Approved</SelectItem>
@@ -643,7 +643,7 @@ export default function ReportsPage() {
                 </ChartContainer>
               )}
             </div>
-            <Button variant="outline" className="w-full" disabled>View Detailed TRF Report</Button>
+                            <Button variant="outline" className="w-full" disabled>View Detailed TSR Report</Button>
           </CardContent>
         </Card>
 
@@ -655,7 +655,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-2">
-              <Input type="text" placeholder="Search by Claimant / TRF ID" className="w-full sm:flex-1" disabled/>
+                              <Input type="text" placeholder="Search by Claimant / TSR ID" className="w-full sm:flex-1" disabled/>
               <Select disabled>
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Filter by Status" />
@@ -802,7 +802,7 @@ export default function ReportsPage() {
                   <SelectValue placeholder="Filter by Activity Type" />
                 </SelectTrigger>
                  <SelectContent>
-                  <SelectItem value="trf_submitted">TRF Submitted</SelectItem>
+                  <SelectItem value="trf_submitted">TSR Submitted</SelectItem>
                   <SelectItem value="claim_created">Claim Created</SelectItem>
                   <SelectItem value="user_login">User Login</SelectItem>
                 </SelectContent>

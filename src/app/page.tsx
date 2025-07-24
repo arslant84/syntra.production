@@ -107,7 +107,7 @@ export default function HomePage() {
           <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4 border-none shadow-none">
             <Link href="/trf/new" passHref>
               <Button size="lg" variant="default" className="w-48 whitespace-normal text-center">
-                <PlusCircle className="mr-2 h-5 w-5" /> Create New TRF
+                <PlusCircle className="mr-2 h-5 w-5" /> Create New TSR
               </Button>
             </Link>
             <Link href="/claims/new" passHref>
@@ -132,7 +132,7 @@ export default function HomePage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
         <SummaryCard 
-          title="My Pending TRFs" 
+          title="My Pending TSRs" 
           value={(summaryData.pendingTrfs || 0).toString()} 
           icon={ClipboardList}
           description="Requests awaiting approval"

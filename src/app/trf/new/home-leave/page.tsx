@@ -36,7 +36,7 @@ const createInitialApprovalWorkflow = (requestorName?: string): ApprovalStep[] =
 ];
 
 // Re-using Overseas parser as structure is similar
-const parseDatesInHomeLeaveTRFData = (data: any): Partial<TravelRequestForm> => { 
+const parseDatesInHomeLeaveTSRData = (data: any): Partial<TravelRequestForm> => { 
   if (!data) return {};
   const parsed = { ...data };
   const parseDateOrNull = (dateStr: string | Date | undefined | null): Date | null => {
@@ -72,7 +72,7 @@ const parseDatesInHomeLeaveTRFData = (data: any): Partial<TravelRequestForm> => 
   return parsed as Partial<TravelRequestForm>;
 };
 
-export default function NewHomeLeaveTRFPage() {
+export default function NewHomeLeaveTSRPage() {
   const router = useRouter(); 
   const searchParams = useSearchParams(); 
   const { toast } = useToast();
@@ -102,39 +102,39 @@ export default function NewHomeLeaveTRFPage() {
           const response = await fetch(`/api/trf/${editId}`);
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || errorData.details || `Failed to fetch TRF ${editId}: ${response.statusText}`);
+            throw new Error(errorData.error || errorData.details || `Failed to fetch TSR ${editId}: ${response.statusText}`);
           }
           const result = await response.json();
-          const fetchedTrf = parseDatesInHomeLeaveTRFData(result.trf) as TravelRequestForm;
+          const fetchedTsr = parseDatesInHomeLeaveTSRData(result.trf) as TravelRequestForm;
 
-          if (fetchedTrf && fetchedTrf.travelType === 'Home Leave Passage') {
+          if (fetchedTsr && fetchedTsr.travelType === 'Home Leave Passage') {
              const reqInfo: RequestorInformation = {
-              requestorName: fetchedTrf.requestorName || "", staffId: fetchedTrf.staffId || "", department: fetchedTrf.department || "",
-              position: fetchedTrf.position || "", costCenter: fetchedTrf.costCenter || "", telEmail: fetchedTrf.telEmail || "", email: fetchedTrf.email || ""
+              requestorName: fetchedTsr.requestorName || "", staffId: fetchedTsr.staffId || "", department: fetchedTsr.department || "",
+              position: fetchedTsr.position || "", costCenter: fetchedTsr.costCenter || "", telEmail: fetchedTsr.telEmail || "", email: fetchedTsr.email || ""
             };
             setRequestorInfo(reqInfo);
             setInitialRequestorInfoForForm(reqInfo);
 
-            if (fetchedTrf.overseasTravelDetails) { // Home Leave uses overseas structure
-              setTravelDetails(fetchedTrf.overseasTravelDetails);
-              setInitialTravelDetailsForForm(fetchedTrf.overseasTravelDetails);
+            if (fetchedTsr.overseasTravelDetails) { // Home Leave uses overseas structure
+              setTravelDetails(fetchedTsr.overseasTravelDetails);
+              setInitialTravelDetailsForForm(fetchedTsr.overseasTravelDetails);
             }
             const appData: ApprovalSubmissionData = {
-              additionalComments: fetchedTrf.additionalComments || "",
+              additionalComments: fetchedTsr.additionalComments || "",
               confirmPolicy: false, 
               confirmManagerApproval: false,
               confirmTermsAndConditions: false,
             };
             setApprovalData(appData);
             setInitialApprovalDataForForm(appData);
-            setApprovalWorkflow(fetchedTrf.approvalWorkflow || createInitialApprovalWorkflow(reqInfo.requestorName));
+            setApprovalWorkflow(fetchedTsr.approvalWorkflow || createInitialApprovalWorkflow(reqInfo.requestorName));
           } else {
-            throw new Error(`TRF ${editId} is not a Home Leave Passage TRF or data is invalid.`);
+            throw new Error(`TSR ${editId} is not a Home Leave Passage TSR or data is invalid.`);
           }
         } catch (err: any) {
-          console.error("Error fetching TRF for edit:", err);
+          console.error("Error fetching TSR for edit:", err);
           setTrfLoadError(err.message);
-          toast({ title: "Error Loading TRF", description: err.message, variant: "destructive" });
+          toast({ title: "Error Loading TSR", description: err.message, variant: "destructive" });
         } finally {
           setIsLoadingTrf(false);
         }
@@ -167,7 +167,7 @@ export default function NewHomeLeaveTRFPage() {
 
   const handleFinalSubmit = async (data: ApprovalSubmissionData) => {
     setApprovalData(data);
-    const finalTRFData = {
+    const finalTSRData = {
       requestorName: requestorInfo.requestorName,
       staffId: requestorInfo.staffId,
       department: requestorInfo.department,
@@ -205,11 +205,11 @@ export default function NewHomeLeaveTRFPage() {
       const response = await fetch(endpoint, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalTRFData),
+        body: JSON.stringify(finalTSRData),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        let errorMessage = errorData.error || errorData.details || `Failed to ${isEditMode ? 'update' : 'submit'} TRF. Server responded with status ${response.status}.`;
+        let errorMessage = errorData.error || errorData.details || `Failed to ${isEditMode ? 'update' : 'submit'} TSR. Server responded with status ${response.status}.`;
          if (typeof errorData.details === 'object' && errorData.details.fieldErrors) {
              errorMessage = Object.values(errorData.details.fieldErrors).flat().join('; ') || "Validation failed with multiple errors.";
         } else if (typeof errorData.details === 'object' && errorData.details.formErrors) {
@@ -219,14 +219,14 @@ export default function NewHomeLeaveTRFPage() {
       }
       const result = await response.json();
       toast({ 
-        title: `Home Leave TRF ${isEditMode ? 'Updated' : 'Submitted'}!`, 
-        description: `TRF ID ${result.trf?.id || editId || result.trfId} processed successfully.`, 
+        title: `Home Leave TSR ${isEditMode ? 'Updated' : 'Submitted'}!`, 
+        description: `TSR ID ${result.trf?.id || editId || result.trfId} processed successfully.`, 
         variant: "default", 
       });
       router.push('/trf');
     } catch (err: any) {
       toast({ 
-        title: `Error ${isEditMode ? 'Updating' : 'Submitting'} TRF`, 
+        title: `Error ${isEditMode ? 'Updating' : 'Submitting'} TSR`, 
         description: err.message || "An unexpected error occurred.", 
         variant: "destructive" 
       });
@@ -253,8 +253,8 @@ export default function NewHomeLeaveTRFPage() {
     estimatedCost: 3000, // Mock
   };
   
-  if (isEditMode && isLoadingTrf) { return (<div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]"><Loader2 className="w-12 h-12 text-primary animate-spin mb-4" /><p className="text-muted-foreground">Loading TRF for editing...</p></div>); }
-  if (isEditMode && trfLoadError) { return (<div className="container mx-auto py-8 px-4 text-center"><Card className="max-w-lg mx-auto shadow-lg"><CardHeader><CardTitle className="flex items-center justify-center gap-2 text-destructive"><AlertTriangle className="w-6 h-6" /> Error Loading TRF</CardTitle></CardHeader><CardContent><p>{trfLoadError}</p><Button onClick={() => router.push('/trf')} className="mt-4">Back to TRF List</Button></CardContent></Card></div>); }
+  if (isEditMode && isLoadingTrf) { return (<div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]"><Loader2 className="w-12 h-12 text-primary animate-spin mb-4" /><p className="text-muted-foreground">Loading TSR for editing...</p></div>); }
+  if (isEditMode && trfLoadError) { return (<div className="container mx-auto py-8 px-4 text-center"><Card className="max-w-lg mx-auto shadow-lg"><CardHeader><CardTitle className="flex items-center justify-center gap-2 text-destructive"><AlertTriangle className="w-6 h-6" /> Error Loading TSR</CardTitle></CardHeader><CardContent><p>{trfLoadError}</p><Button onClick={() => router.push('/trf')} className="mt-4">Back to TSR List</Button></CardContent></Card></div>); }
 
   return (
     <div className="w-full px-2 md:px-6 py-8 space-y-8">

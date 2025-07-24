@@ -40,11 +40,14 @@ const expenseClaimCreateSchema = z.object({
   expenseItems: z.array(
     z.object({
       date: z.coerce.date(),
-      claimOrTravelDetails: z.object({
-        from: z.string().optional(),
-        to: z.string().optional(),
-        placeOfStay: z.string().optional(),
-      }),
+      claimOrTravelDetails: z.union([
+        z.string().min(1),
+        z.object({
+          from: z.string().optional(),
+          to: z.string().optional(),
+          placeOfStay: z.string().optional(),
+        })
+      ]),
       officialMileageKM: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
       transport: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
       hotelAccommodationAllowance: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
@@ -184,8 +187,17 @@ export async function PUT(request: NextRequest, { params }: { params: { claimId:
         if (expenseItems && expenseItems.length > 0) {
           console.log("API_CLAIMS_PUT: Inserting", expenseItems.length, "expense items");
           const itemsToInsert = expenseItems.map(item => {
+            // Handle claimOrTravelDetails - convert object to string if needed
+            let claimDetails = item.claimOrTravelDetails;
+            if (typeof claimDetails === 'object' && claimDetails !== null) {
+              const parts = [];
+              if (claimDetails.from) parts.push(claimDetails.from);
+              if (claimDetails.to) parts.push(claimDetails.to);
+              if (claimDetails.placeOfStay) parts.push(claimDetails.placeOfStay);
+              claimDetails = parts.join(' - ');
+            }
+            
             // Ensure all numeric values are properly converted to numbers
-            // Use explicit 0 for empty values instead of null or undefined
             const officialMileageKM = item.officialMileageKM === null || item.officialMileageKM === undefined ? null : Number(item.officialMileageKM);
             const transport = item.transport === null || item.transport === undefined ? null : Number(item.transport);
             const hotelAccommodationAllowance = item.hotelAccommodationAllowance === null || item.hotelAccommodationAllowance === undefined ? null : Number(item.hotelAccommodationAllowance);
@@ -196,7 +208,7 @@ export async function PUT(request: NextRequest, { params }: { params: { claimId:
             return {
               claim_id: claimId,
               item_date: item.date ? formatISO(item.date, { representation: 'date' }) : null,
-              claim_or_travel_details: JSON.stringify(item.claimOrTravelDetails),
+              claim_or_travel_details: claimDetails || '',
               official_mileage_km: officialMileageKM,
               transport: transport,
               hotel_accommodation_allowance: hotelAccommodationAllowance,
@@ -356,16 +368,30 @@ export async function GET(request: NextRequest, { params }: { params: { claimId:
         familyMemberChildren: claim.family_member_children,
         familyMemberOther: claim.family_member_other,
       },
-      expenseItems: expenseItems.map((item: any) => ({
-        ...item,
-        date: formatISO(new Date(item.date), { representation: 'date' }),
-        officialMileageKM: item.officialMileageKM === null ? null : Number(item.officialMileageKM),
-        transport: item.transport === null ? null : Number(item.transport),
-        hotelAccommodationAllowance: item.hotelAccommodationAllowance === null ? null : Number(item.hotelAccommodationAllowance),
-        outStationAllowanceMeal: item.outStationAllowanceMeal === null ? null : Number(item.outStationAllowanceMeal),
-        miscellaneousAllowance10Percent: item.miscellaneousAllowance10Percent === null ? null : Number(item.miscellaneousAllowance10Percent),
-        otherExpenses: item.otherExpenses === null ? null : Number(item.otherExpenses),
-      })),
+      expenseItems: expenseItems.map((item: any) => {
+        // Parse claimOrTravelDetails from string back to object format for frontend
+        let claimDetails = item.claimOrTravelDetails;
+        if (typeof claimDetails === 'string' && claimDetails) {
+          const parts = claimDetails.split(' - ');
+          claimDetails = {
+            from: parts[0] || '',
+            to: parts[1] || '',
+            placeOfStay: parts[2] || '',
+          };
+        }
+        
+        return {
+          ...item,
+          claimOrTravelDetails: claimDetails,
+          date: formatISO(new Date(item.date), { representation: 'date' }),
+          officialMileageKM: item.officialMileageKM === null ? null : Number(item.officialMileageKM),
+          transport: item.transport === null ? null : Number(item.transport),
+          hotelAccommodationAllowance: item.hotelAccommodationAllowance === null ? null : Number(item.hotelAccommodationAllowance),
+          outStationAllowanceMeal: item.outStationAllowanceMeal === null ? null : Number(item.outStationAllowanceMeal),
+          miscellaneousAllowance10Percent: item.miscellaneousAllowance10Percent === null ? null : Number(item.miscellaneousAllowance10Percent),
+          otherExpenses: item.otherExpenses === null ? null : Number(item.otherExpenses),
+        };
+      }),
       informationOnForeignExchangeRate: fxRates.map((fx: any) => ({
         ...fx,
         date: formatISO(new Date(fx.date), { representation: 'date' }),

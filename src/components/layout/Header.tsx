@@ -13,7 +13,7 @@ import { UserNav } from '@/components/UserNav';
 
 const navItems: NavItem[] = [
   { label: 'Home', href: '/', icon: Home },
-  { label: 'TRF', href: '/trf', icon: FileText },
+  { label: 'TSR', href: '/trf', icon: FileText },
   { label: 'Visa Applications', href: '/visa', icon: StickyNote },
   { label: 'Accommodation', href: '/accommodation', icon: BedDouble },
   { label: 'Claims', href: '/claims', icon: ReceiptText },

@@ -24,78 +24,30 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials, req) {
         if (!credentials?.email || !credentials.password) {
-          console.log('Auth: Missing credentials');
           return null;
         }
 
-        // --- Mock User Fetch & Role Assignment ---
-        // In a real app, you'd query your database here for the user by email
-        // and verify their password (e.g., using bcrypt.compare).
+        // Fetch user from DB
+        const users = await sql`
+          SELECT id, name, email, password, role_id, role
+          FROM users
+          WHERE email = ${credentials.email}
+          LIMIT 1
+        `;
 
-        let mockUser: { id: string; name: string; email: string; roleId: string | null; roleName?: string } | null = null;
+        if (!users.length) return null;
+        const user = users[0];
 
-        // Simulate fetching user and their role_id from DB
-        // For this mock, we'll assign a role_id based on email.
-        // You should replace these with actual role UUIDs from your 'roles' table.
-        // For simplicity, I'm using placeholder role names to query role IDs.
-        // Ensure these roles exist in your `roles` table.
+        // Check password (plaintext for now; use bcrypt in production)
+        if (credentials.password !== user.password) return null;
 
-        const emailLower = credentials.email.toLowerCase();
-        let targetRoleName = 'Requestor'; // Default role
-
-        if (emailLower.includes('admin')) {
-          targetRoleName = 'System Administrator';
-        } else if (emailLower.includes('hod')) {
-          targetRoleName = 'HOD'; // Assuming you have an 'HOD' role
-        } else if (emailLower.includes('finance')) {
-          targetRoleName = 'Finance Clerk'; // Assuming 'Finance Clerk' role
-        }
-        
-        console.log(`Auth: Attempting to find role_id for roleName: ${targetRoleName}`);
-        
-        try {
-            const roleResult = await sql`SELECT id FROM roles WHERE name = ${targetRoleName} LIMIT 1`;
-            let fetchedRoleId: string | null = null;
-            if (roleResult && roleResult.count > 0) {
-                fetchedRoleId = roleResult[0].id as string;
-                console.log(`Auth: Found role_id ${fetchedRoleId} for roleName ${targetRoleName}`);
-            } else {
-                console.warn(`Auth: Role named "${targetRoleName}" not found in database. Defaulting user roleId to null.`);
-            }
-
-            mockUser = {
-                id: `mock-user-${Math.random().toString(36).substring(7)}`, // Mock user ID
-                name: credentials.email.split('@')[0], // Mock name from email
-                email: credentials.email,
-                roleId: fetchedRoleId,
-                roleName: fetchedRoleId ? targetRoleName : null, // Store roleName for immediate use in JWT
-            };
-
-        } catch (dbError) {
-            console.error("Auth: Database error during role lookup in authorize:", dbError);
-            // Fallback if DB query fails
-             mockUser = {
-                id: `mock-user-${Math.random().toString(36).substring(7)}`,
-                name: credentials.email.split('@')[0],
-                email: credentials.email,
-                roleId: null, // No role if DB fails
-            };
-        }
-
-
-        if (mockUser) {
-          console.log('Auth: User authorized (mock):', { id: mockUser.id, email: mockUser.email, roleId: mockUser.roleId, roleName: mockUser.roleName });
-          return {
-            id: mockUser.id,
-            name: mockUser.name,
-            email: mockUser.email,
-            roleId: mockUser.roleId, // Pass roleId to JWT callback
-            role: mockUser.roleName,   // Pass roleName to JWT callback as 'role'
-          };
-        } else {
-          console.log('Auth: Authorization failed (mock user not found)');
-          return null; // Authentication failed
-        }
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          roleId: user.role_id,
+          role: user.role,
+        };
       },
     }),
   ],

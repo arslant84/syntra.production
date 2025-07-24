@@ -51,8 +51,8 @@ describe('Request ID Generator', () => {
       .mockReturnValueOnce(0.3) // C
       .mockReturnValueOnce(0.4); // D
 
-    const trfId = generateRequestId('TRF', 'NYC');
-    expect(trfId).toBe('TRF-20250702-1423-NYC-ABCD');
+    const tsrId = generateRequestId('TSR', 'NYC');
+    expect(tsrId).toBe('TSR-20250702-1423-NYC-ABCD');
 
     const visaId = generateRequestId('VIS', 'USA');
     expect(visaId).toBe('VIS-20250702-1423-USA-ABCD');
@@ -68,11 +68,11 @@ describe('Request ID Generator', () => {
   });
 
   test('parseRequestId correctly parses valid IDs', () => {
-    const parsed = parseRequestId('TRF-20250702-1423-NYC-ABCD');
+    const parsed = parseRequestId('TSR-20250702-1423-NYC-ABCD');
     
     expect(parsed).not.toBeNull();
     if (parsed) {
-      expect(parsed.type).toBe('TRF');
+      expect(parsed.type).toBe('TSR');
       expect(parsed.timestamp).toBe('20250702-1423');
       expect(parsed.context).toBe('NYC');
       expect(parsed.uniqueId).toBe('ABCD');
@@ -82,7 +82,7 @@ describe('Request ID Generator', () => {
 
   test('parseRequestId returns null for invalid IDs', () => {
     expect(parseRequestId('INVALID-ID')).toBeNull();
-    expect(parseRequestId('TRF-BADDATE-TIME-NYC-ABCD')).toBeNull();
+    expect(parseRequestId('TSR-BADDATE-TIME-NYC-ABCD')).toBeNull();
     expect(parseRequestId('UNKNOWN-20250702-1423-NYC-ABCD')).toBeNull();
   });
 });

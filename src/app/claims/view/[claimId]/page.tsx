@@ -359,18 +359,32 @@ export default function ClaimViewPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {expenseItems.map((item: any, index: number) => (
-                      <TableRow key={index}>
-                        <TableCell>{formatDateSafe(item.date, "dd MMM yyyy")}</TableCell>
-                        <TableCell>{item.claimOrTravelDetails}</TableCell>
-                        <TableCell className="text-right">{formatNumberSafe(item.officialMileageKM, 0)}</TableCell>
-                        <TableCell className="text-right">{formatNumberSafe(item.transport)}</TableCell>
-                        <TableCell className="text-right">{formatNumberSafe(item.hotelAccommodationAllowance)}</TableCell>
-                        <TableCell className="text-right">{formatNumberSafe(item.outStationAllowanceMeal)}</TableCell>
-                        <TableCell className="text-right">{formatNumberSafe(item.miscellaneousAllowance10Percent)}</TableCell>
-                        <TableCell className="text-right">{formatNumberSafe(item.otherExpenses)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {expenseItems.map((item: any, index: number) => {
+                      // Handle claimOrTravelDetails display
+                      let detailsText = '';
+                      if (typeof item.claimOrTravelDetails === 'object' && item.claimOrTravelDetails !== null) {
+                        const parts = [];
+                        if (item.claimOrTravelDetails.from) parts.push(item.claimOrTravelDetails.from);
+                        if (item.claimOrTravelDetails.to) parts.push(item.claimOrTravelDetails.to);
+                        if (item.claimOrTravelDetails.placeOfStay) parts.push(item.claimOrTravelDetails.placeOfStay);
+                        detailsText = parts.join(' - ');
+                      } else if (typeof item.claimOrTravelDetails === 'string') {
+                        detailsText = item.claimOrTravelDetails;
+                      }
+                      
+                      return (
+                        <TableRow key={index}>
+                          <TableCell>{formatDateSafe(item.date, "dd MMM yyyy")}</TableCell>
+                          <TableCell>{detailsText}</TableCell>
+                          <TableCell className="text-right">{formatNumberSafe(item.officialMileageKM, 0)}</TableCell>
+                          <TableCell className="text-right">{formatNumberSafe(item.transport)}</TableCell>
+                          <TableCell className="text-right">{formatNumberSafe(item.hotelAccommodationAllowance)}</TableCell>
+                          <TableCell className="text-right">{formatNumberSafe(item.outStationAllowanceMeal)}</TableCell>
+                          <TableCell className="text-right">{formatNumberSafe(item.miscellaneousAllowance10Percent)}</TableCell>
+                          <TableCell className="text-right">{formatNumberSafe(item.otherExpenses)}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

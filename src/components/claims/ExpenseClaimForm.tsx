@@ -213,7 +213,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
         // Create a base object with defaults
         const baseItem = {
           date: item.date ? new Date(item.date) : new Date(),
-          claimOrTravelDetails: "",
+          claimOrTravelDetails: { from: '', to: '', placeOfStay: '' },
           officialMileageKM: null,
           transport: null,
           hotelAccommodationAllowance: null,
@@ -227,7 +227,9 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
           ...baseItem,
           ...item,
           // Ensure date is a valid Date object
-          date: item.date ? new Date(item.date) : new Date()
+          date: item.date ? new Date(item.date) : new Date(),
+          // Ensure claimOrTravelDetails is an object
+          claimOrTravelDetails: typeof item.claimOrTravelDetails === 'object' ? item.claimOrTravelDetails : { from: '', to: '', placeOfStay: '' }
         };
       });
     }
@@ -551,7 +553,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
                 </TableBody>
               </Table>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={() => appendExpense({ date: new Date(), claimOrTravelDetails: { from: '', to: '', placeOfStay: '' }, officialMileageKM: 0, transport: 0, hotelAccommodationAllowance: 0, outStationAllowanceMeal: 0, miscellaneousAllowance10Percent: 0, otherExpenses: 0 })}>
+            <Button type="button" variant="outline" size="sm" onClick={() => appendExpense({ date: new Date(), claimOrTravelDetails: { from: '', to: '', placeOfStay: '' }, officialMileageKM: null, transport: null, hotelAccommodationAllowance: null, outStationAllowanceMeal: null, miscellaneousAllowance10Percent: null, otherExpenses: null })}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Expense Item
             </Button>
           </CardContent>
@@ -589,7 +591,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
                         ))}
                     </TableBody>
                 </Table>
-                <Button type="button" variant="outline" size="sm" onClick={() => appendFx({date: new Date(), typeOfCurrency: "", sellingRateTTOD: 0})} className="mt-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => appendFx({date: new Date(), typeOfCurrency: "", sellingRateTTOD: null})} className="mt-2">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add FX Rate
                 </Button>
             </CardContent>

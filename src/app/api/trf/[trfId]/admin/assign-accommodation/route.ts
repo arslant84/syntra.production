@@ -15,8 +15,8 @@ function getNextStatusAfterAccommodation(trf: { travel_type?: string | null }): 
     return "TRF Processed";
 }
 
-export async function POST(request: NextRequest, { params }: { params: { trfId: string } }) {
-  const { trfId } = params;
+export async function POST(request: NextRequest, { params }: { params: Promise<{ trfId: string }> }) {
+      const { trfId } = await params;
   console.log(`API_TRF_ADMIN_ASSIGNACCOM_POST_START (PostgreSQL): Assigning accommodation for TRF ${trfId}.`);
   if (!sql) {
     console.error("API_TRF_ADMIN_ASSIGNACCOM_POST_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");

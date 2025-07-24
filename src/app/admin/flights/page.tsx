@@ -347,14 +347,14 @@ export default function FlightsAdminPage() {
                                 <Label htmlFor="departureDate">Departure Date</Label>
                                 <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !departureDate && "text-muted-foreground")}>{departureDate ? format(departureDate, "PPP") : <span>Pick date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={departureDate} onSelect={setDepartureDate} initialFocus /></PopoverContent></Popover>
                             </div>
-                            <div className="space-y-1.5"><Label htmlFor="departureTime">Departure Time (HH:MM)</Label><Input id="departureTime" type="time" value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} /></div>
+                            <div className="space-y-1.5"><Label htmlFor="departureTime">Departure Time (HH:MM)</Label><Input id="departureTime" type="time" step="900" value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} /></div>
                         </div>
                          <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
                                 <Label htmlFor="arrivalDate">Arrival Date</Label>
                                 <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !arrivalDate && "text-muted-foreground")}>{arrivalDate ? format(arrivalDate, "PPP") : <span>Pick date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={arrivalDate} onSelect={setArrivalDate} disabled={(date) => departureDate ? date < departureDate : false} initialFocus /></PopoverContent></Popover>
                             </div>
-                            <div className="space-y-1.5"><Label htmlFor="arrivalTime">Arrival Time (HH:MM)</Label><Input id="arrivalTime" type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} /></div>
+                            <div className="space-y-1.5"><Label htmlFor="arrivalTime">Arrival Time (HH:MM)</Label><Input id="arrivalTime" type="time" step="900" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} /></div>
                         </div>
                         <div className="space-y-1.5"><Label htmlFor="cost">Cost (e.g., 1250.75)</Label><Input id="cost" type="number" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Enter total cost"/></div>
                         <div className="space-y-1.5">

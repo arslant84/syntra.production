@@ -3,10 +3,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO, parseISO } from 'date-fns';
+import { requireRole } from '@/lib/authz';
 
 const userCreateSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email format"),
+  password: z.string().min(15, "Password must be at least 15 characters."),
   role_id: z.string().uuid().nullable().optional(),
   department: z.string().nullable().optional(),
   staff_id: z.string().nullable().optional(),
@@ -95,12 +97,23 @@ export async function GET(request: NextRequest) {
 
     console.log(`API_USERS_GET (PostgreSQL): Fetched ${usersFromDb.length} users. Total matched: ${totalCount}`);
     
-    const users = usersFromDb.map(user => ({
-      ...user,
-      lastLogin: user.lastLogin ? formatISO(new Date(user.lastLogin)) : null,
-      created_at: user.created_at ? formatISO(new Date(user.created_at)) : null,
-      updated_at: user.updated_at ? formatISO(new Date(user.updated_at)) : null,
-    }));
+    const users = usersFromDb.map(user => {
+      const userObj = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role_id: user.role_id, // ensure this is present
+        roleName: user.roleName,
+        department: user.department,
+        staff_id: user.staff_id,
+        status: user.status,
+        lastLogin: user.lastLogin ? formatISO(new Date(user.lastLogin)) : null,
+        created_at: user.created_at ? formatISO(new Date(user.created_at)) : null,
+        updated_at: user.updated_at ? formatISO(new Date(user.updated_at)) : null,
+      };
+      console.log("API_USERS_GET: User object:", userObj);
+      return userObj;
+    });
 
     return NextResponse.json({
       users,
@@ -115,6 +128,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Require admin role
+  try {
+    await requireRole(request, ['System Administrator']);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: err.message === 'Forbidden' ? 403 : 401 });
+  }
   console.log("API_USERS_POST_START (PostgreSQL): Handler entered.");
   if (!sql) {
     console.error("API_USERS_POST_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -129,7 +148,11 @@ export async function POST(request: NextRequest) {
       console.error("API_USERS_POST_VALIDATION_ERROR (PostgreSQL):", validationResult.error.flatten());
       return NextResponse.json({ error: "Validation failed", details: validationResult.error.flatten() }, { status: 400 });
     }
-    const { name, email, role_id, department, staff_id, status } = validationResult.data;
+    const { name, email, password, role_id, department, staff_id, status } = validationResult.data;
+
+    if (password.length < 15) {
+      return NextResponse.json({ error: "Password must be at least 15 characters." }, { status: 400 });
+    }
 
     // Check for duplicate email
     const existingByEmail = await sql`SELECT id FROM users WHERE email = ${email}`;
@@ -155,8 +178,8 @@ export async function POST(request: NextRequest) {
     }
     
     const newUserArray = await sql`
-      INSERT INTO users (name, email, role_id, role, department, staff_id, status, created_at, updated_at)
-      VALUES (${name}, ${email}, ${role_id || null}, ${roleName || null}, ${department || null}, ${staff_id || null}, ${status}, NOW(), NOW())
+      INSERT INTO users (name, email, password, role_id, role, department, staff_id, status, created_at, updated_at)
+      VALUES (${name}, ${email}, ${password}, ${role_id || null}, ${roleName || null}, ${department || null}, ${staff_id || null}, ${status}, NOW(), NOW())
       RETURNING id, name, email, role_id, role AS "roleName", department, staff_id, status, last_login_at AS "lastLogin", created_at, updated_at
     `;
     const newUser = newUserArray[0];

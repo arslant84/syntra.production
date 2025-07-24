@@ -164,7 +164,7 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
                 </Popover><FormMessage />
               </FormItem>
             )} />
-            <FormField control={form.control} name="itineraryDetails" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Itinerary Details</FormLabel><FormControl><Textarea placeholder="Provide a summary of your itinerary or state 'As per TRF if linked'" className="min-h-[100px]" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="itineraryDetails" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Itinerary Details</FormLabel><FormControl><Textarea placeholder="Provide a summary of your itinerary or state 'As per TSR if linked'" className="min-h-[100px]" {...field} /></FormControl><FormMessage /></FormItem>)} />
           </CardContent>
         </Card>
 

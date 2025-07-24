@@ -26,7 +26,7 @@ export interface VisaApplication {
 
   tripStartDate: Date | null;
   tripEndDate: Date | null;
-  itineraryDetails: string; // Could be detailed text or link to TRF itinerary
+  itineraryDetails: string; // Could be detailed text or link to TSR itinerary
   
   supportingDocumentsNotes?: string; // Notes about uploaded documents
   // Placeholder for multiple document uploads
@@ -40,7 +40,7 @@ export interface VisaApplication {
   approvalHistory?: VisaApprovalStep[];
   visaCopyFilename?: string; // For Visa Clerk to upload approved visa
   rejectionReason?: string;
-  trfReferenceNumber?: string; // BT Reference Number
+  tsrReferenceNumber?: string; // BT Reference Number
 }
 
 export interface VisaApprovalStep {

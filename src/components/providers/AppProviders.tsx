@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-// import { SessionProvider as NextAuthSessionProvider } from "next-auth/react"; // Removed
+import { SessionProvider } from "next-auth/react";
 import AppLayout from '@/components/layout/AppLayout';
 
 interface AppProvidersProps {
@@ -10,8 +10,8 @@ interface AppProvidersProps {
 
 export default function AppProviders({ children }: AppProvidersProps) {
   return (
-    // <NextAuthSessionProvider> // Removed
+    <SessionProvider>
       <AppLayout>{children}</AppLayout>
-    // </NextAuthSessionProvider> // Removed
+    </SessionProvider>
   );
 }

@@ -3,6 +3,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO } from 'date-fns';
+import { requireRole } from '@/lib/authz';
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 const userUpdateSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
@@ -11,10 +14,11 @@ const userUpdateSchema = z.object({
   department: z.string().nullable().optional(),
   staff_id: z.string().nullable().optional(),
   status: z.enum(["Active", "Inactive"]).optional(),
+  password: z.string().min(15, "Password must be at least 15 characters.").optional(),
 });
 
-export async function GET(request: NextRequest, { params }: { params: { userId: string } }) {
-  const { userId } = params;
+export async function GET(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params;
   console.log(`API_USERID_GET_START (PostgreSQL): Fetching user ${userId}.`);
   if (!sql) {
     console.error("API_USERID_GET_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -50,8 +54,13 @@ export async function GET(request: NextRequest, { params }: { params: { userId: 
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { userId: string } }) {
-  const { userId } = params;
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+  const session = await getServerSession(authOptions);
+  console.log("SESSION DEBUG (PATCH):", session);
+  if (!session?.user?.role || session.user.role !== "System Administrator") {
+    return NextResponse.json({ error: "Not authenticated or not an admin" }, { status: 401 });
+  }
+  const { userId } = await params;
   console.log(`API_USERID_PATCH_START (PostgreSQL): Updating user ${userId}.`);
   if (!sql) {
     console.error("API_USERID_PATCH_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -87,26 +96,51 @@ export async function PATCH(request: NextRequest, { params }: { params: { userId
       }
     }
     
-    const setClauses: any[] = [];
-    if (updateData.name !== undefined) setClauses.push(sql`name = ${updateData.name}`);
-    if (updateData.email !== undefined) setClauses.push(sql`email = ${updateData.email}`);
-    if (updateData.department !== undefined) setClauses.push(sql`department = ${updateData.department}`);
-    if (updateData.staff_id !== undefined) setClauses.push(sql`staff_id = ${updateData.staff_id}`);
-    if (updateData.status !== undefined) setClauses.push(sql`status = ${updateData.status}`);
+    // Build update fields and values
+    const updateFields: string[] = [];
+    const updateValues: any[] = [];
+    
+    if (updateData.name !== undefined) {
+      updateFields.push('name');
+      updateValues.push(updateData.name);
+    }
+    if (updateData.email !== undefined) {
+      updateFields.push('email');
+      updateValues.push(updateData.email);
+    }
+    if (updateData.department !== undefined) {
+      updateFields.push('department');
+      updateValues.push(updateData.department);
+    }
+    if (updateData.staff_id !== undefined) {
+      updateFields.push('staff_id');
+      updateValues.push(updateData.staff_id);
+    }
+    if (updateData.status !== undefined) {
+      updateFields.push('status');
+      updateValues.push(updateData.status);
+    }
+    if (updateData.password !== undefined && updateData.password.length >= 15) {
+      updateFields.push('password');
+      updateValues.push(updateData.password);
+    }
     
     let roleNameForDenormalization: string | null = null;
-    if (updateData.hasOwnProperty('role_id')) { // Check if role_id was explicitly in the payload
-      setClauses.push(sql`role_id = ${updateData.role_id}`);
+    if (updateData.hasOwnProperty('role_id')) {
+      updateFields.push('role_id');
+      updateValues.push(updateData.role_id);
+      
       if (updateData.role_id) {
         const roleResult = await sql`SELECT name FROM roles WHERE id = ${updateData.role_id}`;
         if (roleResult.count > 0) {
           roleNameForDenormalization = roleResult[0].name as string;
         }
       }
-      setClauses.push(sql`role = ${roleNameForDenormalization}`); // Update denormalized role name
+      updateFields.push('role');
+      updateValues.push(roleNameForDenormalization);
     }
 
-    if (setClauses.length === 0) {
+    if (updateFields.length === 0) {
         // If only role_id was sent but it didn't change the denormalized role name (e.g. role_id was null and stayed null)
         // Fetch current user to return.
         const currentUsers = await sql`SELECT users.*, roles.name as "roleName" FROM users LEFT JOIN roles ON users.role_id = roles.id WHERE users.id = ${userId}`;
@@ -119,14 +153,28 @@ export async function PATCH(request: NextRequest, { params }: { params: { userId
             updated_at: formatISO(new Date(userToReturn.updated_at)),
         } });
     }
-    setClauses.push(sql`updated_at = NOW()`); // Always update this
+    
+    updateFields.push('updated_at');
+    updateValues.push(new Date());
 
-    const updatedUserArray = await sql`
+    // Build the SET clause
+    const setClause = updateFields.map((field, index) => `${field} = $${index + 1}`).join(', ');
+    
+    // Add userId as the last parameter
+    updateValues.push(userId);
+    
+    const query = `
       UPDATE users
-      SET ${sql.join(setClauses, sql`, `)}
-      WHERE id = ${userId}
+      SET ${setClause}
+      WHERE id = $${updateValues.length}
       RETURNING id, name, email, role_id, role AS "roleName", department, staff_id, status, last_login_at AS "lastLogin", created_at, updated_at
     `;
+
+    // Log query and values for debugging
+    console.error('USER PATCH DEBUG: Query:', query);
+    console.error('USER PATCH DEBUG: Values:', updateValues);
+
+    const updatedUserArray = await (sql as any).unsafe(query, updateValues);
 
     if (updatedUserArray.count === 0) {
       return NextResponse.json({ error: 'User not found or update failed' }, { status: 404 });
@@ -143,21 +191,27 @@ export async function PATCH(request: NextRequest, { params }: { params: { userId
     return NextResponse.json({ user: formattedUser });
 
   } catch (error: any) {
-    console.error(`API_USERID_PATCH_ERROR (PostgreSQL) for user ${userId}:`, error.message, error.stack);
-     if (error.code === '23505') { // Unique constraint violation
-        if (error.constraint_name?.includes('email')) {
-             return NextResponse.json({ error: 'User with this email already exists.', details: error.message }, { status: 409 });
-        }
-        if (error.constraint_name?.includes('staff_id')) {
-             return NextResponse.json({ error: 'User with this Staff ID already exists.', details: error.message }, { status: 409 });
-        }
+    // Log the full error object for debugging
+    console.error(`API_USERID_PATCH_ERROR (PostgreSQL) for user ${userId}:`, error);
+    if (error.code === '23505') { // Unique constraint violation
+      if (error.constraint_name?.includes('email')) {
+        return NextResponse.json({ error: 'User with this email already exists.', details: error.message }, { status: 409 });
+      }
+      if (error.constraint_name?.includes('staff_id')) {
+        return NextResponse.json({ error: 'User with this Staff ID already exists.', details: error.message }, { status: 409 });
+      }
     }
-    return NextResponse.json({ error: 'Failed to update user.', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update user.', details: error.message, fullError: error }, { status: 500 });
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { userId: string } }) {
-  const { userId } = params;
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+  const session = await getServerSession(authOptions);
+  console.log("SESSION DEBUG (DELETE):", session);
+  if (!session?.user?.role || session.user.role !== "System Administrator") {
+    return NextResponse.json({ error: "Not authenticated or not an admin" }, { status: 401 });
+  }
+  const { userId } = await params;
   console.log(`API_USERID_DELETE_START (PostgreSQL): Deleting user ${userId}.`);
   if (!sql) {
     console.error("API_USERID_DELETE_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");

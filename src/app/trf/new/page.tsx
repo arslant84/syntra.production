@@ -32,13 +32,13 @@ const trfOptions = [
   },
 ];
 
-export default function NewTRFSelectionPage() {
+export default function NewTSRSelectionPage() {
   return (
     <div className="max-w-5xl mx-auto py-10 px-4">
       <div className="mb-10 text-center">
         <div className="flex items-center justify-center gap-2 mb-2">
           <FilePlus2 className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Create New Travel Request Form</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Create New Travel & Service Request</h1>
         </div>
         <p className="text-muted-foreground">Please select the type of travel request you want to create.</p>
       </div>

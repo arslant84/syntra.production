@@ -20,6 +20,7 @@ import type { NavItem, User } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Home, Plane, ReceiptText, CheckSquare, Users, Settings, StickyNote, BedDouble } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSession } from "next-auth/react";
 
 // Mock user data for sidebar footer - similar to UserNav
 const mockUser: User = {
@@ -56,6 +57,8 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const sidebarContext = useSidebar();
   const toggleSidebar = sidebarContext?.toggleSidebar;
+  const { data: session } = useSession();
+  const user = session?.user;
 
   return (
     <Sidebar collapsible="icon" className="border-r flex flex-col">
@@ -159,18 +162,18 @@ export default function AppSidebar() {
         <div className="mt-2">
             <Link href="/profile">
                 <SidebarMenuButton
-                    tooltip={mockUser.name}
+                    tooltip={user?.name || "User"}
                     className={cn(
                         "h-auto p-2 group-data-[state=collapsed]:w-auto group-data-[state=collapsed]:justify-center"
                     )}
                 >
                     <Avatar className="h-8 w-8">
-                        <AvatarImage src="https://placehold.co/100x100.png" alt={mockUser.name} data-ai-hint="profile avatar"/>
-                        <AvatarFallback>{getInitials(mockUser.name)}</AvatarFallback>
+                        <AvatarImage src="https://placehold.co/100x100.png" alt={user?.name || "User"} data-ai-hint="profile avatar"/>
+                        <AvatarFallback>{user?.name ? getInitials(user.name) : "U"}</AvatarFallback>
                     </Avatar>
                     <div className="group-data-[state=collapsed]:hidden ml-2 flex-grow min-w-0">
-                        <p className="text-sm font-medium truncate">{mockUser.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{mockUser.email}</p>
+                        <p className="text-sm font-medium truncate">{user?.name || "User"}</p>
+                        <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
                     </div>
                 </SidebarMenuButton>
             </Link>

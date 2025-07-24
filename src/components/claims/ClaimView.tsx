@@ -79,7 +79,7 @@ const ClaimFormHeader: React.FC<{claim: ExpenseClaim}> = ({claim}) => (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4">
       <div className="md:col-span-1 space-y-2 mb-4 md:mb-0 p-2 border-r border-muted">
         <DetailItem label="Bank" value={claim.bankDetails.bankName} />
-        <DetailItem label="Name & Address" value={"Details usually on TRF/User Profile"} /> {/* Placeholder as not in form */}
+        <DetailItem label="Name & Address" value={"Details usually on TSR/User Profile"} /> {/* Placeholder as not in form */}
         <DetailItem label="Purpose of Claim" value={claim.bankDetails.purposeOfClaim} />
       </div>
       <div className="md:col-span-2 grid grid-cols-2 gap-x-4 gap-y-1 p-2">

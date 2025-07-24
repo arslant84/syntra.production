@@ -30,10 +30,10 @@ type SortConfig = {
 const ALL_STATUSES_VALUE = "__ALL_STATUSES__";
 const ALL_TRAVEL_TYPES_VALUE = "__ALL_TRAVEL_TYPES__";
 
-const trfStatusesList: TrfStatus[] = ["Draft", "Pending Department Focal", "Pending Line Manager", "Pending HOD", "Approved", "Rejected", "Cancelled", "Processing Flights", "Processing Accommodation", "Awaiting Visa", "TRF Processed"];
+const trfStatusesList: TrfStatus[] = ["Draft", "Pending Department Focal", "Pending Line Manager", "Pending HOD", "Approved", "Rejected", "Cancelled", "Processing Flights", "Processing Accommodation", "Awaiting Visa", "TSR Processed"];
 const travelTypesList: Exclude<TravelType, "">[] = ["Domestic", "Overseas", "Home Leave Passage", "External Parties"];
 
-export default function TRFPage() {
+export default function TSRPage() {
   const [trfs, setTrfs] = useState<TrfListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,24 +65,24 @@ export default function TRFPage() {
     }
 
     try {
-      console.log(`TRFPage: Fetching TRFs with params: ${params.toString()}`);
+      console.log(`TSRPage: Fetching TSRs with params: ${params.toString()}`);
       const response = await fetch(`/api/trf?${params.toString()}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ details: "Failed to parse error response." }));
-        let errorMessage = errorData.details || errorData.error || `Failed to fetch TRFs. Server responded with status ${response.status}.`;
+        let errorMessage = errorData.details || errorData.error || `Failed to fetch TSRs. Server responded with status ${response.status}.`;
         if (typeof errorData.details === 'object') {
             errorMessage = Object.values(errorData.details).flat().join(' ');
         }
         throw new Error(errorMessage);
       }
       const data = await response.json();
-      console.log("TRFPage: Fetched TRFs data:", data);
+      console.log("TSRPage: Fetched TSRs data:", data);
       setTrfs(data.trfs || []);
       setTotalTrfs(data.totalCount || 0);
       setTotalPages(data.totalPages || 1);
       setCurrentPage(data.currentPage || 1);
     } catch (err: any) {
-      console.error("TRFPage: Error fetching TRFs:", err);
+      console.error("TSRPage: Error fetching TSRs:", err);
       setError(err.message);
       setTrfs([]);
       setTotalTrfs(0);
@@ -107,7 +107,7 @@ export default function TRFPage() {
     if (status?.toLowerCase().includes('approved')) return 'default';
     if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
     if (status?.toLowerCase().includes('pending')) return 'outline';
-    if (["Processing Flights", "Processing Accommodation", "Awaiting Visa", "TRF Processed"].includes(status)) return 'default';
+    if (["Processing Flights", "Processing Accommodation", "Awaiting Visa", "TSR Processed"].includes(status)) return 'default';
     return 'secondary';
   };
 
@@ -146,11 +146,11 @@ export default function TRFPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <FileText className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Travel Request Forms (TRF)</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Travel & Service Requests (TSR)</h1>
         </div>
         <Link href="/trf/new" passHref>
           <Button>
-            <PlusCircle className="mr-2 h-5 w-5" /> Create New TRF
+            <PlusCircle className="mr-2 h-5 w-5" /> Create New TSR
           </Button>
         </Link>
       </div>
@@ -160,7 +160,7 @@ export default function TRFPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ListFilter className="h-5 w-5" />
-            Filter & Search TRFs
+            Filter & Search TSRs
           </CardTitle>
           <CardDescription>
             Search and filter your travel requests by various criteria.
@@ -207,12 +207,12 @@ export default function TRFPage() {
         )}
       </Card>
 
-      {/* TRF List Card */}
+      {/* TSR List Card */}
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            My TRFs
+            My TSRs
           </CardTitle>
           <CardDescription>
             List of your submitted travel requests. Total: {isLoading && totalTrfs === 0 ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : totalTrfs}
@@ -222,12 +222,12 @@ export default function TRFPage() {
           {isLoading && trfs.length === 0 ? (
             <div className="flex items-center justify-center h-40">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-2 text-muted-foreground">Loading TRFs...</p>
+              <p className="ml-2 text-muted-foreground">Loading TSRs...</p>
             </div>
           ) : error ? (
             <div className="text-center py-8">
               <AlertTriangle className="mx-auto h-12 w-12 text-destructive" />
-              <h3 className="mt-2 text-lg font-medium text-destructive">Error Loading TRFs</h3>
+              <h3 className="mt-2 text-lg font-medium text-destructive">Error Loading TSRs</h3>
               <p className="mt-1 text-sm text-muted-foreground">{error}</p>
               <Button onClick={() => fetchTrfs(1)} className="mt-4">Try Again</Button>
             </div>
@@ -237,7 +237,7 @@ export default function TRFPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <SortableHeader columnKey="id" label="TRF ID" />
+                      <SortableHeader columnKey="id" label="TSR ID" />
                       <SortableHeader columnKey="requestorName" label="Requestor" />
                       <SortableHeader columnKey="travelType" label="Type" />
                       <SortableHeader columnKey="purpose" label="Purpose" />
@@ -299,9 +299,9 @@ export default function TRFPage() {
             <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">
               <FileText className="w-16 h-16 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">
-                {hasActiveFilters ? "No TRFs found matching your criteria." : "No TRFs found."}
+                {hasActiveFilters ? "No TSRs found matching your criteria." : "No TSRs found."}
               </p>
-              <p className="text-sm text-muted-foreground">Click "Create New TRF" to get started.</p>
+              <p className="text-sm text-muted-foreground">Click "Create New TSR" to get started.</p>
               {hasActiveFilters && (
                 <Button variant="link" onClick={handleClearFilters} className="mt-2">
                   Clear Filters

@@ -47,7 +47,7 @@ export default function ExternalPartyRequestorForm({ initialData, onSubmit }: Ex
   };
 
   return (
-    <Card className="w-full max-w-3xl mx-auto shadow-lg">
+    <Card className="w-full shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl md:text-2xl">
           <Users className="w-6 h-6 md:w-7 md:w-7 text-primary" />

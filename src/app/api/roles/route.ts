@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO } from 'date-fns';
+import { requireRole } from '@/lib/authz';
 
 const roleCreateSchema = z.object({
   name: z.string().min(2, "Role name must be at least 2 characters."),
@@ -50,6 +51,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  try {
+    await requireRole(request, ['System Administrator']);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: err.message === 'Forbidden' ? 403 : 401 });
+  }
   console.log("API_ROLES_POST_START (PostgreSQL): Creating role.");
   if (!sql) {
     console.error("API_ROLES_POST_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");

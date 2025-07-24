@@ -29,6 +29,8 @@ export interface ItinerarySegment {
   remarks: string;
 }
 
+export type TripType = 'One Way' | 'Round Trip';
+
 export interface MealProvisionDetails {
   dateFromTo?: string;
   date_from_to?: string;
@@ -86,6 +88,7 @@ export interface CompanyTransportDetail {
 
 export interface DomesticTravelSpecificDetails {
   purpose: string;
+  tripType: TripType;
   itinerary: ItinerarySegment[];
   mealProvision: MealProvisionDetails;
   accommodationDetails: AccommodationDetail[];
@@ -112,6 +115,7 @@ export interface AdvanceAmountRequestedItem {
 
 export interface OverseasTravelSpecificDetails {
   purpose: string;
+  tripType: TripType;
   itinerary: ItinerarySegment[];
   advanceBankDetails: AdvanceBankDetails;
   advanceAmountRequested: AdvanceAmountRequestedItem[];
@@ -119,6 +123,7 @@ export interface OverseasTravelSpecificDetails {
 
 export interface ExternalPartiesTravelSpecificDetails {
   purpose: string;
+  tripType: TripType;
   itinerary: ItinerarySegment[];
   accommodationDetails: ExternalPartyAccommodationDetail[];
   mealProvision: MealProvisionDetails; 
@@ -138,7 +143,7 @@ export type TrfStatus =
   | 'Processing Flights'
   | 'Processing Accommodation'
   | 'Awaiting Visa'
-  | 'TRF Processed';
+  | 'TSR Processed';
 
 
 export interface TravelRequestData {

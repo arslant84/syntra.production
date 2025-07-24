@@ -35,8 +35,8 @@ function getNextStatusAfterFlightBooking(trf: { travel_type?: string | null, has
     return "TRF Processed";
 }
 
-export async function POST(request: NextRequest, { params }: { params: { trfId: string } }) {
-  const { trfId } = await Promise.resolve(params);
+export async function POST(request: NextRequest, { params }: { params: Promise<{ trfId: string }> }) {
+      const { trfId } = await params;
   console.log(`API_TRF_ADMIN_BOOKFLIGHT_POST_START (PostgreSQL): Booking flight for TRF ${trfId}.`);
   if (!sql) {
     console.error("API_TRF_ADMIN_BOOKFLIGHT_POST_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");

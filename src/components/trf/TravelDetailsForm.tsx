@@ -276,8 +276,8 @@ export default function TravelDetailsForm({ initialData, onSubmit, onBack }: Tra
                       <FormField control={form.control} name={`itinerary.${index}.day`} render={({ field }) => (<FormItem><FormLabel>Day</FormLabel><FormControl><Input placeholder="e.g. Mon" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`itinerary.${index}.from`} render={({ field }) => (<FormItem><FormLabel>From</FormLabel><FormControl><Input placeholder="Origin" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`itinerary.${index}.to`} render={({ field }) => (<FormItem><FormLabel>To</FormLabel><FormControl><Input placeholder="Destination" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`itinerary.${index}.etd`} render={({ field }) => (<FormItem><FormLabel>ETD</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name={`itinerary.${index}.eta`} render={({ field }) => (<FormItem><FormLabel>ETA</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name={`itinerary.${index}.etd`} render={({ field }) => (<FormItem><FormLabel>ETD</FormLabel><FormControl><Input type="time" step="900" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name={`itinerary.${index}.eta`} render={({ field }) => (<FormItem><FormLabel>ETA</FormLabel><FormControl><Input type="time" step="900" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`itinerary.${index}.flightNumber`} render={({ field }) => (<FormItem><FormLabel>{isInternationalType ? "Flight/Class" : "Flight/Rein"}</FormLabel><FormControl><Input placeholder={isInternationalType ? "e.g. Business Class" : "Flight #"} {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`itinerary.${index}.remarks`} render={({ field }) => (<FormItem className="md:col-span-full"><FormLabel>Remarks</FormLabel><FormControl><Textarea placeholder="Segment remarks" {...field} /></FormControl><FormMessage /></FormItem>)} />
                     </div>
@@ -332,7 +332,7 @@ export default function TravelDetailsForm({ initialData, onSubmit, onBack }: Tra
                             <FormMessage />
                           </FormItem>
                         )} />
-                        <FormField control={form.control} name={`accommodationDetails.${index}.checkInTime`} render={({ field }) => (<FormItem><FormLabel>Check-in Time</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name={`accommodationDetails.${index}.checkInTime`} render={({ field }) => (<FormItem><FormLabel>Check-in Time</FormLabel><FormControl><Input type="time" step="900" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name={`accommodationDetails.${index}.checkOutDate`} render={({ field }) => (
                           <FormItem><FormLabel>Check-out Date</FormLabel>
                             <Popover>
@@ -361,7 +361,7 @@ export default function TravelDetailsForm({ initialData, onSubmit, onBack }: Tra
                             <FormMessage />
                           </FormItem>
                         )} />
-                        <FormField control={form.control} name={`accommodationDetails.${index}.checkOutTime`} render={({ field }) => (<FormItem><FormLabel>Check-out Time</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name={`accommodationDetails.${index}.checkOutTime`} render={({ field }) => (<FormItem><FormLabel>Check-out Time</FormLabel><FormControl><Input type="time" step="900" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       </div>
                       <FormField control={form.control} name={`accommodationDetails.${index}.remarks`} render={({ field }) => (<FormItem><FormLabel>Remarks</FormLabel><FormControl><Textarea placeholder="Accommodation remarks" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       {accommodationFields.length > 0 && <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive/80" onClick={() => removeAccommodation(index)}><Trash2 className="h-4 w-4" /></Button>}

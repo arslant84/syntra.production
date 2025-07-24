@@ -4,7 +4,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import TrfView from '@/components/trf/TrfView';
 import type { TravelRequestForm } from '@/types/trf';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileSpreadsheet, Loader2, AlertTriangle, ArrowLeft, Edit, Ban, Printer, Trash2 } from 'lucide-react';
+import { FileSpreadsheet, Loader2, AlertTriangle, ArrowLeft, Edit, Ban, Printer, Trash2, FileText } from 'lucide-react';
 import React, { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -13,10 +13,10 @@ import { useToast } from "@/hooks/use-toast";
 const EDITABLE_STATUSES: TravelRequestForm['status'][] = ["Pending Department Focal", "Rejected", "Draft"];
 const CANCELLABLE_STATUSES: TravelRequestForm['status'][] = ["Pending Department Focal", "Pending Line Manager", "Pending HOD"];
 const DELETABLE_STATUSES: TravelRequestForm['status'][] = ["Pending Department Focal", "Rejected", "Draft"];
-const TERMINAL_OR_PROCESSING_STATUSES: TravelRequestForm['status'][] = ["Approved", "Cancelled", "TRF Processed", "Processing Flights", "Processing Accommodation", "Awaiting Visa"];
+const TERMINAL_OR_PROCESSING_STATUSES: TravelRequestForm['status'][] = ["Approved", "Cancelled", "TSR Processed", "Processing Flights", "Processing Accommodation", "Awaiting Visa"];
 
 
-export default function ViewTRFPage() {
+export default function ViewTSRPage() {
   const params = useParams();
   const router = useRouter();
   const trfId = params.trfId as string;
@@ -29,19 +29,19 @@ export default function ViewTRFPage() {
 
   const fetchTrfDetails = useCallback(async () => {
     if (!trfId) return;
-    console.log(`ViewTRFPage: Fetching TRF details for ${trfId}.`);
+    console.log(`ViewTSRPage: Fetching TSR details for ${trfId}.`);
     setIsLoading(true);
     setError(null);
     try {
       const response = await fetch(`/api/trf/${trfId}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || `Failed to fetch TRF ${trfId}: ${response.statusText}`);
+        throw new Error(errorData.error || errorData.details || `Failed to fetch TSR ${trfId}: ${response.statusText}`);
       }
       const result = await response.json();
       setTrfData(result.trf as TravelRequestForm);
     } catch (err: any) {
-      console.error("Error fetching TRF details:", err);
+      console.error("Error fetching TSR details:", err);
       setError(err.message);
       setTrfData(null);
     } finally {
@@ -53,7 +53,7 @@ export default function ViewTRFPage() {
     fetchTrfDetails();
   }, [fetchTrfDetails]);
 
-  const handleCancelTRF = async () => {
+  const handleCancelTSR = async () => {
     if (!trfData) return;
     setIsActionPending(true);
     try {
@@ -69,19 +69,19 @@ export default function ViewTRFPage() {
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to cancel TRF.");
+        throw new Error(errorData.error || errorData.details || "Failed to cancel TSR.");
       }
       const updatedTrf = await response.json();
       setTrfData(updatedTrf.trf as TravelRequestForm);
-      toast({ title: "TRF Cancelled", description: `TRF ID ${trfId} has been cancelled.` });
+      toast({ title: "TSR Cancelled", description: `TSR ID ${trfId} has been cancelled.` });
     } catch (err: any) {
-      toast({ title: "Error Cancelling TRF", description: err.message, variant: "destructive" });
+      toast({ title: "Error Cancelling TSR", description: err.message, variant: "destructive" });
     } finally {
       setIsActionPending(false);
     }
   };
 
-  const handleDeleteTRF = async () => {
+  const handleDeleteTSR = async () => {
     if (!trfData) return;
     setIsActionPending(true);
     try {
@@ -90,12 +90,12 @@ export default function ViewTRFPage() {
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to delete TRF.");
+        throw new Error(errorData.error || errorData.details || "Failed to delete TSR.");
       }
-      toast({ title: "TRF Deleted", description: `TRF ID ${trfId} has been permanently deleted.` });
-      router.push("/trf"); // Redirect to the TRF list page
+      toast({ title: "TSR Deleted", description: `TSR ID ${trfId} has been permanently deleted.` });
+      router.push("/trf"); // Redirect to the TSR list page
     } catch (err: any) {
-      toast({ title: "Error Deleting TRF", description: err.message, variant: "destructive" });
+      toast({ title: "Error Deleting TSR", description: err.message, variant: "destructive" });
       setIsActionPending(false);
     }
   };
@@ -120,13 +120,13 @@ export default function ViewTRFPage() {
   };
 
   if (isLoading) {
-    return (<div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]"><Loader2 className="w-12 h-12 text-primary animate-spin mb-4" /><p className="text-muted-foreground">Loading TRF Details...</p></div>);
+    return (<div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]"><Loader2 className="w-12 h-12 text-primary animate-spin mb-4" /><p className="text-muted-foreground">Loading TSR Details...</p></div>);
   }
   if (error) {
-    return (<div className="container mx-auto py-8 px-4 text-center"><Card className="max-w-lg mx-auto shadow-lg"><CardHeader><CardTitle className="flex items-center justify-center gap-2 text-destructive"><AlertTriangle className="w-6 h-6" /> Error Loading TRF</CardTitle></CardHeader><CardContent><p>{error}</p><Button onClick={() => router.back()} className="mt-4"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button></CardContent></Card></div>);
+    return (<div className="container mx-auto py-8 px-4 text-center"><Card className="max-w-lg mx-auto shadow-lg"><CardHeader><CardTitle className="flex items-center justify-center gap-2 text-destructive"><AlertTriangle className="w-6 h-6" /> Error Loading TSR</CardTitle></CardHeader><CardContent><p>{error}</p><Button onClick={() => router.back()} className="mt-4"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button></CardContent></Card></div>);
   }
   if (!trfData) {
-     return (<div className="container mx-auto py-8 px-4 text-center"><Card className="max-w-lg mx-auto shadow-lg"><CardHeader><CardTitle>TRF Not Found</CardTitle></CardHeader><CardContent><p>The requested TRF (ID: {trfId}) could not be found or loaded.</p><Button onClick={() => router.back()} className="mt-4"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button></CardContent></Card></div>);
+     return (<div className="container mx-auto py-8 px-4 text-center"><Card className="max-w-lg mx-auto shadow-lg"><CardHeader><CardTitle>TSR Not Found</CardTitle></CardHeader><CardContent><p>The requested TSR (ID: {trfId}) could not be found or loaded.</p><Button onClick={() => router.back()} className="mt-4"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button></CardContent></Card></div>);
   }
   
   return (
@@ -134,25 +134,27 @@ export default function ViewTRFPage() {
       <Card className="w-full shadow print:shadow-none print:border-none">
         <CardHeader className="w-full bg-muted/30 print:bg-transparent print:p-0 px-2 py-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:flex-row print:items-start w-full">
-            <div className="w-full"><CardTitle className="flex items-center gap-2 text-xl print:text-2xl"><FileSpreadsheet className="w-6 h-6 text-primary print:text-black" />Travel Request Form Details</CardTitle><CardDescription className="print:text-sm">Viewing TRF ID: {trfData.id} - Status: <span className="font-semibold">{trfData.status}</span></CardDescription></div>
+            <div className="w-full"><CardTitle className="flex items-center gap-2 text-xl print:text-2xl">
+              <FileText className="w-6 h-6 text-primary print:text-black" />Travel & Service Request Details</CardTitle>
+            <CardDescription className="print:text-sm">Viewing TSR ID: {trfData.id} - Status: <span className="font-semibold">{trfData.status}</span></CardDescription></div>
             <div className="flex flex-wrap gap-2 print:hidden w-full sm:w-auto justify-end">
                 <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-                {canEdit && (<Button variant="outline" onClick={() => router.push(getEditLink())}><Edit className="mr-2 h-4 w-4" /> Edit TRF</Button>)}
+                {canEdit && (<Button variant="outline" onClick={() => router.push(getEditLink())}><Edit className="mr-2 h-4 w-4" /> Edit TSR</Button>)}
                 {canCancel && (
-                  <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" disabled={isActionPending}><Ban className="mr-2 h-4 w-4" /> Cancel TRF</Button></AlertDialogTrigger>
-                    <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Confirm Cancellation</AlertDialogTitle><AlertDialogDescription>Are you sure you want to cancel TRF {trfId}? This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={isActionPending}>Back</AlertDialogCancel><AlertDialogAction onClick={handleCancelTRF} disabled={isActionPending} className="bg-destructive hover:bg-destructive/90">{isActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Confirm Cancel</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                  <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" disabled={isActionPending}><Ban className="mr-2 h-4 w-4" /> Cancel TSR</Button></AlertDialogTrigger>
+                    <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Confirm Cancellation</AlertDialogTitle><AlertDialogDescription>Are you sure you want to cancel TSR {trfId}? This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={isActionPending}>Back</AlertDialogCancel><AlertDialogAction onClick={handleCancelTSR} disabled={isActionPending} className="bg-destructive hover:bg-destructive/90">{isActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Confirm Cancel</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                   </AlertDialog>
                 )}
                 {canDelete && (
-                  <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" disabled={isActionPending}><Trash2 className="mr-2 h-4 w-4" /> Delete TRF</Button></AlertDialogTrigger>
+                  <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" disabled={isActionPending}><Trash2 className="mr-2 h-4 w-4" /> Delete TSR</Button></AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
-                        <AlertDialogDescription>Are you sure you want to delete TRF {trfId}? This action is permanent and cannot be undone.</AlertDialogDescription>
+                        <AlertDialogDescription>Are you sure you want to delete TSR {trfId}? This action is permanent and cannot be undone.</AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel disabled={isActionPending}>Back</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteTRF} disabled={isActionPending} className="bg-destructive hover:bg-destructive/90">
+                        <AlertDialogAction onClick={handleDeleteTSR} disabled={isActionPending} className="bg-destructive hover:bg-destructive/90">
                           {isActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Confirm Delete
                         </AlertDialogAction>
                       </AlertDialogFooter>

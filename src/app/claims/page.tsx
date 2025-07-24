@@ -137,7 +137,7 @@ export default function ClaimsPage() {
 
       {/* Filter Bar */}
       <FilterBar
-        searchPlaceholder="Search by Claimant, TRF ID, Purpose..."
+                    searchPlaceholder="Search by Claimant, TSR ID, Purpose..."
         searchTerm={searchTerm}
         onSearchTermChange={setSearchTerm}
         statusOptions={[

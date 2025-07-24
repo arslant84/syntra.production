@@ -4,8 +4,8 @@ import { sql } from '@/lib/db';
 import { formatISO, parseISO } from 'date-fns';
 import type { VisaApplication, VisaApprovalStep } from '@/types/visa';
 
-export async function GET(request: NextRequest, { params }: { params: { visaId: string } }) {
-  const { visaId } = params;
+export async function GET(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
+  const { visaId } = await params;
   console.log(`API_VISA_VISAID_GET_START (PostgreSQL): Fetching visa application ${visaId}.`);
   
   if (!sql) {
@@ -101,9 +101,10 @@ export async function GET(request: NextRequest, { params }: { params: { visaId: 
 }
 
 // Placeholder for PUT (Update Visa App - e.g. Visa Clerk uploads visa copy)
-export async function PUT(request: NextRequest, { params }: { params: { visaId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
+    const { visaId } = await params;
     // Example: body could contain { visaCopyFilename: "new_visa.pdf", status: "Approved" }
     // Needs Zod validation
-    console.warn(`API_VISA_VISAID_PUT (PostgreSQL): Update for visa ${params.visaId} - NOT IMPLEMENTED YET`);
+    console.warn(`API_VISA_VISAID_PUT (PostgreSQL): Update for visa ${visaId} - NOT IMPLEMENTED YET`);
     return NextResponse.json({ error: 'Update visa application not implemented for PostgreSQL yet.' }, { status: 501 });
 }

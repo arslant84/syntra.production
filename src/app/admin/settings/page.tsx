@@ -279,45 +279,50 @@ export default function SystemSettingsPage() {
             <DialogContent className="sm:max-w-2xl"><DialogHeader><DialogPageTitle className="text-xl">Configure Approval Workflows</DialogPageTitle><DialogPageDescription>Define the sequence of approval steps, conditions, and escalation rules for each module.</DialogPageDescription></DialogHeader>
               <div className="space-y-4 py-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label htmlFor="workflowModule">Module</Label>
-                    <Select value={selectedWorkflowModule} onValueChange={setSelectedWorkflowModule}><SelectTrigger id="workflowModule"><SelectValue placeholder="Select Module" /></SelectTrigger><SelectContent><SelectItem value="trf">Travel Request Form (TRF)</SelectItem><SelectItem value="claims">Expense Claims</SelectItem><SelectItem value="visa">Visa Applications</SelectItem></SelectContent></Select>
-                  </div>
-                  <div className="space-y-2"><Label htmlFor="escalationTime">Default Escalation Time (hours)</Label><Input id="escalationTime" type="number" placeholder="e.g., 24" /></div>
-                </div>
-                {selectedWorkflowModule && (<div className="mt-6 pt-4 border-t"><h4 className="text-md font-semibold mb-3 flex items-center gap-2"><ListChecks className="h-5 w-5 text-primary"/>Workflow Steps for: {selectedWorkflowModule.toUpperCase()} Module</h4>
-                    {(mockWorkflowSteps[selectedWorkflowModule] || []).length > 0 ? (
-                      <ScrollArea className="h-60 w-full rounded-md border p-2"><div className="space-y-3">
-                        {(mockWorkflowSteps[selectedWorkflowModule] || []).map((step, index) => (
-                          <Card key={index} className="p-3 bg-muted/30"><CardTitle className="text-sm font-medium mb-1">Step {index + 1}: {step.name}</CardTitle><div className="text-xs space-y-1"><p><span className="font-semibold">Approver Role:</span> {step.approverRole}</p><p><span className="font-semibold">Escalation:</span> {step.escalation}</p><div className="flex justify-end gap-1 mt-1"><Button variant="ghost" size="icon" className="h-6 w-6" disabled><Edit3 className="h-3 w-3"/></Button><Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" disabled><Trash2 className="h-3 w-3"/></Button></div></div></Card>
-                        ))}
-                      </div></ScrollArea>
-                    ) : (<p className="text-sm text-muted-foreground text-center py-4">No steps defined for this module yet.</p>)}
-                    <Button variant="outline" size="sm" className="mt-3" disabled><PlusCircle className="mr-2 h-4 w-4" /> Add New Step</Button>
-                  </div>)}
-                {!selectedWorkflowModule && (<p className="text-sm text-muted-foreground text-center py-6">Select a module to configure its workflow steps.</p>)}
-              </div>
-              <DialogFooter className="sm:justify-start pt-4 border-t"><Button type="button" variant="default" disabled>Save Changes (Disabled)</Button><DialogClose asChild><Button type="button" variant="outline">Close</Button></DialogClose></DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle>Notification Templates</CardTitle><CardDescription>Manage email and system notification templates (UI Placeholder).</CardDescription></CardHeader>
-        <CardContent><p className="text-sm text-muted-foreground">Template management UI placeholder...</p><Button variant="outline" className="mt-2">Edit Templates</Button></CardContent>
-      </Card>
-      <Dialog open={isRoleModalOpen} onOpenChange={(isOpen) => { if (!isOpen) handleCloseRoleModal(); else setIsRoleModalOpen(true); }}>
-        <DialogContent className="sm:max-w-lg"><DialogHeader><DialogPageTitle className="text-xl font-semibold text-primary">{currentRoleToEdit ? `Manage Role: ${currentRoleToEdit.name}` : "Add New Role"}</DialogPageTitle></DialogHeader>
-          <RoleForm initialData={currentRoleToEdit} availablePermissions={permissions} onFormSubmit={handleRoleFormSubmit} onCancel={handleCloseRoleModal} isSubmitting={isSubmittingRole} submitError={roleSubmitError}/>
+                    <Select value={selectedWorkflowModule} onValueChange={setSelectedWorkflowModule}><SelectTrigger id="workflowModule"><SelectValue placeholder="Select Module" /></SelectTrigger><SelectContent>
+                  <SelectItem value="trf">Travel & Service Request (TSR)</SelectItem>
+                  <SelectItem value="claims">Expense Claims</SelectItem>
+                  <SelectItem value="visa">Visa Applications</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label htmlFor="escalationTime">Default Escalation Time (hours)</Label><Input id="escalationTime" type="number" placeholder="e.g., 24" /></div>
+          </div>
+          {selectedWorkflowModule && (<div className="mt-6 pt-4 border-t"><h4 className="text-md font-semibold mb-3 flex items-center gap-2"><ListChecks className="h-5 w-5 text-primary"/>Workflow Steps for: {selectedWorkflowModule.toUpperCase()} Module</h4>
+              {(mockWorkflowSteps[selectedWorkflowModule] || []).length > 0 ? (
+                <ScrollArea className="h-60 w-full rounded-md border p-2"><div className="space-y-3">
+                  {(mockWorkflowSteps[selectedWorkflowModule] || []).map((step, index) => (
+                    <Card key={index} className="p-3 bg-muted/30"><CardTitle className="text-sm font-medium mb-1">Step {index + 1}: {step.name}</CardTitle><div className="text-xs space-y-1"><p><span className="font-semibold">Approver Role:</span> {step.approverRole}</p><p><span className="font-semibold">Escalation:</span> {step.escalation}</p><div className="flex justify-end gap-1 mt-1"><Button variant="ghost" size="icon" className="h-6 w-6" disabled><Edit3 className="h-3 w-3"/></Button><Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" disabled><Trash2 className="h-3 w-3"/></Button></div></div></Card>
+                  ))}
+                </div></ScrollArea>
+              ) : (<p className="text-sm text-muted-foreground text-center py-4">No steps defined for this module yet.</p>)}
+              <Button variant="outline" size="sm" className="mt-3" disabled><PlusCircle className="mr-2 h-4 w-4" /> Add New Step</Button>
+            </div>)}
+            {!selectedWorkflowModule && (<p className="text-sm text-muted-foreground text-center py-6">Select a module to configure its workflow steps.</p>)}
+          </div>
+          <DialogFooter className="sm:justify-start pt-4 border-t"><Button type="button" variant="default" disabled>Save Changes (Disabled)</Button><DialogClose asChild><Button type="button" variant="outline">Close</Button></DialogClose></DialogFooter>
         </DialogContent>
       </Dialog>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogPageHeader><AlertDialogPageTitle>Are you sure you want to delete this role?</AlertDialogPageTitle><AlertDialogDescription>This action cannot be undone. Role "{roleToDelete?.name}" will be permanently removed. Ensure no users are currently assigned this role before deleting.</AlertDialogDescription></AlertDialogPageHeader>
-          <AlertDialogModalFooter>
-            <AlertDialogCancel onClick={() => setRoleToDelete(null)} disabled={isSubmittingRole}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteRole} disabled={isSubmittingRole} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{isSubmittingRole && roleToDelete ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Delete Role</AlertDialogAction>
-          </AlertDialogModalFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
+    </CardContent>
+  </Card>
+  <Card>
+    <CardHeader><CardTitle>Notification Templates</CardTitle><CardDescription>Manage email and system notification templates (UI Placeholder).</CardDescription></CardHeader>
+    <CardContent><p className="text-sm text-muted-foreground">Template management UI placeholder...</p><Button variant="outline" className="mt-2">Edit Templates</Button></CardContent>
+  </Card>
+  <Dialog open={isRoleModalOpen} onOpenChange={(isOpen) => { if (!isOpen) handleCloseRoleModal(); else setIsRoleModalOpen(true); }}>
+    <DialogContent className="sm:max-w-lg"><DialogHeader><DialogPageTitle className="text-xl font-semibold text-primary">{currentRoleToEdit ? `Manage Role: ${currentRoleToEdit.name}` : "Add New Role"}</DialogPageTitle></DialogHeader>
+      <RoleForm initialData={currentRoleToEdit} availablePermissions={permissions} onFormSubmit={handleRoleFormSubmit} onCancel={handleCloseRoleModal} isSubmitting={isSubmittingRole} submitError={roleSubmitError}/>
+    </DialogContent>
+  </Dialog>
+  <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+    <AlertDialogContent>
+      <AlertDialogPageHeader><AlertDialogPageTitle>Are you sure you want to delete this role?</AlertDialogPageTitle><AlertDialogDescription>This action cannot be undone. Role "{roleToDelete?.name}" will be permanently removed. Ensure no users are currently assigned this role before deleting.</AlertDialogDescription></AlertDialogPageHeader>
+      <AlertDialogModalFooter>
+        <AlertDialogCancel onClick={() => setRoleToDelete(null)} disabled={isSubmittingRole}>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={handleDeleteRole} disabled={isSubmittingRole} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{isSubmittingRole && roleToDelete ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Delete Role</AlertDialogAction>
+      </AlertDialogModalFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+</div>
+);
 }

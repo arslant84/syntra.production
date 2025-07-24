@@ -10,8 +10,8 @@ const roleUpdateSchema = z.object({
   permissionIds: z.array(z.string().uuid("Invalid permission ID format.")).min(0, "Permissions list can be empty.").optional().default([]),
 });
 
-export async function GET(request: NextRequest, { params }: { params: { roleId: string } }) {
-  const { roleId } = params;
+export async function GET(request: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  const { roleId } = await params;
   console.log(`API_ROLEID_GET_START (PostgreSQL): Fetching role ${roleId}.`);
   if (!sql) {
     console.error("API_ROLEID_GET_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -46,8 +46,8 @@ export async function GET(request: NextRequest, { params }: { params: { roleId: 
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { roleId: string } }) {
-  const { roleId } = params;
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  const { roleId } = await params;
   console.log(`API_ROLEID_PUT_START (PostgreSQL): Updating role ${roleId}.`);
    if (!sql) {
     console.error("API_ROLEID_PUT_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -118,8 +118,8 @@ export async function PUT(request: NextRequest, { params }: { params: { roleId: 
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { roleId: string } }) {
-  const { roleId } = params;
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  const { roleId } = await params;
   console.log(`API_ROLEID_DELETE_START (PostgreSQL): Deleting role ${roleId}.`);
   if (!sql) {
     console.error("API_ROLEID_DELETE_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");

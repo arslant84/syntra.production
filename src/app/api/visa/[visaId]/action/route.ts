@@ -22,8 +22,8 @@ const visaApprovalWorkflow: Record<string, VisaStatus | null> = {
 
 const terminalVisaStatuses: VisaStatus[] = ["Approved", "Rejected"];
 
-export async function POST(request: NextRequest, { params }: { params: { visaId: string } }) {
-  const { visaId } = params;
+export async function POST(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
+  const { visaId } = await params;
   console.log(`API_VISA_ACTION_POST_START (PostgreSQL): Action for visa ${visaId}.`);
   if (!sql) {
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });

@@ -203,7 +203,7 @@ INSERT INTO permissions (name, description) VALUES
     ('view_users', 'Can view the user list.'),
     ('manage_roles', 'Can create, edit, and delete roles and assign permissions to them.'),
     ('view_system_settings', 'Can view the system settings page.'),
-    ('create_trf', 'Can create new Travel Request Forms.'),
+    ('create_trf', 'Can create new Travel & Service Requests.'),
     ('approve_trf_focal', 'Can perform Department Focal approval for TRFs.'),
     ('approve_trf_manager', 'Can perform Line Manager approval for TRFs.'),
     ('approve_trf_hod', 'Can perform HOD approval for TRFs.'),

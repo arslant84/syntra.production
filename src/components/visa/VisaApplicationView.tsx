@@ -71,7 +71,7 @@ export default function VisaApplicationView({ visaData }: VisaApplicationViewPro
   const {
     travelPurpose, destination, employeeId, nationality, passportCopyFilename,
     tripStartDate, tripEndDate, itineraryDetails, supportingDocumentsNotes,
-    status, submittedDate, lastUpdatedDate, approvalHistory, trfReferenceNumber, visaCopyFilename, applicantName
+    status, submittedDate, lastUpdatedDate, approvalHistory, tsrReferenceNumber, visaCopyFilename, applicantName
   } = visaData;
 
   const getStatusBadgeVariant = (currentStatus: VisaApplication['status']) => {
@@ -98,9 +98,9 @@ export default function VisaApplicationView({ visaData }: VisaApplicationViewPro
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 pt-4">
           <DetailItem label="Travel Purpose" value={travelPurpose} />
           <DetailItem label="Destination" value={destination || 'N/A'} />
-          <DetailItem label="TRF Reference" value={trfReferenceNumber ? 
-            <Link href={`/trf/view/${trfReferenceNumber}`} className="text-primary hover:underline flex items-center gap-1">
-              {trfReferenceNumber} <Link2 className="h-3 w-3"/>
+          <DetailItem label="TSR Reference" value={tsrReferenceNumber ? 
+            <Link href={`/trf/view/${tsrReferenceNumber}`} className="text-primary hover:underline flex items-center gap-1">
+              {tsrReferenceNumber} <Link2 className="h-3 w-3"/>
             </Link> : 'N/A'} 
           />
           <DetailItem label="Applicant Name" value={applicantName || 'N/A'} />

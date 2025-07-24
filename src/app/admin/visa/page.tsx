@@ -200,7 +200,7 @@ export default function VisaAdminPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               type="search" 
-              placeholder="Search by Applicant Name, TRF Ref, Destination..." 
+              placeholder="Search by Applicant Name, TSR Ref, Destination..." 
               className="pl-8 w-full" 
               value={searchTerm}
               onChange={handleSearch}
@@ -237,7 +237,7 @@ export default function VisaAdminPage() {
                     <TableHead>Visa ID</TableHead>
                     <TableHead>Applicant</TableHead>
                     <TableHead>Destination</TableHead>
-                    <TableHead>TRF Ref.</TableHead>
+                    <TableHead>TSR Ref.</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Submitted</TableHead>
                     <TableHead className="text-center">Actions</TableHead>

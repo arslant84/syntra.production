@@ -40,7 +40,14 @@ const expenseClaimCreateSchema = z.object({
   expenseItems: z.array(
     z.object({
       date: z.coerce.date(),
-      claimOrTravelDetails: z.string().min(1),
+      claimOrTravelDetails: z.union([
+        z.string().min(1),
+        z.object({
+          from: z.string().optional(),
+          to: z.string().optional(),
+          placeOfStay: z.string().optional(),
+        })
+      ]),
       officialMileageKM: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
       transport: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
       hotelAccommodationAllowance: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
@@ -53,7 +60,7 @@ const expenseClaimCreateSchema = z.object({
     z.object({
       date: z.coerce.date(),
       typeOfCurrency: z.string().min(1),
-      sellingRateTTOD: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative()),
+      sellingRateTTOD: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
     })
   ).optional(),
   financialSummary: z.object({
@@ -124,17 +131,29 @@ export async function POST(request: NextRequest) {
       const claimId = claim.id;
 
       if (expenseItems && expenseItems.length > 0) {
-        const itemsToInsert = expenseItems.map(item => ({
-          claim_id: claimId,
-          item_date: item.date ? formatISO(item.date, { representation: 'date' }) : null,
-          claim_or_travel_details: item.claimOrTravelDetails,
-          official_mileage_km: item.officialMileageKM === null ? null : Number(item.officialMileageKM),
-          transport: item.transport === null ? null : Number(item.transport),
-          hotel_accommodation_allowance: item.hotelAccommodationAllowance === null ? null : Number(item.hotelAccommodationAllowance),
-          out_station_allowance_meal: item.outStationAllowanceMeal === null ? null : Number(item.outStationAllowanceMeal),
-          miscellaneous_allowance_10_percent: item.miscellaneousAllowance10Percent === null ? null : Number(item.miscellaneousAllowance10Percent),
-          other_expenses: item.otherExpenses === null ? null : Number(item.otherExpenses),
-        }));
+        const itemsToInsert = expenseItems.map(item => {
+          // Handle claimOrTravelDetails - convert object to string if needed
+          let claimDetails = item.claimOrTravelDetails;
+          if (typeof claimDetails === 'object' && claimDetails !== null) {
+            const parts = [];
+            if (claimDetails.from) parts.push(claimDetails.from);
+            if (claimDetails.to) parts.push(claimDetails.to);
+            if (claimDetails.placeOfStay) parts.push(claimDetails.placeOfStay);
+            claimDetails = parts.join(' - ');
+          }
+          
+          return {
+            claim_id: claimId,
+            item_date: item.date ? formatISO(item.date, { representation: 'date' }) : null,
+            claim_or_travel_details: claimDetails || '',
+            official_mileage_km: item.officialMileageKM === null ? null : Number(item.officialMileageKM),
+            transport: item.transport === null ? null : Number(item.transport),
+            hotel_accommodation_allowance: item.hotelAccommodationAllowance === null ? null : Number(item.hotelAccommodationAllowance),
+            out_station_allowance_meal: item.outStationAllowanceMeal === null ? null : Number(item.outStationAllowanceMeal),
+            miscellaneous_allowance_10_percent: item.miscellaneousAllowance10Percent === null ? null : Number(item.miscellaneousAllowance10Percent),
+            other_expenses: item.otherExpenses === null ? null : Number(item.otherExpenses),
+          };
+        });
         await tx`INSERT INTO expense_claim_items ${tx(itemsToInsert, 'claim_id', 'item_date', 'claim_or_travel_details', 'official_mileage_km', 'transport', 'hotel_accommodation_allowance', 'out_station_allowance_meal', 'miscellaneous_allowance_10_percent', 'other_expenses')}`;
       }
 
@@ -143,7 +162,7 @@ export async function POST(request: NextRequest) {
           claim_id: claimId,
           fx_date: fx.date ? formatISO(fx.date, { representation: 'date' }) : null,
           type_of_currency: fx.typeOfCurrency,
-          selling_rate_tt_od: fx.sellingRateTTOD,
+          selling_rate_tt_od: fx.sellingRateTTOD === null ? null : Number(fx.sellingRateTTOD),
         }));
         await tx`INSERT INTO expense_claim_fx_rates ${tx(fxToInsert, 'claim_id', 'fx_date', 'type_of_currency', 'selling_rate_tt_od')}`;
       }

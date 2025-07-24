@@ -8,8 +8,8 @@ const statusUpdateSchema = z.object({
   status: z.enum(["Active", "Inactive"]),
 });
 
-export async function PATCH(request: NextRequest, { params }: { params: { userId: string } }) {
-  const { userId } = params;
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params;
   console.log(`API_USERID_STATUS_PATCH_START (PostgreSQL): Updating status for user ${userId}.`);
   if (!sql) {
     console.error("API_USERID_STATUS_PATCH_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");

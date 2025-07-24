@@ -5,6 +5,10 @@ import type { Metadata } from 'next';
 import './globals.css';
 import AppProviders from '@/components/providers/AppProviders'; // Import the new wrapper
 import { Toaster } from "@/components/ui/toaster";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 // Temporarily commented out font configurations
 // const geistSans = Geist({
@@ -22,28 +26,13 @@ export const metadata: Metadata = {
   description: 'PC(T)SB - Synchronised Travel',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        <style dangerouslySetInnerHTML={{ __html: `
-          body {
-            background-image: url('/background.jpg');
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            min-height: 100vh;
-          }
-        `}} />
-      </head>
-      <body className="antialiased">
-        <AppProviders>{children}</AppProviders>
-        <Toaster />
+      <body style={{ backgroundImage: "url('/background.jpg')", backgroundSize: 'cover', backgroundPosition: 'center', minHeight: '100vh' }}>
+        <AppProviders>
+          {children}
+        </AppProviders>
       </body>
     </html>
   );

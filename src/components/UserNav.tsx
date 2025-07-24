@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { User as UserIcon, Settings, LogOut } from 'lucide-react'; // LogIn, Loader2 removed
 import Link from 'next/link';
+import { signOut } from "next-auth/react";
 
 // Mock user for display purposes since session is removed
 const mockUser = {
@@ -72,12 +73,11 @@ export function UserNav() {
             </DropdownMenuItem>
           </Link>
         </DropdownMenuGroup>
-        {/* Placeholder for potential future Sign Out, but no functionality now */}
-        {/* <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => alert('Sign out functionality removed.')}>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/login' })}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
-        </DropdownMenuItem> */}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

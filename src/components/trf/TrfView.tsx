@@ -70,7 +70,7 @@ const DetailItem: React.FC<{ label: string; value?: string | number | null | Rea
 
 
 export default function TrfView({ trfData }: TrfViewProps) {
-  console.log("TRF Data in TrfView:", trfData);
+  console.log("TSR Data in TrfView:", trfData);
   const {
     travelType,
     requestorName, staffId, department, position, costCenter, telEmail,

@@ -31,9 +31,9 @@ function requiresHodApproval(trf: { travel_type?: string | null, estimated_cost?
   return false; 
 }
 
-export async function POST(request: NextRequest, { params }: { params: { trfId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ trfId: string }> }) {
   // Properly await params to fix the Next.js warning
-  const { trfId } = await Promise.resolve(params);
+      const { trfId } = await params;
   console.log(`API_TRF_ACTION_POST_START (PostgreSQL): Action for TRF ${trfId}.`);
   if (!sql) {
     console.error("API_TRF_ACTION_POST_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");

@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
       `;
       
       console.log(`API_ACCOM_REQ_GET (PostgreSQL): Executing query: ${query}`);
-      requests = await sql.unsafe(query);
+      requests = await (sql as any).unsafe(query);
     } else {
       // When not filtering by status
       requests = await sql`

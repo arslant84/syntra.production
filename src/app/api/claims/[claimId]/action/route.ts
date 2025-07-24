@@ -11,10 +11,9 @@ const claimActionSchema = z.object({
   approverName: z.string().optional()
 });
 
-export async function POST(request: NextRequest, { params }: { params: { claimId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ claimId: string }> }) {
   // Ensure params is awaited before accessing its properties
-  const resolvedParams = await Promise.resolve(params);
-  const { claimId } = resolvedParams;
+      const { claimId } = await params;
   console.log(`API_CLAIMS_ACTION_POST_START (PostgreSQL): Action for claim ${claimId}.`);
   if (!sql) {
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });

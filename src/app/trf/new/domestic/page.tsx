@@ -39,7 +39,7 @@ const createInitialApprovalWorkflow = (requestorName?: string): ApprovalStep[] =
     { role: "HOD", name: "Pending HOD", status: "Pending" },
 ];
 
-const parseDatesInDomesticTRFData = (data: any): Partial<TravelRequestForm> => {
+const parseDatesInDomesticTSRData = (data: any): Partial<TravelRequestForm> => {
   if (!data) return {};
   const parsed = { ...data };
 
@@ -100,7 +100,7 @@ const parseDatesInDomesticTRFData = (data: any): Partial<TravelRequestForm> => {
 };
 
 
-export default function NewDomesticTRFPage() {
+export default function NewDomesticTSRPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -132,40 +132,40 @@ export default function NewDomesticTRFPage() {
           const response = await fetch(`/api/trf/${editId}`);
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || errorData.details || `Failed to fetch TRF ${editId}: ${response.statusText}`);
+            throw new Error(errorData.error || errorData.details || `Failed to fetch TSR ${editId}: ${response.statusText}`);
           }
           const result = await response.json();
-          const fetchedTrf = parseDatesInDomesticTRFData(result.trf) as TravelRequestForm;
+          const fetchedTsr = parseDatesInDomesticTSRData(result.trf) as TravelRequestForm;
 
-          if (fetchedTrf && fetchedTrf.travelType === 'Domestic') {
+          if (fetchedTsr && fetchedTsr.travelType === 'Domestic') {
             const reqInfo: RequestorInformation = {
-              requestorName: fetchedTrf.requestorName || "", staffId: fetchedTrf.staffId || "", department: fetchedTrf.department || "",
-              position: fetchedTrf.position || "", costCenter: fetchedTrf.costCenter || "", telEmail: fetchedTrf.telEmail || "", email: fetchedTrf.email || ""
+              requestorName: fetchedTsr.requestorName || "", staffId: fetchedTsr.staffId || "", department: fetchedTsr.department || "",
+              position: fetchedTsr.position || "", costCenter: fetchedTsr.costCenter || "", telEmail: fetchedTsr.telEmail || "", email: fetchedTsr.email || ""
             };
             setRequestorInfo(reqInfo); // Update page state
             setInitialRequestorInfoForForm(reqInfo); // For child form pre-fill
 
-            if (fetchedTrf.domesticTravelDetails) {
-              setTravelDetails(fetchedTrf.domesticTravelDetails); // Update page state
-              setInitialTravelDetailsForForm(fetchedTrf.domesticTravelDetails); // For child form pre-fill
+            if (fetchedTsr.domesticTravelDetails) {
+              setTravelDetails(fetchedTsr.domesticTravelDetails); // Update page state
+              setInitialTravelDetailsForForm(fetchedTsr.domesticTravelDetails); // For child form pre-fill
             }
             const appData: ApprovalSubmissionData = {
-              additionalComments: fetchedTrf.additionalComments || "",
+              additionalComments: fetchedTsr.additionalComments || "",
               confirmPolicy: false, // Re-confirm on edit
               confirmManagerApproval: false, // Re-confirm
             };
             setApprovalData(appData); // Update page state
             setInitialApprovalDataForForm(appData); // For child form pre-fill
-            setApprovalWorkflow(fetchedTrf.approvalWorkflow || createInitialApprovalWorkflow(reqInfo.requestorName));
+            setApprovalWorkflow(fetchedTsr.approvalWorkflow || createInitialApprovalWorkflow(reqInfo.requestorName));
 
 
           } else {
-            throw new Error(`TRF ${editId} is not a Domestic TRF or data is invalid.`);
+            throw new Error(`TSR ${editId} is not a Domestic TSR or data is invalid.`);
           }
         } catch (err: any) {
-          console.error("Error fetching TRF for edit:", err);
+          console.error("Error fetching TSR for edit:", err);
           setTrfLoadError(err.message);
-          toast({ title: "Error Loading TRF", description: err.message, variant: "destructive" });
+          toast({ title: "Error Loading TSR", description: err.message, variant: "destructive" });
         } finally {
           setIsLoadingTrf(false);
         }
@@ -207,7 +207,7 @@ export default function NewDomesticTRFPage() {
     setApprovalData(data); 
 
     // Create the base data structure
-    let finalTRFData: any = {
+    let finalTSRData: any = {
       travelType: 'Domestic',
       additionalComments: data.additionalComments,
       confirmPolicy: data.confirmPolicy,
@@ -217,8 +217,8 @@ export default function NewDomesticTRFPage() {
 
     // For new submissions, use nested structure as expected by the POST endpoint
     if (!isEditMode) {
-      finalTRFData = {
-        ...finalTRFData,
+      finalTSRData = {
+        ...finalTSRData,
         requestorInfo: {
           requestorName: requestorInfo.requestorName,
           staffId: requestorInfo.staffId,
@@ -249,8 +249,8 @@ export default function NewDomesticTRFPage() {
     } 
     // For edits, use flat structure as expected by the PUT endpoint
     else {
-      finalTRFData = {
-        ...finalTRFData,
+      finalTSRData = {
+        ...finalTSRData,
         // Requestor info fields
         requestorName: requestorInfo.requestorName,
         staffId: requestorInfo.staffId,
@@ -292,17 +292,17 @@ export default function NewDomesticTRFPage() {
 
     try {
       // Log the exact data being sent to help with debugging
-      console.log('Submitting TRF data:', JSON.stringify(finalTRFData));
+      console.log('Submitting TSR data:', JSON.stringify(finalTSRData));
       
       const response = await fetch(endpoint, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalTRFData),
+        body: JSON.stringify(finalTSRData),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        let errorMessage = errorData.error || errorData.details || `Failed to ${isEditMode ? 'update' : 'submit'} TRF. Server responded with status ${response.status}.`;
+        let errorMessage = errorData.error || errorData.details || `Failed to ${isEditMode ? 'update' : 'submit'} TSR. Server responded with status ${response.status}.`;
         if (typeof errorData.details === 'object' && errorData.details.fieldErrors) {
             errorMessage = Object.values(errorData.details.fieldErrors).flat().join('; ') || "Validation failed with multiple errors.";
         } else if (typeof errorData.details === 'object' && errorData.details.formErrors) {
@@ -313,14 +313,14 @@ export default function NewDomesticTRFPage() {
 
       const result = await response.json();
       toast({
-        title: `Domestic TRF ${isEditMode ? 'Updated' : 'Submitted'}!`,
-        description: `TRF ID ${result.trf?.id || editId || result.trfId} processed successfully.`,
+        title: `Domestic TSR ${isEditMode ? 'Updated' : 'Submitted'}!`,
+        description: `TSR ID ${result.trf?.id || editId || result.trfId} processed successfully.`,
         variant: "default"
       });
       router.push('/trf');
     } catch (err: any) {
       toast({
-        title: `Error ${isEditMode ? 'Updating' : 'Submitting'} TRF`,
+        title: `Error ${isEditMode ? 'Updating' : 'Submitting'} TSR`,
         description: err.message || "An unexpected error occurred.",
         variant: "destructive"
       });
@@ -353,7 +353,7 @@ export default function NewDomesticTRFPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
         <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-        <p className="text-muted-foreground">Loading TRF for editing...</p>
+        <p className="text-muted-foreground">Loading TSR for editing...</p>
       </div>
     );
   }
@@ -363,12 +363,12 @@ export default function NewDomesticTRFPage() {
         <Card className="max-w-lg mx-auto shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center justify-center gap-2 text-destructive">
-              <AlertTriangle className="w-6 h-6" /> Error Loading TRF
+              <AlertTriangle className="w-6 h-6" /> Error Loading TSR
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p>{trfLoadError}</p>
-            <Button onClick={() => router.push('/trf')} className="mt-4">Back to TRF List</Button>
+            <Button onClick={() => router.push('/trf')} className="mt-4">Back to TSR List</Button>
           </CardContent>
         </Card>
       </div>
@@ -385,7 +385,7 @@ export default function NewDomesticTRFPage() {
                 <Building className="w-7 h-7 text-primary" />
                 {isEditMode ? 'Edit Domestic Travel Request' : 'New Domestic Travel Request'}
               </CardTitle>
-              <CardDescription>Follow the steps to complete your domestic travel request form.</CardDescription>
+              <CardDescription>Follow the steps to complete your domestic travel & service request.</CardDescription>
             </div>
             <p className="text-sm text-muted-foreground mt-2 sm:mt-0">Step {currentStep} of {STEPS.length}</p>
           </div>

@@ -246,7 +246,7 @@ export default function AccommodationRequestPage() {
                   )}
                 />
                 
-                {/* Location and TRF Information */}
+                {/* Location and TSR Information */}
                 <FormField
                   control={form.control}
                   name="location"
@@ -278,12 +278,12 @@ export default function AccommodationRequestPage() {
                   name="trfId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>TRF ID (if applicable)</FormLabel>
+                      <FormLabel>TSR ID (if applicable)</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., TRF-DOM-001" {...field} />
+                                                  <Input placeholder="e.g., TSR-DOM-001" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Link this request to an existing Travel Request Form
+                        Link this request to an existing Travel & Service Request
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

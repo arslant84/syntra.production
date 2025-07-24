@@ -97,7 +97,7 @@ export default function EditClaimPage() {
       setTimeout(() => {
         router.push(`/claims/view/${claimId}`); // Redirect to view page
       }, 1000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to revise claim:', error);
       toast({
         title: "Error Revising Claim",

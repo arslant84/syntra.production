@@ -9,8 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { OverseasTravelSpecificDetails, ItinerarySegment, AdvanceBankDetails, AdvanceAmountRequestedItem } from "@/types/trf";
+import type { OverseasTravelSpecificDetails, ItinerarySegment, AdvanceBankDetails, AdvanceAmountRequestedItem, TripType } from "@/types/trf";
 import { cn } from "@/lib/utils";
 import { format, isValid } from "date-fns";
 import React, { useEffect } from 'react';
@@ -58,6 +59,7 @@ const advanceAmountRequestedItemSchema = z.object({
 // Main schema for overseas travel details
 const overseasTravelDetailsSchema = z.object({
   purpose: z.string().min(10, "Purpose of travel must be at least 10 characters."),
+  tripType: z.enum(['One Way', 'Round Trip']).default('One Way'),
   itinerary: z.array(itinerarySegmentSchema).min(1, "At least one itinerary segment is required."),
   advanceBankDetails: advanceBankDetailsSchema.optional(),
   advanceAmountRequested: z.array(advanceAmountRequestedItemSchema).optional(),
@@ -86,6 +88,7 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
     resolver: zodResolver(overseasTravelDetailsSchema) as any,
     defaultValues: {
       purpose: initialData?.purpose || "",
+      tripType: initialData?.tripType || "One Way",
       itinerary: initialData?.itinerary?.length ? initialData.itinerary.map((seg: any) => ({
         ...seg,
         date: seg.date ? new Date(seg.date) : null,
@@ -149,6 +152,21 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
 
   const advanceAmountRequestedValues = form.watch("advanceAmountRequested");
 
+  // Watch trip type and clear itinerary when switching to One Way
+  const tripType = form.watch('tripType');
+  useEffect(() => {
+    if (tripType === 'One Way') {
+      if (itineraryFields.length === 0) {
+        appendItinerary({ date: null, day: '', from: '', to: '', etd: '', eta: '', flightNumber: '', remarks: '' });
+      } else if (itineraryFields.length > 1) {
+        form.setValue('itinerary', [itineraryFields[0]]);
+      }
+    } else if (tripType === 'Round Trip' && itineraryFields.length === 0) {
+      appendItinerary({ date: null, day: '', from: '', to: '', etd: '', eta: '', flightNumber: '', remarks: '' });
+    }
+    // Only run when tripType or itineraryFields.length changes
+  }, [tripType, itineraryFields.length]);
+
   
   
   // Handle form submission with explicit type annotation
@@ -181,6 +199,7 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
     // Ensure all values are properly defined before submission
     const sanitizedData = {
       ...data,
+      tripType: data.tripType,
       itinerary: filteredItinerary,
       advanceAmountRequested: calculatedAdvanceAmountRequested
     };
@@ -219,14 +238,38 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
               )}
             />
             
-            {/* Itinerary Section */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-primary" />
-                  Itinerary / Маршрут
-                </h3>
-              </div>
+                         {/* Trip Type */}
+             <FormField
+               control={form.control}
+               name="tripType"
+               render={({ field }) => (
+                 <FormItem>
+                   <FormLabel className="text-lg font-semibold flex items-center gap-2"><ClipboardList /> Trip Type / Тип поездки</FormLabel>
+                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                     <FormControl>
+                       <SelectTrigger>
+                         <SelectValue placeholder="Select trip type" />
+                       </SelectTrigger>
+                     </FormControl>
+                     <SelectContent>
+                       <SelectItem value="One Way">One Way</SelectItem>
+                       <SelectItem value="Round Trip">Round Trip</SelectItem>
+                     </SelectContent>
+                   </Select>
+                   <FormMessage />
+                 </FormItem>
+               )}
+             />
+
+            {/* Itinerary Section - Only show for Round Trip */}
+            {(tripType === 'One Way' || tripType === 'Round Trip') && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium flex items-center gap-2">
+                    <ClipboardList className="h-5 w-5 text-primary" />
+                    Itinerary / Маршрут
+                  </h3>
+                </div>
               
               {itineraryFields.map((field, index) => (
                 <div key={field.id} className="relative p-4 border rounded-md bg-muted/20 space-y-4">
@@ -324,9 +367,9 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
                       name={`itinerary.${index}.etd`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>ETD / Время отправления (HH:MM)</FormLabel>
+                          <FormLabel>ETD / Вылет</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g., 09:30" {...field} value={field.value || ''} />
+                            <Input type="time" placeholder="HH:MM" step="900" {...field} value={field.value || ''} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -338,9 +381,9 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
                       name={`itinerary.${index}.eta`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>ETA / Время прибытия (HH:MM)</FormLabel>
+                          <FormLabel>ETA / Прилет</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g., 14:45" {...field} value={field.value || ''} />
+                            <Input type="time" placeholder="HH:MM" step="900" {...field} value={field.value || ''} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -382,7 +425,7 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
                   
                   
                   {/* Remove button */}
-                  {itineraryFields.length > 1 && (
+                  {itineraryFields.length > 1 && tripType === 'Round Trip' && (
                     <Button 
                       type="button" 
                       variant="ghost" 
@@ -397,24 +440,27 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
               ))}
               
               {/* Add Itinerary Button */}
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                onClick={() => appendItinerary({ 
-                  date: null, 
-                  day: '', 
-                  from: '', 
-                  to: '', 
-                  etd: '', 
-                  eta: '', 
-                  flightNumber: '',
-                  remarks: '' 
-                })}
-              >
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Itinerary Segment
-              </Button>
+              {((tripType === 'Round Trip') || (tripType === 'One Way' && itineraryFields.length === 0)) && (
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => appendItinerary({ 
+                    date: null, 
+                    day: '', 
+                    from: '', 
+                    to: '', 
+                    etd: '', 
+                    eta: '', 
+                    flightNumber: '',
+                    remarks: '' 
+                  })}
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Itinerary Segment
+                </Button>
+              )}
             </div>
+            )}
 
             {/* Advance Bank Details Section */}
             <div className="space-y-4">

@@ -18,7 +18,7 @@ import type { TravelRequestForm, TrfStatus } from '@/types/trf';
 interface ApprovableItem {
   id: string;
   requestorName: string;
-  itemType: 'TRF' | 'Claim' | 'Visa' | 'Accommodation';
+  itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation';
   purpose: string;
   status: string;
   submittedAt: string;
@@ -72,7 +72,7 @@ export default function AdminApprovalsPage() {
         const trfItems = (trfData.trfs || []).map((trf: any) => ({
           id: trf.id,
           requestorName: trf.requestorName,
-          itemType: 'TRF' as const,
+          itemType: 'TSR' as const,
           purpose: trf.purpose,
           status: trf.status,
           submittedAt: trf.submittedAt,
@@ -189,7 +189,7 @@ export default function AdminApprovalsPage() {
     fetchPendingItems();
   }, [fetchPendingItems]);
 
-  const handleAction = async (itemId: string, itemType: 'TRF' | 'Claim' | 'Visa' | 'Accommodation', action: "approve" | "reject", comments?: string) => {
+  const handleAction = async (itemId: string, itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation', action: "approve" | "reject", comments?: string) => {
     if (!selectedItemForAction || selectedItemForAction.id !== itemId) {
         toast({ title: "Error", description: `No ${itemType} selected for action.`, variant: "destructive" });
         return;
@@ -207,7 +207,7 @@ export default function AdminApprovalsPage() {
         // Determine the API endpoint based on item type
         let endpoint = '';
         switch (itemType) {
-          case 'TRF':
+          case 'TSR':
             endpoint = `/api/trf/${itemId}/action`;
             break;
           case 'Claim':
@@ -262,13 +262,14 @@ export default function AdminApprovalsPage() {
   // Filter items based on the active tab
   const filteredItems = pendingItems.filter(item => {
     if (activeTab === 'all') return true;
+    if (activeTab === 'trf') return item.itemType === 'TSR';
     return item.itemType.toLowerCase() === activeTab;
   });
 
   // Get the appropriate icon for each item type
-  const getItemTypeIcon = (itemType: 'TRF' | 'Claim' | 'Visa' | 'Accommodation') => {
+  const getItemTypeIcon = (itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation') => {
     switch (itemType) {
-      case 'TRF':
+      case 'TSR':
         return <Eye className="h-4 w-4 text-blue-500" />;
       case 'Claim':
         return <ReceiptText className="h-4 w-4 text-green-500" />;
@@ -306,7 +307,7 @@ export default function AdminApprovalsPage() {
           className="rounded-full"
         >
           <Eye className="mr-1 h-4 w-4" />
-          TRFs ({pendingItems.filter(i => i.itemType === 'TRF').length})
+          TSRs ({pendingItems.filter(i => i.itemType === 'TSR').length})
         </Button>
         <Button 
           variant={activeTab === 'claim' ? "default" : "outline"} 
@@ -373,7 +374,7 @@ export default function AdminApprovalsPage() {
                     <TableCell className="font-medium">{item.id}</TableCell>
                     <TableCell>{item.requestorName}</TableCell>
                     <TableCell>
-                      {item.itemType === 'TRF' && (
+                      {item.itemType === 'TSR' && (
                         <div className="text-xs text-muted-foreground mt-1">
                           <span className="font-medium">Travel:</span> {item.travelType} {item.destination && `to ${item.destination}`}
                         </div>
@@ -407,7 +408,7 @@ export default function AdminApprovalsPage() {
                       <Button variant="outline" size="icon" asChild className="h-8 w-8">
                         <Link 
                           href={
-                            item.itemType === 'TRF' ? `/trf/view/${item.id}` : 
+                            item.itemType === 'TSR' ? `/trf/view/${item.id}` : 
                             item.itemType === 'Claim' ? `/claims/view/${item.id}` : 
                             item.itemType === 'Accommodation' ? `/accommodation/view/${item.id}` :
                             `/visa/view/${item.id}`
@@ -488,7 +489,7 @@ export default function AdminApprovalsPage() {
               <p className="text-muted-foreground">
                 {activeTab === 'all' 
                   ? 'No items currently pending your approval.' 
-                  : `No ${activeTab === 'trf' ? 'TRFs' : activeTab === 'claim' ? 'Claims' : 'Visa Applications'} currently pending your approval.`}
+                  : `No ${activeTab === 'trf' ? 'TSRs' : activeTab === 'claim' ? 'Claims' : 'Visa Applications'} currently pending your approval.`}
               </p>
               <p className="text-sm text-muted-foreground">Check back later or adjust filters if applicable.</p>
             </div>

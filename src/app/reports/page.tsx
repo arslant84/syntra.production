@@ -19,7 +19,7 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from "@/components/ui/chart";
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format, subMonths, addMonths, isWithinInterval, parseISO } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";

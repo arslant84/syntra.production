@@ -1,6 +1,7 @@
 
 "use client";
 
+import React from 'react';
 import type { TravelRequestForm, ItinerarySegment, AccommodationDetail, ExternalPartyAccommodationDetail, CompanyTransportDetail, AdvanceAmountRequestedItem, MealProvisionDetails, AdvanceBankDetails } from "@/types/trf";
 
 // Type aliases to handle both snake_case and camelCase property names

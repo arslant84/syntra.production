@@ -1,3 +1,4 @@
+import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -11,7 +12,7 @@ export default function Logo() {
       <div className="flex items-center">
         <div className="relative h-8 w-8 mr-3">
           <Image 
-            src="/open.jpg" 
+            src="/Open.png" 
             alt="PETRONAS Logo" 
             width={32}
             height={32}

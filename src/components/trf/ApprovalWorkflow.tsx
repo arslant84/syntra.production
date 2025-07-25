@@ -1,6 +1,7 @@
 
 "use client";
 
+import React from 'react';
 import { CheckCircle, Circle, AlertCircle, Clock } from "lucide-react"; // Added AlertCircle, Clock
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";

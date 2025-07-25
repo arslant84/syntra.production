@@ -1,4 +1,5 @@
 
+import React from 'react';
 import type { Metadata } from 'next';
 // Temporarily removed font imports to avoid SWC requirement
 // import { Geist, Geist_Mono } from 'next/font/google';

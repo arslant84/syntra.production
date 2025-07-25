@@ -188,23 +188,20 @@ export default function UserManagementPage() {
             credentials: 'include',
         });
         if (!response.ok) {
-            let responseText = '';
+            let errorMessage = `Server error ${response.status}`;
+            let errorDetails = undefined;
             try {
-                responseText = await response.text();
-                let parsedError = {};
-                let message = `Server error ${response.status}: ${response.statusText || 'Status text not available'}.`;
-                try {
-                    parsedError = JSON.parse(responseText);
-                    if (parsedError.details || parsedError.error || parsedError.message) { throw parsedError; }
-                    message += ` Raw response: ${responseText.substring(0,100)}...`;
-                } catch (e) {
-                    // If not JSON, show generic error
-                    message += ` Raw response: ${responseText.substring(0,100)}...`;
-                }
-                throw new Error(message);
+                const data = await response.json();
+                errorMessage = data?.error || data?.message || data?.details || errorMessage;
+                errorDetails = data?.details;
             } catch (e) {
-                throw new Error(`Server error ${response.status}: Unable to parse error response.`);
+                try {
+                    const text = await response.text();
+                    if (text) errorMessage += `: ${text}`;
+                } catch {}
             }
+            // Pass both message and details
+            throw { message: errorMessage, details: errorDetails };
         }
         let result;
         try {

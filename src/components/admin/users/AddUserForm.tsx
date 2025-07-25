@@ -101,12 +101,24 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
       toast({ title: editingUser ? "User Updated!" : "User Created!", description: `User "${values.name}" ${editingUser ? "updated" : "created"}.`, variant: "success" });
     } catch (error: any) {
       let errorMessage = "An unknown error occurred.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (error && (error.details || error.error || error.message)) {
-        errorMessage = error.details || error.error || error.message;
+      let fieldErrors = null;
+      if (error && typeof error === 'object') {
+        if (error.details && error.details.fieldErrors) {
+          fieldErrors = error.details.fieldErrors;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (error.details || error.error || error.message) {
+          errorMessage = error.details || error.error || error.message;
+        }
       }
-      setSubmitError(errorMessage);
+      if (fieldErrors) {
+        Object.entries(fieldErrors).forEach(([field, messages]) => {
+          form.setError(field as keyof UserFormValues, { type: 'server', message: Array.isArray(messages) ? messages[0] : String(messages) });
+        });
+        setSubmitError(null);
+      } else {
+        setSubmitError(errorMessage);
+      }
       console.error("Form submission error:", error);
     } finally {
       setIsSubmitting(false);

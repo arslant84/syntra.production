@@ -1,8 +1,144 @@
 // src/app/api/visa/[visaId]/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
+import { z } from 'zod';
+import { z } from 'zod';
+import { z } from 'zod';
+import { z } from 'zod';
+import { z } from 'zod';
+import { z } from 'zod';
+import { z } from 'zod';
+import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO, parseISO } from 'date-fns';
 import type { VisaApplication, VisaApprovalStep } from '@/types/visa';
+
+const visaUpdateSchema = z.object({
+  applicantName: z.string(),
+  travelPurpose: z.string(),
+  destination: z.string(),
+  tripStartDate: z.string(),
+  tripEndDate: z.string(),
+  visaType: z.string(),
+  employeeId: z.string(),
+  nationality: z.string(),
+  position: z.string(),
+  email: z.string(),
+  passportNumber: z.string(),
+  passportExpiryDate: z.string(),
+  itineraryDetails: z.string(),
+});
+
+const visaUpdateSchema = z.object({
+  applicantName: z.string(),
+  travelPurpose: z.string(),
+  destination: z.string(),
+  tripStartDate: z.string(),
+  tripEndDate: z.string(),
+  visaType: z.string(),
+  employeeId: z.string(),
+  nationality: z.string(),
+  position: z.string(),
+  email: z.string(),
+  passportNumber: z.string(),
+  passportExpiryDate: z.string(),
+  itineraryDetails: z.string(),
+});
+
+const visaUpdateSchema = z.object({
+  applicantName: z.string(),
+  travelPurpose: z.string(),
+  destination: z.string(),
+  tripStartDate: z.string(),
+  tripEndDate: z.string(),
+  visaType: z.string(),
+  employeeId: z.string(),
+  nationality: z.string(),
+  position: z.string(),
+  email: z.string(),
+  passportNumber: z.string(),
+  passportExpiryDate: z.string(),
+  itineraryDetails: z.string(),
+});
+
+const visaUpdateSchema = z.object({
+  applicantName: z.string(),
+  travelPurpose: z.string(),
+  destination: z.string(),
+  tripStartDate: z.string(),
+  tripEndDate: z.string(),
+  visaType: z.string(),
+  employeeId: z.string(),
+  nationality: z.string(),
+  position: z.string(),
+  email: z.string(),
+  passportNumber: z.string(),
+  passportExpiryDate: z.string(),
+  itineraryDetails: z.string(),
+});
+
+const visaUpdateSchema = z.object({
+  applicantName: z.string(),
+  travelPurpose: z.string(),
+  destination: z.string(),
+  tripStartDate: z.string(),
+  tripEndDate: z.string(),
+  visaType: z.string(),
+  employeeId: z.string(),
+  nationality: z.string(),
+  position: z.string(),
+  email: z.string(),
+  passportNumber: z.string(),
+  passportExpiryDate: z.string(),
+  itineraryDetails: z.string(),
+});
+
+const visaUpdateSchema = z.object({
+  applicantName: z.string(),
+  travelPurpose: z.string(),
+  destination: z.string(),
+  tripStartDate: z.string(),
+  tripEndDate: z.string(),
+  visaType: z.string(),
+  employeeId: z.string(),
+  nationality: z.string(),
+  position: z.string(),
+  email: z.string(),
+  passportNumber: z.string(),
+  passportExpiryDate: z.string(),
+  itineraryDetails: z.string(),
+});
+
+const visaUpdateSchema = z.object({
+  applicantName: z.string(),
+  travelPurpose: z.string(),
+  destination: z.string(),
+  tripStartDate: z.string(),
+  tripEndDate: z.string(),
+  visaType: z.string(),
+  employeeId: z.string(),
+  nationality: z.string(),
+  position: z.string(),
+  email: z.string(),
+  passportNumber: z.string(),
+  passportExpiryDate: z.string(),
+  itineraryDetails: z.string(),
+});
+
+const visaUpdateSchema = z.object({
+  applicantName: z.string(),
+  travelPurpose: z.string(),
+  destination: z.string(),
+  tripStartDate: z.string(),
+  tripEndDate: z.string(),
+  visaType: z.string(),
+  employeeId: z.string(),
+  nationality: z.string(),
+  position: z.string(),
+  email: z.string(),
+  passportNumber: z.string(),
+  passportExpiryDate: z.string(),
+  itineraryDetails: z.string(),
+});
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
   const { visaId } = await params;
@@ -101,10 +237,153 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // Placeholder for PUT (Update Visa App - e.g. Visa Clerk uploads visa copy)
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
-    const { visaId } = await params;
-    // Example: body could contain { visaCopyFilename: "new_visa.pdf", status: "Approved" }
-    // Needs Zod validation
-    console.warn(`API_VISA_VISAID_PUT (PostgreSQL): Update for visa ${visaId} - NOT IMPLEMENTED YET`);
-    return NextResponse.json({ error: 'Update visa application not implemented for PostgreSQL yet.' }, { status: 501 });
+import { z } from 'zod';
+
+const visaUpdateSchema = z.object({
+  applicantName: z.string(),
+  travelPurpose: z.string(),
+  destination: z.string(),
+  tripStartDate: z.string(),
+  tripEndDate: z.string(),
+  visaType: z.string(),
+  employeeId: z.string(),
+  nationality: z.string(),
+  position: z.string(),
+  email: z.string(),
+  passportNumber: z.string(),
+  passportExpiryDate: z.string(),
+  itineraryDetails: z.string(),
+});
+
+export async function PUT(request: NextRequest, { params }: { params: { visaId: string } }) {
+  const { visaId } = params;
+  console.log(`API_VISA_VISAID_PUT_START (PostgreSQL): Updating visa application ${visaId}.`);
+
+  if (!sql) {
+    console.error("API_VISA_PUT_ERROR (PostgreSQL): SQL client is not initialized.");
+    return NextResponse.json({ error: 'Database client not initialized. Check server logs.' }, { status: 503 });
+  }
+
+  try {
+    const body = await request.json();
+    const validationResult = visaUpdateSchema.safeParse(body);
+
+    if (!validationResult.success) {
+      console.error("API_VISA_PUT_VALIDATION_ERROR (PostgreSQL):", validationResult.error.flatten());
+      return NextResponse.json({ error: "Validation failed for visa update", details: validationResult.error.flatten() }, { status: 400 });
+    }
+
+    const { 
+      applicantName, travelPurpose, destination, tripStartDate, tripEndDate, visaType, 
+      employeeId, nationality, position, email, passportNumber, passportExpiryDate, itineraryDetails 
+    } = validationResult.data;
+
+    console.log(`API_VISA_PUT (PostgreSQL): Attempting to update visa application with ID: ${visaId}`);
+
+    const result = await sql`
+      UPDATE visa_applications
+      SET
+        requestor_name = ${applicantName},
+        travel_purpose = ${travelPurpose},
+        destination = ${destination},
+        trip_start_date = ${tripStartDate},
+        trip_end_date = ${tripEndDate},
+        visa_type = ${visaType},
+        staff_id = ${employeeId},
+        department = ${nationality},
+        position = ${position},
+        email = ${email},
+        passport_number = ${passportNumber},
+        passport_expiry_date = ${passportExpiryDate},
+        additional_comments = ${itineraryDetails},
+        last_updated_date = NOW()
+      WHERE id = ${visaId}
+      RETURNING id
+    `;
+
+    if (result.length === 0) {
+      console.log(`API_VISA_PUT (PostgreSQL): No visa application found with ID: ${visaId}`);
+      return NextResponse.json({ error: `Visa Application with ID ${visaId} not found.` }, { status: 404 });
+    }
+
+    console.log(`API_VISA_PUT (PostgreSQL): Successfully updated visa application with ID: ${visaId}`);
+    return NextResponse.json({ message: `Visa application ${visaId} updated successfully.` });
+  } catch (error: any) {
+    console.error(`API_VISA_PUT_ERROR (PostgreSQL): ${error.message}`, error.stack);
+    return NextResponse.json({ error: 'Failed to update visa application.', details: error.message }, { status: 500 });
+  }
+} validationResult.error.flatten());
+      return NextResponse.json({ error: "Validation failed for visa update", details: validationResult.error.flatten() }, { status: 400 });
+    }
+
+    const { 
+      applicantName, travelPurpose, destination, tripStartDate, tripEndDate, visaType, 
+      employeeId, nationality, position, email, passportNumber, passportExpiryDate, itineraryDetails 
+    } = validationResult.data;
+
+    console.log(`API_VISA_PUT (PostgreSQL): Attempting to update visa application with ID: ${visaId}`);
+
+    const result = await sql`
+      UPDATE visa_applications
+      SET
+        requestor_name = ${applicantName},
+        travel_purpose = ${travelPurpose},
+        destination = ${destination},
+        trip_start_date = ${tripStartDate},
+        trip_end_date = ${tripEndDate},
+        visa_type = ${visaType},
+        staff_id = ${employeeId},
+        department = ${nationality},
+        position = ${position},
+        email = ${email},
+        passport_number = ${passportNumber},
+        passport_expiry_date = ${passportExpiryDate},
+        additional_comments = ${itineraryDetails},
+        last_updated_date = NOW()
+      WHERE id = ${visaId}
+      RETURNING id
+    `;
+
+    if (result.length === 0) {
+      console.log(`API_VISA_PUT (PostgreSQL): No visa application found with ID: ${visaId}`);
+      return NextResponse.json({ error: `Visa Application with ID ${visaId} not found.` }, { status: 404 });
+    }
+
+    console.log(`API_VISA_PUT (PostgreSQL): Successfully updated visa application with ID: ${visaId}`);
+    return NextResponse.json({ message: `Visa application ${visaId} updated successfully.` });
+  } catch (error: any) {
+    console.error(`API_VISA_PUT_ERROR (PostgreSQL): ${error.message}`, error.stack);
+    return NextResponse.json({ error: 'Failed to update visa application.', details: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { visaId: string } }) {
+  const { visaId } = params;
+  console.log(`API_VISA_VISAID_DELETE_START (PostgreSQL): Deleting visa application ${visaId}.`);
+
+  if (!sql) {
+    console.error("API_VISA_DELETE_ERROR (PostgreSQL): SQL client is not initialized.");
+    return NextResponse.json({ error: 'Database client not initialized. Check server logs.' }, { status: 503 });
+  }
+
+  try {
+    console.log(`API_VISA_DELETE (PostgreSQL): Attempting to delete visa application with ID: ${visaId}`);
+
+    const result = await sql`
+      DELETE FROM visa_applications
+      WHERE id = ${visaId}
+      RETURNING id
+    `;
+
+    if (result.length === 0) {
+      console.log(`API_VISA_DELETE (PostgreSQL): No visa application found with ID: ${visaId}`);
+      return NextResponse.json({ error: `Visa Application with ID ${visaId} not found.` }, { status: 404 });
+    }
+
+    console.log(`API_VISA_DELETE (PostgreSQL): Successfully deleted visa application with ID: ${visaId}`);
+    return NextResponse.json({ message: `Visa application ${visaId} deleted successfully.` });
+  } catch (error: any) {
+    console.error(`API_VISA_DELETE_ERROR (PostgreSQL): ${error.message}`, error.stack);
+    return NextResponse.json({ error: 'Failed to delete visa application.', details: error.message }, { status: 500 });
+  }
 }

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import type { DomesticTravelSpecificDetails, ItinerarySegment, MealProvisionDetails, AccommodationDetail, CompanyTransportDetail, AccommodationType, TripType } from "@/types/trf";
 import { cn } from "@/lib/utils";
-import { format, isValid, startOfDay } from "date-fns";
+import { format, isValid, startOfDay, getDay } from "date-fns";
 import { CalendarIcon, PlusCircle, Trash2, ClipboardList, Utensils, Bed, Car, FileText, Building } from "lucide-react";
 import React, { useEffect } from 'react';
 
@@ -119,6 +119,7 @@ const accommodationTypeOptions: { value: AccommodationType; label: string }[] = 
   { value: 'Other', label: 'Other/Другое' },
 ];
 
+const weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBack }: DomesticTravelDetailsFormProps) {
   // Use the zod schema to infer the form type
@@ -262,11 +263,31 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
                                 <Button variant={"outline"} className={cn("w-full h-10 pl-3 text-left font-normal", !field.value && "text-muted-foreground")}> {field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button>
                               </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ?? undefined} onSelect={field.onChange} initialFocus /></PopoverContent>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={field.value ?? undefined}
+                                onSelect={field.onChange}
+                                initialFocus
+                                disabled={index > 0 ? (date) => {
+                                  const prevDate = form.getValues(`itinerary.${index - 1}.date`);
+                                  return prevDate && isValid(prevDate) ? date < prevDate : false;
+                                } : undefined}
+                              />
+                            </PopoverContent>
                           </Popover> <FormMessage />
                         </FormItem>
                       )} />
-                      <FormField control={form.control} name={`itinerary.${index}.day`} render={({ field }) => (<FormItem className="xl:col-span-1"><FormLabel>Day / День</FormLabel><FormControl><Input placeholder="e.g. Mon" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                      {/* Day display (not input) */}
+                      <div className="xl:col-span-1 flex flex-col">
+                        <label className="block text-sm font-medium mb-1">Day / День</label>
+                        <div className="w-full h-10 px-3 py-2 rounded border bg-muted/50 flex items-center text-base">
+                          {(() => {
+                            const date = form.getValues(`itinerary.${index}.date`);
+                            return date && isValid(date) ? weekdayNames[getDay(date)] : '—';
+                          })()}
+                        </div>
+                      </div>
                       <FormField control={form.control} name={`itinerary.${index}.from`} render={({ field }) => (<FormItem className="xl:col-span-1"><FormLabel>From / Откуда</FormLabel><FormControl><Input placeholder="Origin" {...field} value={field.value || ''}/></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`itinerary.${index}.to`} render={({ field }) => (<FormItem className="xl:col-span-1"><FormLabel>To / Куда</FormLabel><FormControl><Input placeholder="Destination" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                                               <FormField control={form.control} name={`itinerary.${index}.etd`} render={({ field }) => (<FormItem className="xl:col-span-1"><FormLabel>ETD / Вылет</FormLabel><FormControl><Input type="time" placeholder="HH:MM" step="900" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />

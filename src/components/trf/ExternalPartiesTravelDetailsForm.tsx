@@ -13,10 +13,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import type { ExternalPartiesTravelSpecificDetails, ItinerarySegment, ExternalPartyAccommodationDetail, MealProvisionDetails, TripType } from "@/types/trf";
 import { cn } from "@/lib/utils";
-import { format, isValid, startOfDay } from "date-fns";
+import { format, isValid, startOfDay, getDay } from "date-fns";
 import { CalendarIcon, PlusCircle, Trash2, ClipboardList, Utensils, Bed, FileText, Users } from "lucide-react"; // Removed Car
 import React, { useEffect } from 'react'; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
 
@@ -59,7 +61,17 @@ const mealProvisionSchema = z.object({
 const externalPartiesTravelDetailsSchema = z.object({
   purpose: z.string().min(1, "Purpose of travel is required."),
   tripType: z.enum(['One Way', 'Round Trip']).default('One Way'),
-  itinerary: z.array(itinerarySegmentSchema).optional(),
+  itinerary: z.array(itinerarySegmentSchema).superRefine((segments, ctx) => {
+    for (let i = 1; i < segments.length; i++) {
+      if (segments[i].date && segments[i-1].date && segments[i].date < segments[i-1].date) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Segment ${i+1} date cannot be before segment ${i} date`,
+          path: [i, "date"]
+        });
+      }
+    }
+  }),
   accommodationDetails: z.array(externalPartyAccommodationDetailSchema).optional(),
   mealProvision: mealProvisionSchema.optional(),
 });
@@ -118,6 +130,19 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
       appendItinerary({ date: null, day: '', from: '', to: '', etd: '', eta: '', flightNumber: '', remarks: '' });
     }
   }, [tripType, itineraryFields.length]);
+
+  // Auto-populate day field when date changes
+  useEffect(() => {
+    itineraryFields.forEach((item, idx) => {
+      const date = form.getValues(`itinerary.${idx}.date`);
+      if (date && isValid(date)) {
+        const dayName = weekdayNames[getDay(date)];
+        if (form.getValues(`itinerary.${idx}.day`) !== dayName) {
+          form.setValue(`itinerary.${idx}.day`, dayName);
+        }
+      }
+    });
+  }, [itineraryFields.length, itineraryFields.map(f => form.getValues(`itinerary.${f.id}.date`)).join(",")]);
 
   const handleFormSubmit = (data: z.infer<typeof externalPartiesTravelDetailsSchema>) => {
     const formattedData: ExternalPartiesTravelSpecificDetails = {
@@ -195,16 +220,34 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
-                                <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                  {field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
+                                <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button>
                               </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ?? undefined} onSelect={field.onChange} initialFocus /></PopoverContent>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={field.value ?? undefined}
+                                onSelect={field.onChange}
+                                initialFocus
+                                disabled={index > 0 ? (date) => {
+                                  const prevDate = form.getValues(`itinerary.${index - 1}.date`);
+                                  return prevDate && isValid(prevDate) ? date < prevDate : false;
+                                } : undefined}
+                              />
+                            </PopoverContent>
                           </Popover> <FormMessage />
                         </FormItem>
                       )} />
-                      <FormField control={form.control} name={`itinerary.${index}.day`} render={({ field }) => (<FormItem><FormLabel>Day / День</FormLabel><FormControl><Input placeholder="e.g. Mon" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                      {/* Day display (not input) */}
+                      <div className="flex flex-col">
+                        <label className="block text-sm font-medium mb-1">Day / День</label>
+                        <div className="w-full h-10 px-3 py-2 rounded border bg-muted/50 flex items-center text-base">
+                          {(() => {
+                            const date = form.getValues(`itinerary.${index}.date`);
+                            return date && isValid(date) ? weekdayNames[getDay(date)] : '—';
+                          })()}
+                        </div>
+                      </div>
                       <FormField control={form.control} name={`itinerary.${index}.from`} render={({ field }) => (<FormItem><FormLabel>From / Откуда</FormLabel><FormControl><Input placeholder="Origin" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`itinerary.${index}.to`} render={({ field }) => (<FormItem><FormLabel>To / Куда</FormLabel><FormControl><Input placeholder="Destination" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name={`itinerary.${index}.etd`} render={({ field }) => (<FormItem><FormLabel>ETD / Вылет</FormLabel><FormControl><Input type="time" placeholder="HH:MM" step="900" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />

@@ -9,7 +9,7 @@ import {
 
 describe('Request ID Generator', () => {
   // Mock the Date object for consistent testing
-  const mockDate = new Date('2025-07-02T14:23:00Z');
+  const mockDate = new Date('2025-07-02T14:23:00');
   
   beforeEach(() => {
     jest.useFakeTimers();
@@ -27,7 +27,7 @@ describe('Request ID Generator', () => {
 
   test('validateContext sanitizes and limits context', () => {
     expect(validateContext('NYC')).toBe('NYC');
-    expect(validateContext('new york')).toBe('NEWYORK');
+    expect(validateContext('new york')).toBe('NEWYO');
     expect(validateContext('SAN FRANCISCO')).toBe('SANFR');
     expect(validateContext('DEL-HI')).toBe('DELHI');
     expect(validateContext('')).toBe('');

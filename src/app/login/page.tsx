@@ -1,7 +1,9 @@
 "use client";
+import React from 'react';
 import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function LoginPage() {
   const { data: session, status } = useSession();
@@ -40,9 +42,17 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="bg-white/90 backdrop-blur-md p-10 rounded-2xl shadow-2xl w-full max-w-md border border-blue-100"
       >
-        {/* Logo section - replace src with your logo if available */}
-        <div className="flex justify-center mb-6">
-          <img src="/Petronas_Logo.svg" alt="Company Logo" className="h-12 w-auto" />
+        {/* Logo section */}
+        <div className="flex justify-center mb-6 items-center gap-2">
+          <div className="relative w-10 h-10">
+            <Image 
+              src="/Open.png" 
+              alt="SynTra Logo" 
+              fill
+              className="object-contain w-auto h-auto"
+            />
+          </div>
+          <div className="text-3xl font-bold text-blue-900">SynTra</div>
         </div>
         <h1 className="text-3xl font-bold mb-6 text-center text-blue-900">Sign in</h1>
         <div className="mb-4">

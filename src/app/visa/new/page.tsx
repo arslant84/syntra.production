@@ -1,5 +1,6 @@
 "use client";
 
+import React from 'react';
 import VisaApplicationForm from "@/components/visa/VisaApplicationForm";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { VisaApplication } from "@/types/visa";

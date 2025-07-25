@@ -1,5 +1,6 @@
 "use client";
 
+import React from 'react';
 import ExpenseClaimForm from "@/components/claims/ExpenseClaimForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ExpenseClaim } from "@/types/claims";

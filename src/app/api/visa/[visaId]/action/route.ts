@@ -5,7 +5,7 @@ import { sql } from '@/lib/db';
 import type { VisaStatus } from '@/types/visa';
 
 const visaActionSchema = z.object({
-  action: z.enum(["approve", "reject", "mark_processing", "upload_visa"]), // Added "upload_visa"
+  action: z.enum(["approve", "reject", "mark_processing", "upload_visa", "cancel"]),
   comments: z.string().optional().nullable(),
   approverRole: z.string().min(1, "Approver role is required"),
   approverName: z.string().min(1, "Approver name is required"),
@@ -74,6 +74,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       nextStatus = "Approved"; // Assume uploading visa means it's approved
       updateFields.visa_copy_filename = visaCopyFilename;
       stepStatus = "Visa Uploaded"; // For the approval step log
+    } else if (action === "cancel") {
+      nextStatus = "Cancelled";
     } else {
       return NextResponse.json({ error: "Invalid action." }, { status: 400 });
     }

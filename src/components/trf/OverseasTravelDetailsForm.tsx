@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import type { OverseasTravelSpecificDetails, ItinerarySegment, AdvanceBankDetails, AdvanceAmountRequestedItem, TripType } from "@/types/trf";
 import { cn } from "@/lib/utils";
-import { format, isValid } from "date-fns";
+import { format, isValid, getDay } from "date-fns";
 import React, { useEffect } from 'react';
 import { CalendarIcon, PlusCircle, Trash2, ClipboardList, FileText, Landmark, CreditCard, Globe } from "lucide-react";
 
@@ -206,6 +206,8 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
     onSubmit(sanitizedData as OverseasTravelSpecificDetails);
   });
 
+  const weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
   return (
     <Form {...form}>
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -291,21 +293,25 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
                                     !field.value && "text-muted-foreground"
                                   )}
                                 >
-                                  {field.value ? (
+                                  {field.value && isValid(field.value) ? (
                                     format(field.value, "PPP")
                                   ) : (
-                                    <span>Pick a date</span>
+                                    <span>Pick date</span>
                                   )}
                                   <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                 </Button>
                               </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
+                            <PopoverContent className="w-auto p-0">
                               <Calendar
                                 mode="single"
-                                selected={field.value || undefined}
+                                selected={field.value ?? undefined}
                                 onSelect={field.onChange}
                                 initialFocus
+                                disabled={index > 0 ? (date) => {
+                                  const prevDate = form.getValues(`itinerary.${index - 1}.date`);
+                                  return prevDate && isValid(prevDate) ? date < prevDate : false;
+                                } : undefined}
                               />
                             </PopoverContent>
                           </Popover>
@@ -313,20 +319,16 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
                         </FormItem>
                       )}
                     />
-                    {/* Day Field */}
-                    <FormField
-                      control={form.control}
-                      name={`itinerary.${index}.day`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Day / День</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., Day 1" {...field} value={field.value || ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {/* Day display (not input) */}
+                    <div className="flex flex-col">
+                      <label className="block text-sm font-medium mb-1">Day / День</label>
+                      <div className="w-full h-10 px-3 py-2 rounded border bg-muted/50 flex items-center text-base">
+                        {(() => {
+                          const date = form.getValues(`itinerary.${index}.date`);
+                          return date && isValid(date) ? weekdayNames[getDay(date)] : '—';
+                        })()}
+                      </div>
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

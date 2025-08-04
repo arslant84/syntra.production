@@ -31,7 +31,7 @@ const formatDateSafe = (date: Date | string | null | undefined, dateFormat = "PP
 };
 
 const formatNumberSafe = (num: number | string | null | undefined, digits = 2) => {
-  if (num === null || num === undefined || String(num).trim() === '') return digits === 0 ? "0" : "0.00"; 
+  if (num === null || num === undefined || String(num).trim() === '') return ""; // Return empty string for null/empty values
   const parsedNum = Number(num);
   return isNaN(parsedNum) ? String(num) : parsedNum.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 };

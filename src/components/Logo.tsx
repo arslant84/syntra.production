@@ -12,7 +12,7 @@ export default function Logo() {
       <div className="flex items-center">
         <div className="relative h-8 w-8 mr-3">
           <Image 
-            src="/Open.png" 
+            src="/Closed.png" 
             alt="PETRONAS Logo" 
             width={32}
             height={32}

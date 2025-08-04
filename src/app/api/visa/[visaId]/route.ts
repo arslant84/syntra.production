@@ -1,13 +1,6 @@
 // src/app/api/visa/[visaId]/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { z } from 'zod';
-import { z } from 'zod';
-import { z } from 'zod';
-import { z } from 'zod';
-import { z } from 'zod';
-import { z } from 'zod';
-import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO, parseISO } from 'date-fns';
 import type { VisaApplication, VisaApprovalStep } from '@/types/visa';
@@ -20,124 +13,10 @@ const visaUpdateSchema = z.object({
   tripEndDate: z.string(),
   visaType: z.string(),
   employeeId: z.string(),
-  nationality: z.string(),
-  position: z.string(),
-  email: z.string(),
   passportNumber: z.string(),
   passportExpiryDate: z.string(),
   itineraryDetails: z.string(),
-});
-
-const visaUpdateSchema = z.object({
-  applicantName: z.string(),
-  travelPurpose: z.string(),
-  destination: z.string(),
-  tripStartDate: z.string(),
-  tripEndDate: z.string(),
-  visaType: z.string(),
-  employeeId: z.string(),
-  nationality: z.string(),
-  position: z.string(),
-  email: z.string(),
-  passportNumber: z.string(),
-  passportExpiryDate: z.string(),
-  itineraryDetails: z.string(),
-});
-
-const visaUpdateSchema = z.object({
-  applicantName: z.string(),
-  travelPurpose: z.string(),
-  destination: z.string(),
-  tripStartDate: z.string(),
-  tripEndDate: z.string(),
-  visaType: z.string(),
-  employeeId: z.string(),
-  nationality: z.string(),
-  position: z.string(),
-  email: z.string(),
-  passportNumber: z.string(),
-  passportExpiryDate: z.string(),
-  itineraryDetails: z.string(),
-});
-
-const visaUpdateSchema = z.object({
-  applicantName: z.string(),
-  travelPurpose: z.string(),
-  destination: z.string(),
-  tripStartDate: z.string(),
-  tripEndDate: z.string(),
-  visaType: z.string(),
-  employeeId: z.string(),
-  nationality: z.string(),
-  position: z.string(),
-  email: z.string(),
-  passportNumber: z.string(),
-  passportExpiryDate: z.string(),
-  itineraryDetails: z.string(),
-});
-
-const visaUpdateSchema = z.object({
-  applicantName: z.string(),
-  travelPurpose: z.string(),
-  destination: z.string(),
-  tripStartDate: z.string(),
-  tripEndDate: z.string(),
-  visaType: z.string(),
-  employeeId: z.string(),
-  nationality: z.string(),
-  position: z.string(),
-  email: z.string(),
-  passportNumber: z.string(),
-  passportExpiryDate: z.string(),
-  itineraryDetails: z.string(),
-});
-
-const visaUpdateSchema = z.object({
-  applicantName: z.string(),
-  travelPurpose: z.string(),
-  destination: z.string(),
-  tripStartDate: z.string(),
-  tripEndDate: z.string(),
-  visaType: z.string(),
-  employeeId: z.string(),
-  nationality: z.string(),
-  position: z.string(),
-  email: z.string(),
-  passportNumber: z.string(),
-  passportExpiryDate: z.string(),
-  itineraryDetails: z.string(),
-});
-
-const visaUpdateSchema = z.object({
-  applicantName: z.string(),
-  travelPurpose: z.string(),
-  destination: z.string(),
-  tripStartDate: z.string(),
-  tripEndDate: z.string(),
-  visaType: z.string(),
-  employeeId: z.string(),
-  nationality: z.string(),
-  position: z.string(),
-  email: z.string(),
-  passportNumber: z.string(),
-  passportExpiryDate: z.string(),
-  itineraryDetails: z.string(),
-});
-
-const visaUpdateSchema = z.object({
-  applicantName: z.string(),
-  travelPurpose: z.string(),
-  destination: z.string(),
-  tripStartDate: z.string(),
-  tripEndDate: z.string(),
-  visaType: z.string(),
-  employeeId: z.string(),
-  nationality: z.string(),
-  position: z.string(),
-  email: z.string(),
-  passportNumber: z.string(),
-  passportExpiryDate: z.string(),
-  itineraryDetails: z.string(),
+  supportingDocumentsNotes: z.string().optional(),
 });
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
@@ -166,9 +45,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         visa_type,
         last_updated_date,
         staff_id,
-        department,
-        position,
-        email,
         passport_number,
         passport_expiry_date,
         additional_comments
@@ -210,13 +86,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       travelPurpose: app.travel_purpose as any, // Cast to expected enum type
       destination: app.destination,
       employeeId: app.staff_id || '',
-      nationality: app.department || '', // Using department as nationality
+      nationality: '', // Default empty string since column doesn't exist
       tripStartDate: app.trip_start_date ? new Date(app.trip_start_date) : null,
       tripEndDate: app.trip_end_date ? new Date(app.trip_end_date) : null,
-      itineraryDetails: app.additional_comments || '',
+      itineraryDetails: app.additional_comments ? app.additional_comments.split('\n\nSupporting Documents:')[0] : '',
+      supportingDocumentsNotes: app.additional_comments && app.additional_comments.includes('\n\nSupporting Documents:') 
+        ? app.additional_comments.split('\n\nSupporting Documents:')[1] 
+        : '',
       status: app.status as any, // Cast to expected enum type
       submittedDate: app.submitted_date ? new Date(app.submitted_date) : new Date(),
       lastUpdatedDate: app.last_updated_date ? new Date(app.last_updated_date) : new Date(),
+      // Passport information
+      passportNumber: app.passport_number || '',
+      passportExpiryDate: app.passport_expiry_date ? new Date(app.passport_expiry_date) : null,
       // Optional fields
       passportCopy: null,
       supportingDocumentsNotes: '',
@@ -237,23 +119,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // Placeholder for PUT (Update Visa App - e.g. Visa Clerk uploads visa copy)
-import { z } from 'zod';
-
-const visaUpdateSchema = z.object({
-  applicantName: z.string(),
-  travelPurpose: z.string(),
-  destination: z.string(),
-  tripStartDate: z.string(),
-  tripEndDate: z.string(),
-  visaType: z.string(),
-  employeeId: z.string(),
-  nationality: z.string(),
-  position: z.string(),
-  email: z.string(),
-  passportNumber: z.string(),
-  passportExpiryDate: z.string(),
-  itineraryDetails: z.string(),
-});
 
 export async function PUT(request: NextRequest, { params }: { params: { visaId: string } }) {
   const { visaId } = params;
@@ -275,7 +140,7 @@ export async function PUT(request: NextRequest, { params }: { params: { visaId: 
 
     const { 
       applicantName, travelPurpose, destination, tripStartDate, tripEndDate, visaType, 
-      employeeId, nationality, position, email, passportNumber, passportExpiryDate, itineraryDetails 
+      employeeId, passportNumber, passportExpiryDate, itineraryDetails, supportingDocumentsNotes 
     } = validationResult.data;
 
     console.log(`API_VISA_PUT (PostgreSQL): Attempting to update visa application with ID: ${visaId}`);
@@ -290,55 +155,9 @@ export async function PUT(request: NextRequest, { params }: { params: { visaId: 
         trip_end_date = ${tripEndDate},
         visa_type = ${visaType},
         staff_id = ${employeeId},
-        department = ${nationality},
-        position = ${position},
-        email = ${email},
         passport_number = ${passportNumber},
         passport_expiry_date = ${passportExpiryDate},
-        additional_comments = ${itineraryDetails},
-        last_updated_date = NOW()
-      WHERE id = ${visaId}
-      RETURNING id
-    `;
-
-    if (result.length === 0) {
-      console.log(`API_VISA_PUT (PostgreSQL): No visa application found with ID: ${visaId}`);
-      return NextResponse.json({ error: `Visa Application with ID ${visaId} not found.` }, { status: 404 });
-    }
-
-    console.log(`API_VISA_PUT (PostgreSQL): Successfully updated visa application with ID: ${visaId}`);
-    return NextResponse.json({ message: `Visa application ${visaId} updated successfully.` });
-  } catch (error: any) {
-    console.error(`API_VISA_PUT_ERROR (PostgreSQL): ${error.message}`, error.stack);
-    return NextResponse.json({ error: 'Failed to update visa application.', details: error.message }, { status: 500 });
-  }
-} validationResult.error.flatten());
-      return NextResponse.json({ error: "Validation failed for visa update", details: validationResult.error.flatten() }, { status: 400 });
-    }
-
-    const { 
-      applicantName, travelPurpose, destination, tripStartDate, tripEndDate, visaType, 
-      employeeId, nationality, position, email, passportNumber, passportExpiryDate, itineraryDetails 
-    } = validationResult.data;
-
-    console.log(`API_VISA_PUT (PostgreSQL): Attempting to update visa application with ID: ${visaId}`);
-
-    const result = await sql`
-      UPDATE visa_applications
-      SET
-        requestor_name = ${applicantName},
-        travel_purpose = ${travelPurpose},
-        destination = ${destination},
-        trip_start_date = ${tripStartDate},
-        trip_end_date = ${tripEndDate},
-        visa_type = ${visaType},
-        staff_id = ${employeeId},
-        department = ${nationality},
-        position = ${position},
-        email = ${email},
-        passport_number = ${passportNumber},
-        passport_expiry_date = ${passportExpiryDate},
-        additional_comments = ${itineraryDetails},
+        additional_comments = ${itineraryDetails + (supportingDocumentsNotes ? '\n\nSupporting Documents:\n' + supportingDocumentsNotes : '')},
         last_updated_date = NOW()
       WHERE id = ${visaId}
       RETURNING id

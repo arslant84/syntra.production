@@ -16,19 +16,24 @@ import type { VisaApplication, VisaPurpose } from "@/types/visa";
 import { cn } from "@/lib/utils";
 import { format, isValid, startOfDay } from "date-fns";
 import { CalendarIcon, UserCircle, Briefcase, Plane, Paperclip, AlertTriangle } from "lucide-react";
-import React from "react";
+import React, { useEffect } from "react";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"];
 
 
 const visaApplicationSchema = z.object({
-  travelPurpose: z.enum(["Business Trip", "Expatriate Relocation"], {
+  travelPurpose: z.enum(["Business Trip", "Expatriate Relocation", ""], {
     required_error: "Travel purpose is required.",
-  }).refine(val => val !== "", "Please select a travel purpose."),
+  }).refine(
+    (val) => val !== "",
+    "Please select a travel purpose."
+  ),
   destination: z.string().optional(),
   employeeId: z.string().min(1, "Employee ID is required."),
-  nationality: z.string().min(1, "Nationality is required."),
+  // nationality field removed since it doesn't exist in database
+  passportNumber: z.string().min(1, "Passport number is required."),
+  passportExpiryDate: z.date({ required_error: "Passport expiry date is required." }),
   passportCopy: z.any()
     .refine((file) => file instanceof File || file === null || file === undefined, "Passport copy is required.")
     .refine((file) => !file || file.size <= MAX_FILE_SIZE, `Max file size is 5MB.`)
@@ -63,20 +68,52 @@ interface VisaApplicationFormProps {
 }
 
 export default function VisaApplicationForm({ initialData, onSubmit }: VisaApplicationFormProps) {
-  const form = useForm<VisaFormValues>({
-    resolver: zodResolver(visaApplicationSchema),
-    defaultValues: {
-      travelPurpose: initialData.travelPurpose || "",
+  // Format initial data for the form
+  const formattedInitialData = React.useMemo<Partial<VisaFormValues>>(() => {
+    if (!initialData) {
+      return {
+        travelPurpose: "Business Trip" as VisaPurpose,
+        destination: "",
+        employeeId: "",
+        // nationality field removed since it doesn't exist in database
+        passportNumber: "",
+        passportExpiryDate: null,
+        passportCopy: null,
+        tripStartDate: null,
+        tripEndDate: null,
+        itineraryDetails: "",
+        supportingDocumentsNotes: "",
+      };
+    }
+
+    console.log("Initial data received:", initialData);
+    
+    return {
+      travelPurpose: initialData.travelPurpose || "Business Trip" as VisaPurpose,
       destination: initialData.destination || "",
       employeeId: initialData.employeeId || "",
-      nationality: initialData.nationality || "",
-      passportCopy: initialData.passportCopy || null,
-      tripStartDate: initialData.tripStartDate || null,
-      tripEndDate: initialData.tripEndDate || null,
+      // nationality field removed since it doesn't exist in database
+      passportNumber: initialData.passportNumber || "",
+      passportExpiryDate: initialData.passportExpiryDate ? new Date(initialData.passportExpiryDate) : null,
+      passportCopy: null, // File inputs can't be pre-populated for security reasons
+      tripStartDate: initialData.tripStartDate ? new Date(initialData.tripStartDate) : null,
+      tripEndDate: initialData.tripEndDate ? new Date(initialData.tripEndDate) : null,
       itineraryDetails: initialData.itineraryDetails || "",
       supportingDocumentsNotes: initialData.supportingDocumentsNotes || "",
-    },
+    };
+  }, [initialData]);
+
+  // Use explicit type for the form
+  const form = useForm<VisaFormValues>({
+    resolver: zodResolver(visaApplicationSchema) as any, // Cast resolver to any to avoid type errors
+    defaultValues: formattedInitialData as any, // Cast defaultValues to any to avoid type errors
   });
+
+  // Reset form values when initialData changes
+  useEffect(() => {
+    console.log("Resetting form with formatted data:", formattedInitialData);
+    form.reset(formattedInitialData);
+  }, [formattedInitialData, form]);
 
   const watchTravelPurpose = form.watch("travelPurpose");
 
@@ -100,7 +137,10 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Travel Purpose</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    value={field.value}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select travel purpose" />
@@ -139,7 +179,15 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField control={form.control} name="employeeId" render={({ field }) => (<FormItem><FormLabel>Employee ID</FormLabel><FormControl><Input placeholder="Your Employee ID" {...field} /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="nationality" render={({ field }) => (<FormItem><FormLabel>Nationality</FormLabel><FormControl><Input placeholder="Your Nationality" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            {/* nationality field removed since it doesn't exist in database */}
+            <FormField control={form.control} name="passportNumber" render={({ field }) => (<FormItem><FormLabel>Passport Number</FormLabel><FormControl><Input placeholder="Your Passport Number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="passportExpiryDate" render={({ field }) => (
+              <FormItem className="flex flex-col"><FormLabel>Passport Expiry Date</FormLabel>
+                <Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus /></PopoverContent>
+                </Popover><FormMessage />
+              </FormItem>
+            )} />
           </CardContent>
         </Card>
         
@@ -153,14 +201,14 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
             <FormField control={form.control} name="tripStartDate" render={({ field }) => (
               <FormItem className="flex flex-col"><FormLabel>Trip Start Date</FormLabel>
                 <Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date < startOfDay(new Date())} initialFocus /></PopoverContent>
+                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} disabled={(date) => date < startOfDay(new Date())} initialFocus /></PopoverContent>
                 </Popover><FormMessage />
               </FormItem>
             )} />
             <FormField control={form.control} name="tripEndDate" render={({ field }) => (
               <FormItem className="flex flex-col"><FormLabel>Trip End Date</FormLabel>
                 <Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => { const startDate = form.getValues("tripStartDate"); return startDate ? date < startDate : date < startOfDay(new Date()); }} initialFocus /></PopoverContent>
+                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} disabled={(date) => { const startDate = form.getValues("tripStartDate"); return startDate ? date < startDate : date < startOfDay(new Date()); }} initialFocus /></PopoverContent>
                 </Popover><FormMessage />
               </FormItem>
             )} />

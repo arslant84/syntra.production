@@ -48,12 +48,12 @@ const expenseClaimCreateSchema = z.object({
           placeOfStay: z.string().optional(),
         })
       ]),
-      officialMileageKM: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
-      transport: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
-      hotelAccommodationAllowance: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
-      outStationAllowanceMeal: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
-      miscellaneousAllowance10Percent: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
-      otherExpenses: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().nonnegative().optional()),
+      officialMileageKM: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
+      transport: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
+      hotelAccommodationAllowance: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
+      outStationAllowanceMeal: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
+      miscellaneousAllowance10Percent: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
+      otherExpenses: z.preprocess(val => val === '' || val === null || val === undefined ? null : Number(val), z.number().nonnegative().nullable().optional()),
     })
   ).min(1),
   informationOnForeignExchangeRate: z.array(
@@ -146,12 +146,12 @@ export async function POST(request: NextRequest) {
             claim_id: claimId,
             item_date: item.date ? formatISO(item.date, { representation: 'date' }) : null,
             claim_or_travel_details: claimDetails || '',
-            official_mileage_km: item.officialMileageKM === null ? null : Number(item.officialMileageKM),
-            transport: item.transport === null ? null : Number(item.transport),
-            hotel_accommodation_allowance: item.hotelAccommodationAllowance === null ? null : Number(item.hotelAccommodationAllowance),
-            out_station_allowance_meal: item.outStationAllowanceMeal === null ? null : Number(item.outStationAllowanceMeal),
-            miscellaneous_allowance_10_percent: item.miscellaneousAllowance10Percent === null ? null : Number(item.miscellaneousAllowance10Percent),
-            other_expenses: item.otherExpenses === null ? null : Number(item.otherExpenses),
+            official_mileage_km: item.officialMileageKM === null || item.officialMileageKM === undefined ? null : Number(item.officialMileageKM),
+            transport: item.transport === null || item.transport === undefined ? null : Number(item.transport),
+            hotel_accommodation_allowance: item.hotelAccommodationAllowance === null || item.hotelAccommodationAllowance === undefined ? null : Number(item.hotelAccommodationAllowance),
+            out_station_allowance_meal: item.outStationAllowanceMeal === null || item.outStationAllowanceMeal === undefined ? null : Number(item.outStationAllowanceMeal),
+            miscellaneous_allowance_10_percent: item.miscellaneousAllowance10Percent === null || item.miscellaneousAllowance10Percent === undefined ? null : Number(item.miscellaneousAllowance10Percent),
+            other_expenses: item.otherExpenses === null || item.otherExpenses === undefined ? null : Number(item.otherExpenses),
           };
         });
         await tx`INSERT INTO expense_claim_items ${tx(itemsToInsert, 'claim_id', 'item_date', 'claim_or_travel_details', 'official_mileage_km', 'transport', 'hotel_accommodation_allowance', 'out_station_allowance_meal', 'miscellaneous_allowance_10_percent', 'other_expenses')}`;

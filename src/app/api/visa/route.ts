@@ -6,19 +6,25 @@ import { formatISO, parseISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 
 const visaApplicationCreateSchema = z.object({
-  requestorName: z.string().min(1, "Requestor name is required"),
+  applicantName: z.string().min(1, "Applicant name is required"),
   travelPurpose: z.string().min(1, "Travel purpose is required"),
-  destination: z.string().min(1, "Destination is required"),
-  staffId: z.string().optional().nullable(),
-  department: z.string().optional().nullable(),
-  position: z.string().optional().nullable(),
-  email: z.string().optional().nullable(), // Made email optional to match frontend data
+  destination: z.string().optional().nullable(),
+  employeeId: z.string().optional().nullable(),
   visaType: z.string().min(1, "Visa type is required"),
   tripStartDate: z.coerce.date({ required_error: "Trip start date is required" }),
   tripEndDate: z.coerce.date({ required_error: "Trip end date is required" }),
   passportNumber: z.string().optional().nullable(),
   passportExpiryDate: z.coerce.date().optional().nullable(),
-  additionalComments: z.string().optional().nullable(),
+  itineraryDetails: z.string().optional().nullable(),
+  supportingDocumentsNotes: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.travelPurpose === "Business Trip" && (!data.destination || data.destination.trim() === "")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Destination is required for business trips.",
+      path: ["destination"],
+    });
+  }
 });
 
 
@@ -35,7 +41,8 @@ export async function POST(request: NextRequest) {
 
     if (!validationResult.success) {
       console.error("API_VISA_POST_VALIDATION_ERROR (PostgreSQL):", validationResult.error.flatten());
-      return NextResponse.json({ error: "Validation failed", details: validationResult.error.flatten() }, { status: 400 });
+      console.error("Validation Errors (raw):", validationResult.error.errors);
+      return NextResponse.json({ error: "Validation failed", details: validationResult.error.errors }, { status: 400 });
     }
     const data = validationResult.data;
     
@@ -47,19 +54,18 @@ export async function POST(request: NextRequest) {
 
     const [newVisaApp] = await sql`
       INSERT INTO visa_applications (
-        id, requestor_name, travel_purpose, destination, staff_id, department,
-        position, email, visa_type, trip_start_date, trip_end_date, 
+        id, requestor_name, travel_purpose, destination, staff_id,
+        visa_type, trip_start_date, trip_end_date, 
         passport_number, passport_expiry_date, status, additional_comments,
         submitted_date, last_updated_date, created_at, updated_at
       ) VALUES (
-        ${visaRequestId}, ${data.requestorName}, ${data.travelPurpose}, ${data.destination}, 
-        ${data.staffId || null}, ${data.department || null},
-        ${data.position || null}, ${data.email || null}, ${data.visaType},
-        ${formatISO(data.tripStartDate, { representation: 'date' })}, 
+        ${visaRequestId}, ${data.applicantName}, ${data.travelPurpose}, ${data.destination}, 
+        ${data.employeeId || null},
+        ${data.visaType}, ${formatISO(data.tripStartDate, { representation: 'date' })}, 
         ${formatISO(data.tripEndDate, { representation: 'date' })},
         ${data.passportNumber || null}, 
         ${data.passportExpiryDate ? formatISO(data.passportExpiryDate, { representation: 'date' }) : null},
-        'Pending Department Focal', ${data.additionalComments || null},
+        'Pending Department Focal', ${(data.itineraryDetails || '') + (data.supportingDocumentsNotes ? '\n\nSupporting Documents:\n' + data.supportingDocumentsNotes : '')},
         NOW(), NOW(), NOW(), NOW()
       ) RETURNING *
     `;
@@ -71,7 +77,7 @@ export async function POST(request: NextRequest) {
           status, step_date, comments, created_at, updated_at
         )
         VALUES (
-          ${newVisaApp.id}, 1, 'Applicant', ${data.requestorName || 'Applicant'}, 
+          ${newVisaApp.id}, 1, 'Applicant', ${data.applicantName || 'Applicant'}, 
           'Submitted', NOW(), 'Initial submission.', NOW(), NOW()
         )
     `;
@@ -121,7 +127,7 @@ export async function GET(request: NextRequest) {
         SELECT 
           id, 
           user_id as "userId",
-          requestor_name as "requestorName", 
+          requestor_name as "applicantName", 
           travel_purpose as "travelPurpose", 
           destination, 
           status, 
@@ -130,13 +136,10 @@ export async function GET(request: NextRequest) {
           trip_end_date as "tripEndDate",
           visa_type as "visaType",
           last_updated_date as "lastUpdatedDate",
-          staff_id as "staffId",
-          department,
-          position,
-          email,
+          staff_id as "employeeId",
           passport_number as "passportNumber",
           passport_expiry_date as "passportExpiryDate",
-          additional_comments as "additionalComments"
+          additional_comments as "itineraryDetails"
         FROM visa_applications 
         WHERE status = ANY(${statuses})
         ORDER BY submitted_date DESC
@@ -148,7 +151,7 @@ export async function GET(request: NextRequest) {
         SELECT 
           id, 
           user_id as "userId",
-          requestor_name as "requestorName", 
+          requestor_name as "applicantName", 
           travel_purpose as "travelPurpose", 
           destination, 
           status, 
@@ -157,13 +160,10 @@ export async function GET(request: NextRequest) {
           trip_end_date as "tripEndDate",
           visa_type as "visaType",
           last_updated_date as "lastUpdatedDate",
-          staff_id as "staffId",
-          department,
-          position,
-          email,
+          staff_id as "employeeId",
           passport_number as "passportNumber",
           passport_expiry_date as "passportExpiryDate",
-          additional_comments as "additionalComments"
+          additional_comments as "itineraryDetails"
         FROM visa_applications 
         ORDER BY submitted_date DESC
         LIMIT ${parseInt(limit)}
@@ -176,17 +176,23 @@ export async function GET(request: NextRequest) {
     const formattedApps = apps.map(app => ({
         id: app.id,
         userId: app.userId || '',
-        applicantName: app.requestorName, // Map requestorName to applicantName for frontend
+        applicantName: app.applicantName,
         travelPurpose: app.travelPurpose,
         destination: app.destination,
-        employeeId: app.staffId || '', // Map staffId to employeeId for frontend
-        nationality: app.department || '', // Use department as nationality for now
+        employeeId: app.employeeId || '',
+        nationality: '', // Default empty string since column doesn't exist
         tripStartDate: app.tripStartDate ? new Date(app.tripStartDate) : null,
         tripEndDate: app.tripEndDate ? new Date(app.tripEndDate) : null,
-        itineraryDetails: app.additionalComments || '', // Use additionalComments as itineraryDetails
+        itineraryDetails: app.itineraryDetails ? app.itineraryDetails.split('\n\nSupporting Documents:')[0] : '',
+        supportingDocumentsNotes: app.itineraryDetails && app.itineraryDetails.includes('\n\nSupporting Documents:') 
+          ? app.itineraryDetails.split('\n\nSupporting Documents:')[1] 
+          : '',
         status: app.status,
         submittedDate: app.submittedDate ? new Date(app.submittedDate) : new Date(),
         lastUpdatedDate: app.lastUpdatedDate ? new Date(app.lastUpdatedDate) : new Date(),
+        // Passport information
+        passportNumber: app.passportNumber || '',
+        passportExpiryDate: app.passportExpiryDate ? new Date(app.passportExpiryDate) : null,
     }));
     
     console.log("API_VISA_GET (PostgreSQL): Successfully mapped visa applications to frontend format.");

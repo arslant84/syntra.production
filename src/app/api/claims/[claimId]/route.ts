@@ -327,6 +327,7 @@ export async function GET(request: NextRequest, { params }: { params: { claimId:
       WHERE claim_id = ${claimId}
       ORDER BY item_date ASC
     `;
+    
 
     const fxRates = await sql`
       SELECT

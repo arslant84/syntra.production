@@ -16,18 +16,18 @@ export default function NewVisaApplicationPage() {
     try {
       // Map the form data to the API expected format
       const apiData = {
-        requestorName: data.applicantName || 'Test User',
+        applicantName: 'Test User',
         travelPurpose: data.travelPurpose,
-        destination: data.destination,
-        staffId: data.employeeId,
-        department: data.nationality, // Using nationality field for department
-        position: 'Employee', // Default position
-        email: 'user@example.com', // Default email
+        destination: data.destination || '',
+        employeeId: data.employeeId,
+        // nationality field removed since it doesn't exist in database
         visaType: data.travelPurpose === 'Business Trip' ? 'Business Visa' : 'Work Visa',
-        tripStartDate: data.tripStartDate,
-        tripEndDate: data.tripEndDate,
-        passportNumber: 'SAMPLE123', // Default passport number
-        additionalComments: data.itineraryDetails
+        tripStartDate: data.tripStartDate ? data.tripStartDate.toISOString() : null,
+        tripEndDate: data.tripEndDate ? data.tripEndDate.toISOString() : null,
+        passportNumber: data.passportNumber,
+        passportExpiryDate: data.passportExpiryDate ? data.passportExpiryDate.toISOString().split('T')[0] : null,
+        itineraryDetails: data.itineraryDetails,
+        supportingDocumentsNotes: data.supportingDocumentsNotes
       };
 
       console.log('Sending visa application to API:', apiData);
@@ -42,6 +42,7 @@ export default function NewVisaApplicationPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("API Error Details:", JSON.stringify(errorData, null, 2));
         throw new Error(errorData.error || 'Failed to submit visa application');
       }
 
@@ -67,9 +68,9 @@ export default function NewVisaApplicationPage() {
 
   const initialVisaData: Partial<VisaApplication> = {
     travelPurpose: "",
-    destination: "",
+    destination: undefined,
     employeeId: "", // Should be pre-filled from user session ideally
-    nationality: "", // Should be pre-filled from user session ideally
+    // nationality field removed since it doesn't exist in database
     passportCopy: null,
     tripStartDate: null,
     tripEndDate: null,

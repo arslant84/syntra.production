@@ -530,12 +530,95 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
                           <FormField control={form.control} name={`expenseItems.${index}.claimOrTravelDetails.placeOfStay`} render={({ field: itemField }) => <Input {...itemField} placeholder="Place of Stay..." className="min-h-[40px]" />} />
                         </div>
                       </TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.officialMileageKM`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0" className="text-center" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.transport`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.hotelAccommodationAllowance`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.outStationAllowanceMeal`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.miscellaneousAllowance10Percent`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
-                      <TableCell><FormField control={form.control} name={`expenseItems.${index}.otherExpenses`} render={({ field: itemField }) => <Input type="number" {...itemField} value={itemField.value === null ? "" : itemField.value} placeholder="0.00" className="text-right" />} /></TableCell>
+                      <TableCell>
+                        <FormField control={form.control} name={`expenseItems.${index}.officialMileageKM`} render={({ field: itemField }) => (
+                          <Input 
+                            type="number" 
+                            value={itemField.value === null || itemField.value === undefined ? "" : String(itemField.value)} 
+                            onChange={(e) => {
+                              const value = e.target.value === "" ? null : Number(e.target.value);
+                              itemField.onChange(value);
+                            }}
+                            placeholder="0" 
+                            className="text-center" 
+                          />
+                        )} />
+                      </TableCell>
+                      <TableCell>
+                        <FormField control={form.control} name={`expenseItems.${index}.transport`} render={({ field: itemField }) => (
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={itemField.value === null || itemField.value === undefined ? "" : String(itemField.value)} 
+                            onChange={(e) => {
+                              const value = e.target.value === "" ? null : Number(e.target.value);
+                              itemField.onChange(value);
+                            }}
+                            placeholder="0.00" 
+                            className="text-right" 
+                          />
+                        )} />
+                      </TableCell>
+                      <TableCell>
+                        <FormField control={form.control} name={`expenseItems.${index}.hotelAccommodationAllowance`} render={({ field: itemField }) => (
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={itemField.value === null || itemField.value === undefined ? "" : String(itemField.value)} 
+                            onChange={(e) => {
+                              const value = e.target.value === "" ? null : Number(e.target.value);
+                              itemField.onChange(value);
+                            }}
+                            placeholder="0.00" 
+                            className="text-right" 
+                          />
+                        )} />
+                      </TableCell>
+                      <TableCell>
+                        <FormField control={form.control} name={`expenseItems.${index}.outStationAllowanceMeal`} render={({ field: itemField }) => (
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={itemField.value === null || itemField.value === undefined ? "" : String(itemField.value)} 
+                            onChange={(e) => {
+                              const value = e.target.value === "" ? null : Number(e.target.value);
+                              itemField.onChange(value);
+                            }}
+                            placeholder="0.00" 
+                            className="text-right" 
+                          />
+                        )} />
+                      </TableCell>
+                      <TableCell>
+                        <FormField control={form.control} name={`expenseItems.${index}.miscellaneousAllowance10Percent`} render={({ field: itemField }) => (
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={itemField.value === null || itemField.value === undefined ? "" : String(itemField.value)} 
+                            onChange={(e) => {
+                              const value = e.target.value === "" ? null : Number(e.target.value);
+                              itemField.onChange(value);
+                            }}
+                            placeholder="0.00" 
+                            className="text-right" 
+                          />
+                        )} />
+                      </TableCell>
+                      <TableCell>
+                        <FormField control={form.control} name={`expenseItems.${index}.otherExpenses`} render={({ field: itemField }) => (
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={itemField.value === null || itemField.value === undefined ? "" : String(itemField.value)} 
+                            onChange={(e) => {
+                              const value = e.target.value === "" ? null : Number(e.target.value);
+                              itemField.onChange(value);
+                            }}
+                            placeholder="0.00" 
+                            className="text-right" 
+                          />
+                        )} />
+                      </TableCell>
                       <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => removeExpense(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button></TableCell>
                     </TableRow>
                   ))}

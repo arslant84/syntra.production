@@ -7,8 +7,8 @@ import type { VisaStatus } from '@/types/visa';
 const visaActionSchema = z.object({
   action: z.enum(["approve", "reject", "mark_processing", "upload_visa", "cancel"]),
   comments: z.string().optional().nullable(),
-  approverRole: z.string().min(1, "Approver role is required"),
-  approverName: z.string().min(1, "Approver name is required"),
+  approverRole: z.string().optional().nullable(),
+  approverName: z.string().optional().nullable(),
   visaCopyFilename: z.string().optional().nullable(), // For upload_visa action
 });
 
@@ -20,7 +20,7 @@ const visaApprovalWorkflow: Record<string, VisaStatus | null> = {
   // "Processing with Embassy" can then become "Approved" or "Rejected" by Visa Clerk via "upload_visa" or "reject"
 };
 
-const terminalVisaStatuses: VisaStatus[] = ["Approved", "Rejected"];
+const terminalVisaStatuses: VisaStatus[] = ["Approved", "Rejected", "Cancelled"];
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
   const { visaId } = await params;
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     const { action, comments, approverRole, approverName, visaCopyFilename } = validationResult.data;
 
-    const [currentVisaApp] = await sql`SELECT id, status, applicant_name FROM visa_applications WHERE id = ${visaId}`;
+    const [currentVisaApp] = await sql`SELECT id, status, requestor_name FROM visa_applications WHERE id = ${visaId}`;
     if (!currentVisaApp) {
       return NextResponse.json({ error: "Visa application not found" }, { status: 404 });
     }
@@ -81,27 +81,65 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     updateFields.status = nextStatus;
-    updateFields.last_updated_at = sql`NOW()`;
+    updateFields.last_updated_date = sql`NOW()`;
 
+    // Construct SET clause manually without using sql.join which doesn't exist
     const setClauses = Object.entries(updateFields).map(([key, value]) => sql`${sql(key)} = ${value}`);
+    let setClause = setClauses[0];
+    for (let i = 1; i < setClauses.length; i++) {
+      setClause = sql`${setClause}, ${setClauses[i]}`;
+    }
 
     const [updatedApp] = await sql.begin(async tx => {
       const [app] = await tx`
         UPDATE visa_applications
-        SET ${sql.join(setClauses, sql`, `)}
+        SET ${setClause}
         WHERE id = ${visaId}
         RETURNING *
       `;
       await tx`
         INSERT INTO visa_approval_steps (visa_application_id, step_name, approver_name, status, step_date, comments)
-        VALUES (${visaId}, ${approverRole}, ${approverName}, ${stepStatus}, NOW(), ${comments || null})
+        VALUES (${visaId}, ${approverRole || 'User'}, ${approverName || currentVisaApp.requestor_name || 'User'}, ${stepStatus}, NOW(), ${comments || null})
       `;
       return app;
     });
     
     console.log(`API_VISA_ACTION_POST (PostgreSQL): Visa App ${visaId} action '${action}' processed. New status: ${updatedApp.status}`);
+    
+    // Format the response to match what the frontend expects (similar to GET endpoint)
+    const formattedVisa = {
+      id: updatedApp.id,
+      userId: updatedApp.user_id || '',
+      applicantName: updatedApp.requestor_name,
+      requestorName: updatedApp.requestor_name,
+      travelPurpose: updatedApp.travel_purpose,
+      destination: updatedApp.destination,
+      employeeId: updatedApp.staff_id || '',
+      staffId: updatedApp.staff_id || '',
+      nationality: '', // Default empty string since column doesn't exist
+      department: updatedApp.department || '',
+      position: updatedApp.position || '',
+      email: updatedApp.email || '',
+      visaType: updatedApp.visa_type || '',
+      tripStartDate: updatedApp.trip_start_date ? new Date(updatedApp.trip_start_date) : null,
+      tripEndDate: updatedApp.trip_end_date ? new Date(updatedApp.trip_end_date) : null,
+      passportNumber: updatedApp.passport_number || '',
+      passportExpiryDate: updatedApp.passport_expiry_date ? new Date(updatedApp.passport_expiry_date) : null,
+      itineraryDetails: updatedApp.additional_comments ? updatedApp.additional_comments.split('\n\nSupporting Documents:')[0] : '',
+      supportingDocumentsNotes: updatedApp.additional_comments && updatedApp.additional_comments.includes('\n\nSupporting Documents:') 
+        ? updatedApp.additional_comments.split('\n\nSupporting Documents:')[1] 
+        : '',
+      additionalComments: updatedApp.additional_comments || '',
+      status: updatedApp.status,
+      submittedDate: updatedApp.submitted_date ? new Date(updatedApp.submitted_date) : new Date(),
+      lastUpdatedDate: updatedApp.last_updated_date ? new Date(updatedApp.last_updated_date) : new Date(),
+      passportCopy: null,
+      supportingDocumentsNotes: '',
+      approvalHistory: [] // Will be populated by a separate query if needed
+    };
+    
     // TODO: Placeholder for notification
-    return NextResponse.json({ message: `Visa application action '${action}' processed.`, visaApplication: updatedApp });
+    return NextResponse.json(formattedVisa);
 
   } catch (error: any) {
     console.error(`API_VISA_ACTION_POST_ERROR (PostgreSQL) for visa ${visaId}:`, error.message, error.stack);

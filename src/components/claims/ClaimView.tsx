@@ -31,9 +31,9 @@ const formatTimeSafe = (timeStr: string | null | undefined) => {
 };
 
 const formatNumberSafe = (num: string | number | null | undefined, digits = 2) => {
-  if (num === null || num === undefined || num === '') return "0.00"; // Default to 0.00 for display consistency in financial contexts
+  if (num === null || num === undefined || num === '') return ""; // Return empty string for null/empty values
   const parsedNum = Number(num);
-  return isNaN(parsedNum) ? "0.00" : parsedNum.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return isNaN(parsedNum) ? "" : parsedNum.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 };
 
 

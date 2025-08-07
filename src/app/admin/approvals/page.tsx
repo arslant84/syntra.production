@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle as AlertTriangleIcon, CheckSquare, Eye, FileText, Home, Loader2, ReceiptText, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertTriangle as AlertTriangleIcon, CheckSquare, Eye, FileText, Home, Loader2, ReceiptText, ThumbsDown, ThumbsUp, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import type { TravelRequestForm, TrfStatus } from '@/types/trf';
 interface ApprovableItem {
   id: string;
   requestorName: string;
-  itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation';
+  itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation' | 'Transport';
   purpose: string;
   status: string;
   submittedAt: string;
@@ -29,6 +29,8 @@ interface ApprovableItem {
   checkInDate?: string;
   checkOutDate?: string;
   location?: string;
+  department?: string;
+  transportType?: string;
 }
 
 // We'll fetch real data from the API instead of using mock data
@@ -41,7 +43,7 @@ export default function AdminApprovalsPage() {
   const [rejectionComments, setRejectionComments] = useState("");
   const [approvalComments, setApprovalComments] = useState(""); 
   const [selectedItemForAction, setSelectedItemForAction] = useState<ApprovableItem | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'trf' | 'claim' | 'visa' | 'accommodation'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'trf' | 'claim' | 'visa' | 'accommodation' | 'transport'>('all');
 
   const { toast } = useToast();
   const MOCK_APPROVER_ROLE = "Department Focal"; // This would come from user session in a real app
@@ -62,7 +64,7 @@ export default function AdminApprovalsPage() {
       ].join(',');
       
       console.log(`AdminApprovalsPage: Fetching TRFs with statuses: ${trfStatusesToFetch}`);
-      const trfResponse = await fetch(`/api/trf?statuses=${encodeURIComponent(trfStatusesToFetch)}&limit=50`);
+      const trfResponse = await fetch(`/api/trf?statuses=${encodeURIComponent(trfStatusesToFetch)}&limit=50&excludeTravelType=Accommodation`);
       
       if (trfResponse.ok) {
         const trfData = await trfResponse.json();
@@ -143,18 +145,23 @@ export default function AdminApprovalsPage() {
           const accommodationData = await accommodationResponse.json();
           console.log("AdminApprovalsPage: Fetched Accommodation requests data:", accommodationData);
           
-          // Map Accommodation data to the common ApprovableItem format
-          const accommodationItems = (accommodationData.accommodationRequests || []).map((accommodation: any) => ({
-            id: accommodation.id,
-            requestorName: accommodation.requestorName,
-            itemType: 'Accommodation' as const,
-            purpose: accommodation.specialRequests || 'Accommodation Request',
-            status: accommodation.status,
-            submittedAt: accommodation.submittedDate,
-            location: accommodation.location,
-            checkInDate: accommodation.requestedCheckInDate,
-            checkOutDate: accommodation.requestedCheckOutDate
-          }));
+          // Get already fetched TRF IDs to avoid duplicates
+          const existingTrfIds = new Set(allPendingItems.map(item => item.id));
+          
+          // Map Accommodation data to the common ApprovableItem format, but exclude items already fetched as TRFs
+          const accommodationItems = (accommodationData.accommodationRequests || [])
+            .filter((accommodation: any) => !existingTrfIds.has(accommodation.id))
+            .map((accommodation: any) => ({
+              id: accommodation.id,
+              requestorName: accommodation.requestorName,
+              itemType: 'Accommodation' as const,
+              purpose: accommodation.specialRequests || 'Accommodation Request',
+              status: accommodation.status,
+              submittedAt: accommodation.submittedDate,
+              location: accommodation.location,
+              checkInDate: accommodation.requestedCheckInDate,
+              checkOutDate: accommodation.requestedCheckOutDate
+            }));
           
           allPendingItems = [...allPendingItems, ...accommodationItems];
         } else {
@@ -164,6 +171,43 @@ export default function AdminApprovalsPage() {
       } catch (err: any) {
         console.error("AdminApprovalsPage: Exception fetching accommodation requests:", err);
         // Continue with other requests even if accommodation requests fail
+      }
+
+      // 5. Fetch pending transport requests
+      try {
+        const transportStatusesToFetch = ["Pending Department Focal", "Pending Line Manager", "Pending HOD"].join(',');
+        console.log(`AdminApprovalsPage: Fetching Transport requests with statuses: ${transportStatusesToFetch}`);
+        
+        const transportResponse = await fetch(`/api/transport?statuses=${encodeURIComponent(transportStatusesToFetch)}&limit=50`);
+        
+        if (transportResponse.ok) {
+          const transportData = await transportResponse.json();
+          console.log("AdminApprovalsPage: Fetched Transport requests data:", transportData);
+          
+          // Get already fetched IDs to avoid duplicates
+          const existingItemIds = new Set(allPendingItems.map(item => item.id));
+          
+          // Handle both array and object responses, but exclude items already fetched
+          const transportItems = (Array.isArray(transportData) ? transportData : transportData.transportRequests || [])
+            .filter((transport: any) => !existingItemIds.has(transport.id))
+            .map((transport: any) => ({
+              id: transport.id,
+              requestorName: transport.requestorName,
+              itemType: 'Transport' as const,
+              purpose: transport.purpose,
+              status: transport.status,
+              submittedAt: transport.submittedAt || transport.submitted_at || transport.createdAt,
+              department: transport.department
+            }));
+          
+          allPendingItems = [...allPendingItems, ...transportItems];
+        } else {
+          console.error("AdminApprovalsPage: Error fetching transport requests:", transportResponse.status, transportResponse.statusText);
+          // Continue with other requests even if transport requests fail
+        }
+      } catch (err: any) {
+        console.error("AdminApprovalsPage: Exception fetching transport requests:", err);
+        // Continue with other requests even if transport requests fail
       }
       
       // Sort all items by submission date (newest first)
@@ -189,7 +233,7 @@ export default function AdminApprovalsPage() {
     fetchPendingItems();
   }, [fetchPendingItems]);
 
-  const handleAction = async (itemId: string, itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation', action: "approve" | "reject", comments?: string) => {
+  const handleAction = async (itemId: string, itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation' | 'Transport', action: "approve" | "reject", comments?: string) => {
     if (!selectedItemForAction || selectedItemForAction.id !== itemId) {
         toast({ title: "Error", description: `No ${itemType} selected for action.`, variant: "destructive" });
         return;
@@ -218,6 +262,9 @@ export default function AdminApprovalsPage() {
             break;
           case 'Accommodation':
             endpoint = `/api/accommodation/requests/${itemId}/action`;
+            break;
+          case 'Transport':
+            endpoint = `/api/transport/${itemId}/action`;
             break;
         }
 
@@ -263,11 +310,12 @@ export default function AdminApprovalsPage() {
   const filteredItems = pendingItems.filter(item => {
     if (activeTab === 'all') return true;
     if (activeTab === 'trf') return item.itemType === 'TSR';
+    if (activeTab === 'transport') return item.itemType === 'Transport';
     return item.itemType.toLowerCase() === activeTab;
   });
 
   // Get the appropriate icon for each item type
-  const getItemTypeIcon = (itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation') => {
+  const getItemTypeIcon = (itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation' | 'Transport') => {
     switch (itemType) {
       case 'TSR':
         return <Eye className="h-4 w-4 text-blue-500" />;
@@ -277,6 +325,8 @@ export default function AdminApprovalsPage() {
         return <FileText className="h-4 w-4 text-purple-500" />;
       case 'Accommodation':
         return <Home className="h-4 w-4 text-amber-500" />;
+      case 'Transport':
+        return <Truck className="h-4 w-4 text-orange-500" />;
     }
   };
 
@@ -335,6 +385,15 @@ export default function AdminApprovalsPage() {
         >
           <Home className="mr-1 h-4 w-4" />
           Accommodation ({pendingItems.filter(i => i.itemType === 'Accommodation').length})
+        </Button>
+        <Button 
+          variant={activeTab === 'transport' ? "default" : "outline"} 
+          size="sm" 
+          onClick={() => setActiveTab('transport')}
+          className="rounded-full"
+        >
+          <Truck className="mr-1 h-4 w-4" />
+          Transport ({pendingItems.filter(i => i.itemType === 'Transport').length})
         </Button>
       </div>
       
@@ -399,6 +458,11 @@ export default function AdminApprovalsPage() {
                           )}
                         </div>
                       )}
+                      {item.itemType === 'Transport' && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <span className="font-medium">Department:</span> {item.department || 'N/A'}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="max-w-xs truncate">{item.purpose}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(item.status as TrfStatus)} className={item.status === "Approved" ? "bg-green-600 text-white" : ""}>{item.status}</Badge></TableCell>
@@ -411,6 +475,7 @@ export default function AdminApprovalsPage() {
                             item.itemType === 'TSR' ? `/trf/view/${item.id}` : 
                             item.itemType === 'Claim' ? `/claims/view/${item.id}` : 
                             item.itemType === 'Accommodation' ? `/accommodation/view/${item.id}` :
+                            item.itemType === 'Transport' ? `/transport/view/${item.id}` :
                             `/visa/view/${item.id}`
                           } 
                           title={`View ${item.itemType} Details`}

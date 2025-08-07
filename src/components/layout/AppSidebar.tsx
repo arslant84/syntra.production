@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/sidebar';
 import type { NavItem, User } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Home, Plane, ReceiptText, CheckSquare, Users, Settings, StickyNote, BedDouble } from 'lucide-react';
+import { Home, Plane, ReceiptText, CheckSquare, Users, Settings, StickyNote, BedDouble, Truck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSession } from "next-auth/react";
 
@@ -39,10 +39,11 @@ const getInitials = (name: string) => {
     .toUpperCase();
 };
 
-const allAdminNavItems: NavItem[] = [
+const adminNavItems: NavItem[] = [
   { label: 'Home', href: '/', icon: Home },
   { label: 'Flights Admin', href: '/admin/flights', icon: Plane },
   { label: 'Accommodation Admin', href: '/admin/accommodation', icon: BedDouble },
+  { label: 'Transport Admin', href: '/admin/transport', icon: Truck },
   { label: 'Visa Admin', href: '/admin/visa', icon: StickyNote },
   { label: 'Claims Admin', href: '/admin/claims', icon: ReceiptText },
   { label: 'Approvals', href: '/admin/approvals', icon: CheckSquare },
@@ -50,8 +51,27 @@ const allAdminNavItems: NavItem[] = [
   { label: 'System Settings', href: '/admin/settings', icon: Settings },
 ];
 
-const mainNavItems = allAdminNavItems.filter(item => item.label !== 'System Settings');
-const settingsNavItem = allAdminNavItems.find(item => item.label === 'System Settings');
+const userNavItems: NavItem[] = [
+  { label: 'Home', href: '/', icon: Home },
+  { label: 'TRF', href: '/trf', icon: Plane },
+  { label: 'Transport', href: '/transport', icon: Truck },
+  { label: 'Claims', href: '/claims', icon: ReceiptText },
+  { label: 'Visa', href: '/visa', icon: StickyNote },
+];
+
+const getNavItems = (userRole?: string) => {
+  return adminNavItems;
+};
+
+const getMainNavItems = (userRole?: string) => {
+  const items = getNavItems(userRole);
+  return items.filter(item => item.label !== 'System Settings');
+};
+
+const getSettingsNavItem = (userRole?: string) => {
+  const items = getNavItems(userRole);
+  return items.find(item => item.label === 'System Settings');
+};
 
 
 export default function AppSidebar() {
@@ -119,7 +139,7 @@ export default function AppSidebar() {
 
       <SidebarContent className="flex-grow p-3">
         <SidebarMenu>
-          {mainNavItems.map((item) => (
+          {getMainNavItems(user?.role).map((item) => (
             <SidebarMenuItem key={item.href}>
               <Link href={item.href}>
                 <SidebarMenuButton
@@ -142,21 +162,26 @@ export default function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-3 border-t mt-auto">
-        {settingsNavItem && (
-          <SidebarMenu className="mb-2">
-            <SidebarMenuItem>
-              <Link href={settingsNavItem.href}>
-                <SidebarMenuButton
-                  isActive={pathname === settingsNavItem.href}
-                  tooltip={settingsNavItem.label}
-                >
-                  {settingsNavItem.icon && <settingsNavItem.icon />}
-                  <span>{settingsNavItem.label}</span>
-                </SidebarMenuButton>
-              </Link>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        )}
+        {(() => {
+          const settingsNavItem = getSettingsNavItem(user?.role);
+          if (!settingsNavItem) return null;
+          const Icon = settingsNavItem.icon;
+          return (
+            <SidebarMenu className="mb-2">
+              <SidebarMenuItem>
+                <Link href={settingsNavItem.href}>
+                  <SidebarMenuButton
+                    isActive={pathname === settingsNavItem.href}
+                    tooltip={settingsNavItem.label}
+                  >
+                    {Icon && <Icon />}
+                    <span>{settingsNavItem.label}</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          );
+        })()}
 
         <SidebarSeparator />
 

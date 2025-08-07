@@ -315,8 +315,8 @@ export async function POST(request: NextRequest) {
     }
   }
   
-  const trfRequestId = generateRequestId('TRF', contextForTrfId);
-  console.log("API_TRF_POST (PostgreSQL): Generated TRF ID:", trfRequestId);
+  const trfRequestId = generateRequestId('TSR', contextForTrfId);
+  console.log("API_TRF_POST (PostgreSQL): Generated TSR ID:", trfRequestId);
   
   try {
     console.log("API_TRF_POST (PostgreSQL): Starting database transaction for TRF ID:", trfRequestId);
@@ -590,6 +590,7 @@ export async function GET(request: NextRequest) {
   const searchTerm = searchParams.get('search')?.trim();
   const statusFilter = searchParams.get('status')?.trim();
   const travelTypeFilter = searchParams.get('travelType')?.trim();
+  const excludeTravelType = searchParams.get('excludeTravelType')?.trim();
   const sortBy = searchParams.get('sortBy') || 'submitted_at';
   const sortOrder = searchParams.get('sortOrder') || 'desc';
   const statusesToFetch = searchParams.get('statuses')?.split(',').map(s => s.trim()).filter(Boolean);
@@ -598,7 +599,7 @@ export async function GET(request: NextRequest) {
   const offset = (page - 1) * limit;
 
   const whereClauses: any[] = [];
-  console.log(`API_TRF_GET (PostgreSQL): Filters - Search: '${searchTerm}', Status: '${statusFilter}', Type: '${travelTypeFilter}', Statuses: '${statusesToFetch}'`);
+  console.log(`API_TRF_GET (PostgreSQL): Filters - Search: '${searchTerm}', Status: '${statusFilter}', Type: '${travelTypeFilter}', Exclude Type: '${excludeTravelType}', Statuses: '${statusesToFetch}'`);
 
   if (searchTerm) {
     whereClauses.push(sql`(
@@ -612,6 +613,9 @@ export async function GET(request: NextRequest) {
   }
   if (travelTypeFilter) {
     whereClauses.push(sql`travel_type = ${travelTypeFilter}`);
+  }
+  if (excludeTravelType) {
+    whereClauses.push(sql`travel_type != ${excludeTravelType}`);
   }
   if (statusesToFetch && statusesToFetch.length > 0) {
     whereClauses.push(sql`status IN ${sql(statusesToFetch)}`);

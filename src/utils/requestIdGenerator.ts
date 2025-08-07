@@ -9,10 +9,11 @@
  * - VIS: VIS-20250702-1423-USA-5X9R
  * - ACCOM: ACCOM-20250702-1423-DEL-2Y8P
  * - CLM: CLM-20250702-1423-MED-7Z4Q
+ * - TRN: TRN-20250702-1423-LOCAL-3K8M
  */
 
 // Valid request types
-export type RequestType = 'TSR' | 'VIS' | 'ACCOM' | 'CLM';
+export type RequestType = 'TSR' | 'VIS' | 'ACCOM' | 'CLM' | 'TRN';
 
 // Characters to use for unique ID generation (avoiding ambiguous characters like 0/O, 1/I)
 const UNIQUE_ID_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -60,8 +61,8 @@ export function validateContext(context: string): string {
 
 /**
  * Generates a unified request ID according to the specified format
- * @param type Request type (TSR, VIS, ACCOM, CLM)
- * @param context Context information (e.g., NYC for New York, USA for United States)
+ * @param type Request type (TSR, VIS, ACCOM, CLM, TRN)
+ * @param context Context information (e.g., NYC for New York, USA for United States, LOCAL for local transport)
  * @param date Optional date to use (defaults to current date/time)
  * @returns Formatted request ID
  */
@@ -99,7 +100,7 @@ export function parseRequestId(requestId: string): {
   const [type, dateStr, timeStr, context, uniqueId] = parts;
   
   // Validate type
-  if (!['TSR', 'VIS', 'ACCOM', 'CLM'].includes(type)) {
+  if (!['TSR', 'VIS', 'ACCOM', 'CLM', 'TRN'].includes(type)) {
     return null;
   }
   

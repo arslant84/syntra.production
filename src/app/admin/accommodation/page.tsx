@@ -34,6 +34,7 @@ import RoomManagement from "@/components/accommodation/RoomManagement";
 // Define the interface for TRFs that need accommodation assignment
 interface AdminTrfForAccommodation {
   id: string;
+  accommodationId?: string;
   requestorName: string;
   requestorId?: string;
   staffId?: string;
@@ -182,39 +183,32 @@ export default function AccommodationAdminPage() {
       const bookingsData = await bookingsResponse.json();
       setBookings(bookingsData.bookings || []);
       
-      // Fetch pending accommodation requests from API
-      const pendingRequestsResponse = await fetch(`/api/accommodation/requests`);
+      // Fetch pending accommodation requests from the dedicated API endpoint
+      // Use /api/trf/pending-accommodation which specifically handles accommodation assignment
+      const pendingRequestsResponse = await fetch(`/api/trf/pending-accommodation`);
       if (!pendingRequestsResponse.ok) throw new Error('Failed to fetch pending accommodation requests');
       const pendingRequestsData = await pendingRequestsResponse.json();
       
       // Transform the accommodation requests to match the expected AdminTrfForAccommodation interface
-      const transformedRequests = (pendingRequestsData.accommodationRequests || []).map((req: any) => ({
-        id: req.trfId,
+      const transformedRequests = (pendingRequestsData.requests || []).map((req: any) => ({
+        id: req.id, // This is the travel request ID
+        accommodationId: req.accommodationId, // Keep track of the accommodation detail ID
         requestorName: req.requestorName,
-        staffId: req.requestorId,
+        staffId: req.staffId,
         department: req.department,
         location: req.location,
-        gender: req.requestorGender || 'Male',
+        gender: req.gender || 'Male',
         status: req.status,
         requestedCheckInDate: req.requestedCheckInDate,
         requestedCheckOutDate: req.requestedCheckOutDate,
         specialRequests: req.specialRequests
       }));
       
-      // Filter out requests that already have bookings
-      // We need to check if there's any booking associated with this TRF ID
-      const pendingRequests = transformedRequests.filter((req: any) => {
-        // Check if any booking has a matching trf_id in the notes field
-        // This is a workaround since ExtendedBookingData doesn't have trfId directly
-        return !bookings.some(booking => {
-          const bookingNotes = booking.notes || '';
-          return bookingNotes.includes(req.id) || bookingNotes.includes(`TRF: ${req.id}`);
-        });
-      });
-      
+      // The /api/trf/pending-accommodation endpoint already filters out requests that have bookings
+      // So we can use the requests directly without additional filtering
       // Ensure uniqueness of TRF IDs to prevent React duplicate key warnings
       const uniquePendingRequests = Array.from(
-        new Map(pendingRequests.map((item: AdminTrfForAccommodation) => [item.id, item])).values()
+        new Map(transformedRequests.map((item: AdminTrfForAccommodation) => [item.id, item])).values()
       ) as AdminTrfForAccommodation[];
       
       setPendingAccommodationTRFs(uniquePendingRequests);

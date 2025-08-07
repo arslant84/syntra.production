@@ -7,13 +7,14 @@ import { Button } from '@/components/ui/button';
 import type { NavItem } from '@/types';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Home, FileText, ReceiptText, BarChart2, StickyNote, BedDouble } from 'lucide-react';
+import { Menu, Home, FileText, ReceiptText, BarChart2, StickyNote, BedDouble, Truck } from 'lucide-react';
 import React from 'react';
 import { UserNav } from '@/components/UserNav';
 
 const navItems: NavItem[] = [
   { label: 'Home', href: '/', icon: Home },
   { label: 'TSR', href: '/trf', icon: FileText },
+  { label: 'Transport', href: '/transport', icon: Truck },
   { label: 'Visa Applications', href: '/visa', icon: StickyNote },
   { label: 'Accommodation', href: '/accommodation', icon: BedDouble },
   { label: 'Claims', href: '/claims', icon: ReceiptText },

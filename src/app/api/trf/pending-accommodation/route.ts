@@ -45,7 +45,7 @@ export async function GET() {
     // Transform the data to match the expected AdminTrfForAccommodation interface
     const transformedRequests = result.map(req => {
       return {
-        id: req.trfId,
+        id: req.id, // Use req.id (the actual travel request ID) instead of req.trfId
         accommodationId: req.accommodationId,
         requestorName: req.requestorName,
         staffId: req.staffId,

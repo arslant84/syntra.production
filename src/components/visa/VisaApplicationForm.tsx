@@ -12,11 +12,44 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { VisaApplication, VisaPurpose } from "@/types/visa";
+// import type { VisaApplication, VisaPurpose } from "@/types/visa";
 import { cn } from "@/lib/utils";
 import { format, isValid, startOfDay } from "date-fns";
 import { CalendarIcon, UserCircle, Briefcase, Plane, Paperclip, AlertTriangle } from "lucide-react";
 import React, { useEffect } from "react";
+
+// Temporary local type definitions until the issue with visa.ts is resolved
+export type VisaPurpose = "Business Trip" | "Expatriate Relocation" | "";
+
+export type VisaApplicationStatus = 
+  | "Pending"
+  | "Submitted"
+  | "In Progress"
+  | "Requires Action"
+  | "Approved"
+  | "Rejected";
+
+export interface VisaApplication {
+  id: string;
+  userId: string;
+  applicantName: string;
+  nationality: string;
+  travelPurpose: VisaPurpose;
+  destination?: string | null;
+  employeeId: string;
+  passportNumber: string;
+  passportExpiryDate: Date | string | null;
+  passportCopy?: File | null;
+  passportCopyFilename?: string | null;
+  tripStartDate: Date | string | null;
+  tripEndDate: Date | string | null;
+  itineraryDetails: string;
+  supportingDocumentsNotes?: string | null;
+  uploadedDocumentFilenames?: string[];
+  status: VisaApplicationStatus;
+  submittedDate: Date | string;
+  lastUpdatedDate: Date | string;
+}
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"];
@@ -162,7 +195,7 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Destination</FormLabel>
-                    <FormControl><Input placeholder="Enter destination country/city" {...field} /></FormControl>
+                    <FormControl><Input placeholder="Enter destination country/city" {...field} value={field.value ?? ''} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -184,7 +217,7 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
             <FormField control={form.control} name="passportExpiryDate" render={({ field }) => (
               <FormItem className="flex flex-col"><FormLabel>Passport Expiry Date</FormLabel>
                 <Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus /></PopoverContent>
+                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={field.onChange} initialFocus /></PopoverContent>
                 </Popover><FormMessage />
               </FormItem>
             )} />
@@ -201,14 +234,14 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
             <FormField control={form.control} name="tripStartDate" render={({ field }) => (
               <FormItem className="flex flex-col"><FormLabel>Trip Start Date</FormLabel>
                 <Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} disabled={(date) => date < startOfDay(new Date())} initialFocus /></PopoverContent>
+                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={field.onChange} disabled={(date) => date < startOfDay(new Date())} initialFocus /></PopoverContent>
                 </Popover><FormMessage />
               </FormItem>
             )} />
             <FormField control={form.control} name="tripEndDate" render={({ field }) => (
               <FormItem className="flex flex-col"><FormLabel>Trip End Date</FormLabel>
                 <Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} disabled={(date) => { const startDate = form.getValues("tripStartDate"); return startDate ? date < startDate : date < startOfDay(new Date()); }} initialFocus /></PopoverContent>
+                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={field.onChange} disabled={(date) => { const startDate = form.getValues("tripStartDate"); return startDate ? date < new Date(startDate) : date < startOfDay(new Date()); }} initialFocus /></PopoverContent>
                 </Popover><FormMessage />
               </FormItem>
             )} />
@@ -242,7 +275,7 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
                     </FormItem>
                 )}
             />
-            <FormField control={form.control} name="supportingDocumentsNotes" render={({ field }) => (<FormItem><FormLabel>Other Supporting Documents</FormLabel><FormControl><Textarea placeholder="List other supporting documents (e.g., Invitation Letter, Hotel Booking Confirmation). You will be contacted if physical copies are needed." className="min-h-[100px]" {...field} /></FormControl><FormDescription className="text-xs">Actual document upload for these will be handled separately if required by the Visa Clerk.</FormDescription><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="supportingDocumentsNotes" render={({ field }) => (<FormItem><FormLabel>Other Supporting Documents</FormLabel><FormControl><Textarea placeholder="List other supporting documents (e.g., Invitation Letter, Hotel Booking Confirmation). You will be contacted if physical copies are needed." className="min-h-[100px]" {...field} value={field.value ?? ''} /></FormControl><FormDescription className="text-xs">Actual document upload for these will be handled separately if required by the Visa Clerk.</FormDescription><FormMessage /></FormItem>)} />
           </CardContent>
         </Card>
         

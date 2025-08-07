@@ -130,7 +130,7 @@ export interface ExternalPartiesTravelSpecificDetails {
 }
 
 
-export type TravelType = 'Domestic' | 'Overseas' | 'Home Leave Passage' | 'External Parties' | '';
+export type TravelType = 'Domestic' | 'Overseas' | 'Home Leave Passage' | 'External Parties' | 'Accommodation' | '';
 
 export type TrfStatus = 
   | 'Draft' 

@@ -44,13 +44,13 @@ export async function POST(request: NextRequest) {
     const accomRequestId = generateRequestId('ACCOM', contextForAccomId);
     console.log("API_ACCOM_REQ_POST (PostgreSQL): Generated Accommodation Request ID:", accomRequestId);
 
-    // First, create a travel request entry to get a TRF ID
+    // First, create a travel request entry to get an accommodation request ID
     const [newTravelRequest] = await sql`
       INSERT INTO travel_requests (
         id, requestor_name, staff_id, department, travel_type, status, additional_comments, submitted_at
       ) VALUES (
         ${accomRequestId}, ${data.requestorName}, ${data.requestorId || null}, ${data.department || null}, 
-        'Domestic', 'Pending Department Focal', ${data.specialRequests || null}, NOW()
+        'Accommodation', 'Pending Department Focal', ${data.specialRequests || null}, NOW()
       ) RETURNING *
     `;
     
@@ -72,9 +72,11 @@ export async function POST(request: NextRequest) {
     `;
     
     // Combine the data for the response
+    // For standalone accommodation requests, the main ID should be the ACCOM ID
+    // and trfId should only be populated if this was created from a TSR
     const newRequest = {
-      id: newAccommodationDetails.id,
-      trfId: newTravelRequest.id,
+      id: newTravelRequest.id, // This is the ACCOM ID 
+      trfId: data.trfId || null, // Only populate if created from a TSR
       requestorName: newTravelRequest.requestor_name,
       requestorId: newTravelRequest.staff_id,
       department: newTravelRequest.department,
@@ -126,7 +128,7 @@ export async function GET(request: NextRequest) {
       console.log(`API_ACCOM_REQ_GET (PostgreSQL): Using statuses filter with values: ${JSON.stringify(statuses)}`);
       
       // Create a dynamic query based on the number of statuses
-      // For each status, we'll create a separate condition with OR
+      // For approval queue, only return standalone accommodation requests (travel_type = 'Accommodation')
       let whereClause = '';
       for (let i = 0; i < statuses.length; i++) {
         whereClause += i === 0 ? 'WHERE (' : ' OR ';
@@ -134,14 +136,14 @@ export async function GET(request: NextRequest) {
       }
       // Close the parentheses if we have any conditions
       if (statuses.length > 0) {
-        whereClause += ')';
+        whereClause += ') AND tr.travel_type = \'Accommodation\'';
       }
       
       // Use raw SQL query with manual escaping for simplicity
       const query = `
-        SELECT 
-          tad.id,
-          tad.trf_id as "trfId",
+        SELECT DISTINCT ON (tr.id)
+          tr.id,
+          NULL as "trfId",
           tr.requestor_name as "requestorName",
           tr.staff_id as "requestorId",
           'Male' as "requestorGender", 
@@ -164,7 +166,7 @@ export async function GET(request: NextRequest) {
           travel_requests tr ON tad.trf_id = tr.id
         ${whereClause}
         ORDER BY 
-          tr.submitted_at DESC
+          tr.id, tr.submitted_at DESC
         LIMIT ${limit}
       `;
       
@@ -173,9 +175,12 @@ export async function GET(request: NextRequest) {
     } else {
       // When not filtering by status
       requests = await sql`
-        SELECT 
-          tad.id,
-          tad.trf_id as "trfId",
+        SELECT DISTINCT ON (tr.id)
+          tr.id,
+          CASE 
+            WHEN tr.travel_type = 'Accommodation' THEN NULL 
+            ELSE tr.id 
+          END as "trfId",
           tr.requestor_name as "requestorName",
           tr.staff_id as "requestorId",
           'Male' as "requestorGender", 
@@ -197,7 +202,7 @@ export async function GET(request: NextRequest) {
         LEFT JOIN 
           travel_requests tr ON tad.trf_id = tr.id
         ORDER BY 
-          tr.submitted_at DESC
+          tr.id, tr.submitted_at DESC
         LIMIT ${limit}
       `;
     }

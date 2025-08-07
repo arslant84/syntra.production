@@ -11,9 +11,12 @@ export async function getAccommodationRequests(userId?: string): Promise<Accommo
     // Build the query based on whether a userId is provided
     const query = userId
       ? sql`
-          SELECT 
-            tad.id,
-            tad.trf_id as "trfId",
+          SELECT DISTINCT ON (tr.id)
+            tr.id,
+            CASE 
+              WHEN tr.travel_type = 'Accommodation' THEN NULL 
+              ELSE tr.id 
+            END as "trfId",
             tr.requestor_name as "requestorName",
             tr.staff_id as "requestorId",
             'Male' as "requestorGender", -- Default value as it's not in the schema
@@ -37,12 +40,15 @@ export async function getAccommodationRequests(userId?: string): Promise<Accommo
           WHERE 
             tr.staff_id = ${userId}
           ORDER BY 
-            tr.submitted_at DESC
+            tr.id, tr.submitted_at DESC
         `
       : sql`
-          SELECT 
-            tad.id,
-            tad.trf_id as "trfId",
+          SELECT DISTINCT ON (tr.id)
+            tr.id,
+            CASE 
+              WHEN tr.travel_type = 'Accommodation' THEN NULL 
+              ELSE tr.id 
+            END as "trfId",
             tr.requestor_name as "requestorName",
             tr.staff_id as "requestorId",
             'Male' as "requestorGender", -- Default value as it's not in the schema
@@ -64,7 +70,7 @@ export async function getAccommodationRequests(userId?: string): Promise<Accommo
           LEFT JOIN 
             travel_requests tr ON tad.trf_id = tr.id
           ORDER BY 
-            tr.submitted_at DESC
+            tr.id, tr.submitted_at DESC
         `;
 
     const accommodationRequests = await query;
@@ -106,8 +112,11 @@ export async function getAccommodationRequestById(requestId: string): Promise<Ac
   try {
     const [request] = await sql`
       SELECT 
-        tad.id,
-        tad.trf_id as "trfId",
+        tr.id,
+        CASE 
+          WHEN tr.travel_type = 'Accommodation' THEN NULL 
+          ELSE tr.id 
+        END as "trfId",
         tr.requestor_name as "requestorName",
         tr.staff_id as "requestorId",
         'Male' as "requestorGender", -- Default value as it's not in the schema
@@ -129,7 +138,7 @@ export async function getAccommodationRequestById(requestId: string): Promise<Ac
       LEFT JOIN 
         travel_requests tr ON tad.trf_id = tr.id
       WHERE 
-        tad.id = ${bookingId}
+        tr.id = ${bookingId}
     `;
 
     if (!request) {

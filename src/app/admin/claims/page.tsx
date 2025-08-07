@@ -1,6 +1,8 @@
 
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReceiptText, ListFilter, Search, AlertCircle, CheckCircle, XCircle, Clock, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";

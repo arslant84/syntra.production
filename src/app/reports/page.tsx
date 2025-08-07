@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart2, FileText, ReceiptText, BedDouble, Users2, Filter, CalendarDays, StickyNote, Activity, Loader2 } from "lucide-react";
+import { BarChart2, FileText, ReceiptText, BedDouble, Users2, Filter, CalendarDays, StickyNote, Activity, Loader2, Car } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -56,6 +56,13 @@ interface VisaData {
   rejected: number;
 }
 
+interface TransportData {
+  month: string;
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
 interface UserActivityData {
   month: string;
   logins: number;
@@ -86,6 +93,12 @@ const visaChartConfig = {
   rejected: { label: "Rejected", color: "hsl(var(--chart-3))" },
 } satisfies ChartConfig;
 
+const transportChartConfig = {
+  pending: { label: "Pending", color: "hsl(var(--chart-1))" },
+  approved: { label: "Approved", color: "hsl(var(--chart-2))" },
+  rejected: { label: "Rejected", color: "hsl(var(--chart-3))" },
+} satisfies ChartConfig;
+
 const userActivityChartConfig = {
   logins: { label: "Logins", color: "hsl(var(--chart-1))" },
       trf_submitted: { label: "TSR Submitted", color: "hsl(var(--chart-2))" },
@@ -98,6 +111,7 @@ export default function ReportsPage() {
   const [expenseClaimData, setExpenseClaimData] = useState<ExpenseClaimData[]>([]);
   const [accommodationData, setAccommodationData] = useState<AccommodationData[]>([]);
   const [visaData, setVisaData] = useState<VisaData[]>([]);
+  const [transportData, setTransportData] = useState<TransportData[]>([]);
   const [userActivityData, setUserActivityData] = useState<UserActivityData[]>([]);
 
   const [isLoadingTrf, setIsLoadingTrf] = useState(false);
@@ -111,6 +125,9 @@ export default function ReportsPage() {
 
   const [isLoadingVisa, setIsLoadingVisa] = useState(false);
   const [errorVisa, setErrorVisa] = useState<string | null>(null);
+
+  const [isLoadingTransport, setIsLoadingTransport] = useState(false);
+  const [errorTransport, setErrorTransport] = useState<string | null>(null);
 
   const [isLoadingUserActivity, setIsLoadingUserActivity] = useState(false);
   const [errorUserActivity, setErrorUserActivity] = useState<string | null>(null);
@@ -440,15 +457,16 @@ export default function ReportsPage() {
     fetchVisaData();
   }, [year, dateRange, isApplyingFilters]);
 
-  // Fetch User Activity data
+  // Fetch Transport data
   useEffect(() => {
-    const fetchUserActivityData = async () => {
-      setIsLoadingUserActivity(true);
-      setErrorUserActivity(null);
+    const fetchTransportData = async () => {
+      setIsLoadingTransport(true);
+      setErrorTransport(null);
       try {
         // Include date range in query if available
-        let url = '/api/user-activity/summary';
+        let url = '/api/transport';
         const params = new URLSearchParams();
+        params.append('summary', 'true');
         params.append('year', year);
         
         if (dateRange?.from && dateRange?.to) {
@@ -457,49 +475,49 @@ export default function ReportsPage() {
         }
         
         url += `?${params.toString()}`;
-        console.log('Fetching user activity data with URL:', url);
+        console.log('Fetching transport data with URL:', url);
         
         const response = await fetch(url);
         
         // Always try to parse the response, even if status is not OK
         const data = await response.json();
         
-        if (data.activityByMonth && Array.isArray(data.activityByMonth)) {
-          console.log('Received user activity data:', data.activityByMonth);
-          setUserActivityData(data.activityByMonth.map((item: any) => ({
+        if (data.statusByMonth && Array.isArray(data.statusByMonth)) {
+          console.log('Received transport data:', data.statusByMonth);
+          setTransportData(data.statusByMonth.map((item: any) => ({
             month: item.month,
-            logins: item.logins || 0,
-            trf_submitted: item.trf_submitted || 0,
-            claim_created: item.claim_created || 0,
+            pending: item.pending || 0,
+            approved: item.approved || 0,
+            rejected: item.rejected || 0,
           })));
         } else if (data.error) {
           // API returned an error message
-          console.warn('User Activity API returned error:', data.error, data.details || '');
-          throw new Error(data.error);
+          console.warn('Transport API returned error:', data.error, data.details || '');
+          throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
         } else {
           // Unexpected data format
-          console.warn('Unexpected data format from User Activity API:', data);
+          console.warn('Unexpected data format from Transport API:', data);
           throw new Error('Invalid data format received');
         }
       } catch (err: any) {
-        console.error('Error handling user activity data:', err);
-        setErrorUserActivity(err.message || 'Failed to load user activity data');
+        console.error('Error handling transport data:', err);
+        setErrorTransport(err.message || 'Failed to load transport data');
         
         // Generate fallback data based on date range
         const fallbackMonths = generateMonthsFromDateRange();
         const fallbackData = fallbackMonths.map((monthObj: {month: string}) => ({
           month: monthObj.month,
-          logins: 0,
-          trf_submitted: 0,
-          claim_created: 0
+          pending: 0,
+          approved: 0,
+          rejected: 0
         }));
         
-        setUserActivityData(fallbackData);
+        setTransportData(fallbackData);
       } finally {
-        setIsLoadingUserActivity(false);
+        setIsLoadingTransport(false);
       }
     };
-    fetchUserActivityData();
+    fetchTransportData();
   }, [year, dateRange, isApplyingFilters]);
   
   return (
@@ -736,6 +754,53 @@ export default function ReportsPage() {
               )}
             </div>
             <Button variant="outline" className="w-full" disabled>View Detailed Accommodation Report</Button>
+          </CardContent>
+        </Card>
+
+        {/* Transport Reports Card */}
+        <Card className="shadow-lg w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Car /> Transport Reports</CardTitle>
+            <CardDescription>Analyze transport request trends, statuses, and vehicle utilization.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-2">
+                <Select disabled>
+                    <SelectTrigger className="w-full sm:flex-1">
+                    <SelectValue placeholder="Filter by Vehicle Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                    <SelectItem value="sedan">Sedan</SelectItem>
+                    <SelectItem value="suv">SUV</SelectItem>
+                    <SelectItem value="bus">Bus</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="h-[250px] w-full pt-4">
+              {isLoadingTransport ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Loading data...</span>
+                </div>
+              ) : errorTransport ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-destructive">{errorTransport}</p>
+                </div>
+              ) : (
+                <ChartContainer config={transportChartConfig} className="h-full w-full">
+                  <BarChart accessibilityLayer data={transportData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="pending" fill="var(--color-pending)" radius={4} />
+                    <Bar dataKey="approved" fill="var(--color-approved)" radius={4} />
+                    <Bar dataKey="rejected" fill="var(--color-rejected)" radius={4} />
+                  </BarChart>
+                </ChartContainer>
+              )}
+            </div>
+            <Button variant="outline" className="w-full" disabled>View Detailed Transport Report</Button>
           </CardContent>
         </Card>
 

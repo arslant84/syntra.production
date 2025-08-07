@@ -13,6 +13,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@auth/core": "^0.34.2",
     "@firebasegen/default-connector": "file:dataconnect-generated/js/default-connector",
     "@genkit-ai/googleai": "^1.8.0",
     "@genkit-ai/next": "^1.8.0",

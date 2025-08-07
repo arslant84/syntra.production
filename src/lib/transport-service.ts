@@ -304,6 +304,37 @@ export class TransportService {
       throw new Error('Failed to fetch all transport requests');
     }
   }
+
+  // Get transport requests by date range
+  static async getTransportRequestsByDateRange(fromDate: Date, toDate: Date): Promise<TransportRequestSummary[]> {
+    try {
+      const result = await sql`
+        SELECT 
+          tr.id,
+          tr.requestor_name,
+          tr.department,
+          tr.purpose,
+          tr.status,
+          tr.created_at as submitted_at,
+          tr.tsr_reference
+        FROM transport_requests tr
+        WHERE tr.created_at >= ${fromDate.toISOString()} AND tr.created_at <= ${toDate.toISOString()}
+        ORDER BY tr.created_at DESC
+      `;
+      return result.map((row: any) => ({
+        id: row.id,
+        requestorName: row.requestor_name,
+        department: row.department,
+        purpose: row.purpose,
+        status: row.status,
+        submittedAt: row.submitted_at,
+        tsrReference: row.tsr_reference
+      }));
+    } catch (error) {
+      console.error('Error fetching transport requests by date range:', error);
+      throw new Error('Failed to fetch transport requests by date range');
+    }
+  }
   
   // Update transport request
   static async updateTransportRequest(id: string, data: Partial<TransportRequestForm>, userId: string): Promise<TransportRequestForm> {

@@ -1,6 +1,8 @@
 // src/app/admin/users/page.tsx
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect, useCallback, useTransition, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";

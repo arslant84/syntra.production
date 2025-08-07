@@ -66,9 +66,21 @@ export default function TransportRequestsPage() {
       const response = await fetch(`/api/transport?${params.toString()}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ details: "Failed to parse error response." }));
-        let errorMessage = errorData.details || errorData.error || `Failed to fetch transport requests. Server responded with status ${response.status}.`;
-        if (typeof errorData.details === 'object') {
-            errorMessage = Object.values(errorData.details).flat().join(' ');
+        let errorMessage = "Failed to fetch transport requests.";
+        if (errorData.details) {
+            if (typeof errorData.details === 'object' && errorData.details !== null) {
+                try {
+                    errorMessage = Object.values(errorData.details).flat().join(' ');
+                } catch (e) {
+                    errorMessage = JSON.stringify(errorData.details);
+                }
+            } else {
+                errorMessage = String(errorData.details);
+            }
+        } else if (errorData.error) {
+            errorMessage = String(errorData.error);
+        } else {
+            errorMessage = `Failed to fetch transport requests. Server responded with status ${response.status}.`;
         }
         throw new Error(errorMessage);
       }

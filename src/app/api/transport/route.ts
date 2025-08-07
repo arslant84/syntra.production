@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { TransportService } from '@/lib/transport-service';
 
 export async function GET(request: NextRequest) {
@@ -14,6 +14,41 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const statuses = searchParams.get('statuses');
     const limit = searchParams.get('limit');
+    const summary = searchParams.get('summary');
+    const fromDate = searchParams.get('fromDate');
+    const toDate = searchParams.get('toDate');
+
+    if (summary === 'true') {
+      let allTransportRequests;
+      if (fromDate && toDate) {
+        allTransportRequests = await TransportService.getTransportRequestsByDateRange(new Date(fromDate), new Date(toDate));
+      } else {
+        allTransportRequests = await TransportService.getAllTransportRequests();
+      }
+
+      const statusByMonth: { [key: string]: { month: string; pending: number; approved: number; rejected: number } } = {};
+
+      allTransportRequests.forEach((request) => {
+        const month = new Date(request.submittedAt).toLocaleString('default', { month: 'short' });
+        if (!statusByMonth[month]) {
+          statusByMonth[month] = { month, pending: 0, approved: 0, rejected: 0 };
+        }
+        if (request.status.includes('Pending')) {
+          statusByMonth[month].pending++;
+        } else if (request.status.includes('Approved')) {
+          statusByMonth[month].approved++;
+        } else if (request.status.includes('Rejected')) {
+          statusByMonth[month].rejected++;
+        }
+      });
+
+      const sortedMonths = Object.values(statusByMonth).sort((a, b) => {
+        const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+      });
+
+      return NextResponse.json({ statusByMonth: sortedMonths });
+    }
     
     // If statuses are specified, fetch all transport requests with those statuses (for approval queue)
     if (statuses) {
@@ -22,9 +57,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ transportRequests });
     }
 
-    // Get user ID from session or user lookup
-    const userId = session.user.id || session.user.email;
-    const transportRequests = await TransportService.getTransportRequestsByUser(userId);
+    // For transport listing page, show all transport requests
+    // In the future, this could be filtered based on user role/permissions
+    const transportRequests = await TransportService.getAllTransportRequests();
     
     return NextResponse.json(transportRequests);
   } catch (error) {

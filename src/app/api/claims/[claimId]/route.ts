@@ -77,10 +77,112 @@ const expenseClaimCreateSchema = z.object({
   trfId: z.string().optional().nullable(), // For linking to a TRF
 });
 
+export async function GET(request: NextRequest, { params }: { params: Promise<{ claimId: string }> }) {
+  const { claimId } = await params;
+  console.log(`API_CLAIMS_GET_BY_ID_START (PostgreSQL): Fetching claim details for ID: ${claimId}`);
+  
+  if (!sql) {
+    console.error("API_CLAIMS_GET_BY_ID_ERROR (PostgreSQL): SQL client is not initialized.");
+    return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
+  }
+  
+  try {
+    // Get main claim data
+    const claimResult = await sql`
+      SELECT * FROM expense_claims WHERE id = ${claimId}
+    `;
+    
+    if (claimResult.length === 0) {
+      return NextResponse.json({ error: `Claim with ID ${claimId} not found.` }, { status: 404 });
+    }
+    
+    const claim = claimResult[0];
+    
+    // Get expense items
+    const expenseItems = await sql`
+      SELECT * FROM expense_claim_items WHERE claim_id = ${claimId} ORDER BY item_date ASC
+    `;
+    
+    // Get foreign exchange rates
+    const fxRates = await sql`
+      SELECT * FROM expense_claim_fx_rates WHERE claim_id = ${claimId} ORDER BY fx_date ASC
+    `;
+    
+    // Transform the data to match frontend expectations
+    const claimData = {
+      id: claim.id,
+      headerDetails: {
+        documentType: claim.document_type,
+        documentNumber: claim.document_number,
+        claimForMonthOf: claim.claim_for_month_of,
+        staffName: claim.staff_name,
+        staffNo: claim.staff_no,
+        gred: claim.gred,
+        staffType: claim.staff_type,
+        executiveStatus: claim.executive_status,
+        departmentCode: claim.department_code,
+        deptCostCenterCode: claim.dept_cost_center_code,
+        location: claim.location,
+        telExt: claim.tel_ext,
+        startTimeFromHome: claim.start_time_from_home,
+        timeOfArrivalAtHome: claim.time_of_arrival_at_home
+      },
+      bankDetails: {
+        bankName: claim.bank_name,
+        accountNumber: claim.account_number,
+        purposeOfClaim: claim.purpose_of_claim
+      },
+      medicalClaimDetails: {
+        isMedicalClaim: claim.is_medical_claim,
+        applicableMedicalType: claim.applicable_medical_type,
+        isForFamily: claim.is_for_family,
+        familyMemberSpouse: claim.family_member_spouse,
+        familyMemberChildren: claim.family_member_children,
+        familyMemberOther: claim.family_member_other
+      },
+      expenseItems: expenseItems.map(item => ({
+        id: item.id,
+        date: item.item_date,
+        claimOrTravelDetails: item.claim_or_travel_details,
+        officialMileageKM: item.official_mileage_km,
+        transport: item.transport,
+        hotelAccommodationAllowance: item.hotel_accommodation_allowance,
+        outStationAllowanceMeal: item.out_station_allowance_meal,
+        miscellaneousAllowance10Percent: item.miscellaneous_allowance_10_percent,
+        otherExpenses: item.other_expenses
+      })),
+      informationOnForeignExchangeRate: fxRates.map(fx => ({
+        id: fx.id,
+        date: fx.fx_date,
+        typeOfCurrency: fx.type_of_currency,
+        sellingRateTTOD: fx.selling_rate_tt_od
+      })),
+      financialSummary: {
+        totalAdvanceClaimAmount: claim.total_advance_claim_amount,
+        lessAdvanceTaken: claim.less_advance_taken,
+        lessCorporateCreditCardPayment: claim.less_corporate_credit_card_payment,
+        balanceClaimRepayment: claim.balance_claim_repayment,
+        chequeReceiptNo: claim.cheque_receipt_no
+      },
+      declaration: {
+        iDeclare: claim.i_declare,
+        date: claim.declaration_date
+      },
+      status: claim.status,
+      submittedAt: claim.submitted_at
+    };
+    
+    console.log(`API_CLAIMS_GET_BY_ID (PostgreSQL): Successfully fetched claim ${claimId}`);
+    return NextResponse.json({ claimData });
+    
+  } catch (error: any) {
+    console.error(`API_CLAIMS_GET_BY_ID_ERROR (PostgreSQL) for claim ${claimId}:`, error.message, error.stack);
+    return NextResponse.json({ error: 'Failed to fetch claim details.', details: error.message }, { status: 500 });
+  }
+}
 
-
-
-export async function PUT(request: NextRequest, { params }: { params: { claimId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ claimId: string }> }) {
+  const { claimId } = await params;
   console.log("API_CLAIMS_PUT_START (PostgreSQL): Revising expense claim.");
   if (!sql) {
     console.error("API_CLAIMS_PUT_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -89,7 +191,6 @@ export async function PUT(request: NextRequest, { params }: { params: { claimId:
   console.log("API_CLAIMS_PUT: SQL client is initialized.");
 
   try {
-    const { claimId } = await params;
     console.log("API_CLAIMS_PUT: Processing claim ID:", claimId);
 
     if (!claimId) {
@@ -254,170 +355,5 @@ export async function PUT(request: NextRequest, { params }: { params: { claimId:
   } catch (error: any) {
     console.error("API_CLAIMS_PUT_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to revise expense claim.', details: error.message }, { status: 500 });
-  }
-}
-
-export async function GET(request: NextRequest, { params }: { params: { claimId: string } }) {
-  console.log("API_CLAIMS_GET_START (PostgreSQL): Fetching claims.");
-  if (!sql) {
-    return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
-  }
-  try {
-    const { claimId } = await params;
-    console.log(`API_CLAIMS_GET (PostgreSQL): Fetching claim with ID: ${claimId}`);
-
-    const [claim] = await sql`
-      SELECT
-        id,
-        trf_id,
-        document_type,
-        document_number,
-        claim_for_month_of,
-        staff_name,
-        staff_no,
-        gred,
-        staff_type,
-        executive_status,
-        department_code,
-        dept_cost_center_code,
-        location,
-        tel_ext,
-        start_time_from_home,
-        time_of_arrival_at_home,
-        bank_name,
-        account_number,
-        purpose_of_claim,
-        is_medical_claim,
-        applicable_medical_type,
-        is_for_family,
-        family_member_spouse,
-        family_member_children,
-        family_member_other,
-        total_advance_claim_amount,
-        less_advance_taken,
-        less_corporate_credit_card_payment,
-        balance_claim_repayment,
-        cheque_receipt_no,
-        i_declare,
-        declaration_date,
-        status,
-        submitted_at,
-        created_at,
-        updated_at
-      FROM expense_claims
-      WHERE id = ${claimId}
-    `;
-
-    if (!claim) {
-      console.log(`API_CLAIMS_GET (PostgreSQL): Claim with ID ${claimId} not found.`);
-      return NextResponse.json({ error: 'Claim not found.' }, { status: 404 });
-    }
-
-    const expenseItems = await sql`
-      SELECT
-        item_date as date,
-        claim_or_travel_details as claimOrTravelDetails,
-        official_mileage_km as officialMileageKM,
-        transport,
-        hotel_accommodation_allowance as hotelAccommodationAllowance,
-        out_station_allowance_meal as outStationAllowanceMeal,
-        miscellaneous_allowance_10_percent as miscellaneousAllowance10Percent,
-        other_expenses as otherExpenses
-      FROM expense_claim_items
-      WHERE claim_id = ${claimId}
-      ORDER BY item_date ASC
-    `;
-    
-
-    const fxRates = await sql`
-      SELECT
-        fx_date as date,
-        type_of_currency as typeOfCurrency,
-        selling_rate_tt_od as sellingRateTTOD
-      FROM expense_claim_fx_rates
-      WHERE claim_id = ${claimId}
-      ORDER BY fx_date ASC
-    `;
-
-    const formattedClaim = {
-      headerDetails: {
-        documentType: claim.document_type,
-        documentNumber: claim.document_number,
-        claimForMonthOf: claim.claim_for_month_of,
-        staffName: claim.staff_name,
-        staffNo: claim.staff_no,
-        gred: claim.gred,
-        staffType: claim.staff_type,
-        executiveStatus: claim.executive_status,
-        departmentCode: claim.department_code,
-        deptCostCenterCode: claim.dept_cost_center_code,
-        location: claim.location,
-        telExt: claim.tel_ext,
-        startTimeFromHome: claim.start_time_from_home,
-        timeOfArrivalAtHome: claim.time_of_arrival_at_home,
-      },
-      bankDetails: {
-        bankName: claim.bank_name,
-        accountNumber: claim.account_number,
-        purposeOfClaim: claim.purpose_of_claim,
-      },
-      medicalClaimDetails: {
-        isMedicalClaim: claim.is_medical_claim,
-        applicableMedicalType: claim.applicable_medical_type,
-        isForFamily: claim.is_for_family,
-        familyMemberSpouse: claim.family_member_spouse,
-        familyMemberChildren: claim.family_member_children,
-        familyMemberOther: claim.family_member_other,
-      },
-      expenseItems: expenseItems.map((item: any) => {
-        // Parse claimOrTravelDetails from string back to object format for frontend
-        let claimDetails = item.claimOrTravelDetails;
-        if (typeof claimDetails === 'string' && claimDetails) {
-          const parts = claimDetails.split(' - ');
-          claimDetails = {
-            from: parts[0] || '',
-            to: parts[1] || '',
-            placeOfStay: parts[2] || '',
-          };
-        }
-        
-        return {
-          ...item,
-          claimOrTravelDetails: claimDetails,
-          date: formatISO(new Date(item.date), { representation: 'date' }),
-          officialMileageKM: item.officialMileageKM === null ? null : Number(item.officialMileageKM),
-          transport: item.transport === null ? null : Number(item.transport),
-          hotelAccommodationAllowance: item.hotelAccommodationAllowance === null ? null : Number(item.hotelAccommodationAllowance),
-          outStationAllowanceMeal: item.outStationAllowanceMeal === null ? null : Number(item.outStationAllowanceMeal),
-          miscellaneousAllowance10Percent: item.miscellaneousAllowance10Percent === null ? null : Number(item.miscellaneousAllowance10Percent),
-          otherExpenses: item.otherExpenses === null ? null : Number(item.otherExpenses),
-        };
-      }),
-      informationOnForeignExchangeRate: fxRates.map((fx: any) => ({
-        ...fx,
-        date: formatISO(new Date(fx.date), { representation: 'date' }),
-        sellingRateTTOD: fx.sellingRateTTOD === null ? null : Number(fx.sellingRateTTOD),
-      })),
-      financialSummary: {
-        totalAdvanceClaimAmount: claim.total_advance_claim_amount === null ? null : Number(claim.total_advance_claim_amount),
-        lessAdvanceTaken: claim.less_advance_taken === null ? null : Number(claim.less_advance_taken),
-        lessCorporateCreditCardPayment: claim.less_corporate_credit_card_payment === null ? null : Number(claim.less_corporate_credit_card_payment),
-        balanceClaimRepayment: claim.balance_claim_repayment === null ? null : Number(claim.balance_claim_repayment),
-        chequeReceiptNo: claim.cheque_receipt_no,
-      },
-      declaration: {
-        iDeclare: claim.i_declare,
-        date: formatISO(new Date(claim.declaration_date), { representation: 'date' }),
-      },
-      trfId: claim.trf_id,
-      status: claim.status,
-      submittedAt: claim.submitted_at,
-    };
-
-    console.log('API_CLAIMS_GET (PostgreSQL): Claim data fetched and formatted successfully.');
-    return NextResponse.json({ claimData: formattedClaim });
-  } catch (error: any) {
-    console.error("API_CLAIMS_GET_ERROR (PostgreSQL):", error.message, error.stack);
-    return NextResponse.json({ error: 'Failed to fetch claims.', details: error.message }, { status: 500 });
   }
 }

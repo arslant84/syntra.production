@@ -20,14 +20,14 @@ export class TransportService {
       const transportRequest = await sql.begin(async (sql) => {
         const [request] = await sql`
           INSERT INTO transport_requests (
-            id, requestor_name, staff_id, department, position, cost_center, 
-            tel_email, email, purpose, status,
+            id, requestor_name, staff_id, department, position, 
+            purpose, status,
             tsr_reference, additional_comments, confirm_policy, 
             confirm_manager_approval, confirm_terms_and_conditions, created_by,
             submitted_at
           ) VALUES (
-            ${transportId}, ${requestData.requestorName}, ${requestData.staffId ?? null}, ${requestData.department ?? null}, ${requestData.position ?? null}, ${requestData.costCenter ?? null}, 
-            ${requestData.telEmail ?? null}, ${requestData.email ?? null}, ${requestData.purpose}, 'Pending Department Focal', 
+            ${transportId}, ${requestData.requestorName}, ${requestData.staffId ?? null}, ${requestData.department ?? null}, ${requestData.position ?? null}, 
+            ${requestData.purpose}, 'Pending Department Focal', 
             ${requestData.tsrReference ?? null}, ${requestData.additionalComments ?? null}, ${requestData.confirmPolicy ?? null}, 
             ${requestData.confirmManagerApproval ?? null}, ${requestData.confirmTermsAndConditions ?? null}, ${userId},
             NOW()
@@ -51,49 +51,19 @@ export class TransportService {
           }
         }
 
-        // Create default approval workflow if none provided
-        const approvalWorkflow = data.approvalWorkflow && data.approvalWorkflow.length > 0 
-          ? data.approvalWorkflow 
-          : [
-              {
-                role: 'Requestor',
-                name: requestData.requestorName || 'Unknown',
-                status: 'Approved',
-                date: new Date(),
-                comments: 'Request submitted'
-              },
-              {
-                role: 'Department Focal',
-                name: 'Department Focal',
-                status: 'Pending',
-                date: null,
-                comments: null
-              },
-              {
-                role: 'Line Manager',
-                name: 'Line Manager',
-                status: 'Not Started',
-                date: null,
-                comments: null
-              },
-              {
-                role: 'HOD',
-                name: 'HOD',
-                status: 'Not Started',
-                date: null,
-                comments: null
-              }
-            ];
-
-        for (const step of approvalWorkflow) {
-          await sql`
-            INSERT INTO transport_approval_steps (
-              transport_request_id, role, name, status, date, comments
-            ) VALUES (
-              ${transportId}, ${step.role}, ${step.name}, ${step.status}, ${step.date}, ${step.comments}
-            )
-          `;
-        }
+        // Record initial submission (TRF-style - only record actual actions)
+        await sql`
+          INSERT INTO transport_approval_steps (
+            transport_request_id, role, name, status, date, comments
+          ) VALUES (
+            ${transportId}, 
+            'Requestor', 
+            ${requestData.requestorName || 'Unknown'}, 
+            'Submitted',
+            NOW(), 
+            'Request submitted'
+          )
+        `;
 
         // Set initial status based on workflow
         if (!requestData.status) {
@@ -133,15 +103,19 @@ export class TransportService {
         SELECT * FROM transport_approval_steps WHERE transport_request_id = ${id} ORDER BY created_at
       `;
 
+      // Generate the complete approval workflow including expected pending steps
+      const fullApprovalWorkflow = this.generateFullApprovalWorkflow(
+        transportRequest.status, 
+        approvalResult,
+        transportRequest.requestor_name
+      );
+
       return {
         id: transportRequest.id,
         requestorName: transportRequest.requestor_name,
         staffId: transportRequest.staff_id,
         department: transportRequest.department,
         position: transportRequest.position,
-        costCenter: transportRequest.cost_center,
-        telEmail: transportRequest.tel_email,
-        email: transportRequest.email,
         purpose: transportRequest.purpose,
         status: transportRequest.status,
         tsrReference: transportRequest.tsr_reference,
@@ -159,13 +133,7 @@ export class TransportService {
           transportType: row.transport_type,
           numberOfPassengers: row.number_of_passengers
         })),
-        approvalWorkflow: approvalResult.map((row: any) => ({
-          role: row.role,
-          name: row.name,
-          status: row.status,
-          date: row.date,
-          comments: row.comments
-        })),
+        approvalWorkflow: fullApprovalWorkflow,
         submittedAt: transportRequest.created_at,
         updatedAt: transportRequest.updated_at,
         createdBy: transportRequest.created_by,
@@ -346,12 +314,9 @@ export class TransportService {
             staff_id = ${data.staffId ?? null},
             department = ${data.department ?? null},
             position = ${data.position ?? null},
-            cost_center = ${data.costCenter ?? null},
-            tel_email = ${data.telEmail ?? null},
-            email = ${data.email ?? null},
             purpose = ${data.purpose},
-          status = ${data.status},
-          tsr_reference = ${data.tsrReference ?? null},
+            status = ${data.status},
+            tsr_reference = ${data.tsrReference ?? null},
             additional_comments = ${data.additionalComments ?? null},
             confirm_policy = ${data.confirmPolicy ?? null},
             confirm_manager_approval = ${data.confirmManagerApproval ?? null},
@@ -362,7 +327,6 @@ export class TransportService {
         `;
 
         await sql`DELETE FROM transport_details WHERE transport_request_id = ${id}`;
-        await sql`DELETE FROM transport_approval_steps WHERE transport_request_id = ${id}`;
 
         if (data.transportDetails && data.transportDetails.length > 0) {
           for (const detail of data.transportDetails) {
@@ -380,17 +344,8 @@ export class TransportService {
           }
         }
 
-        if (data.approvalWorkflow && data.approvalWorkflow.length > 0) {
-          for (const step of data.approvalWorkflow) {
-            await sql`
-              INSERT INTO transport_approval_steps (
-                transport_request_id, role, name, status, date, comments
-              ) VALUES (
-                ${id}, ${step.role}, ${step.name}, ${step.status}, ${step.date}, ${step.comments}
-              )
-            `;
-          }
-        }
+        // Note: Approval workflow is no longer pre-created or updated during edit
+        // Approval steps are only added when actual approval actions are taken (TRF-style)
       });
 
       return this.getTransportRequestById(id);
@@ -422,7 +377,7 @@ export class TransportService {
     return this.createTransportRequest(dataWithTSR);
   }
 
-  // Handle approval actions
+  // Handle approval actions (TRF-style workflow)
   static async processApprovalAction(
     transportRequestId: string, 
     action: 'approve' | 'reject', 
@@ -431,6 +386,15 @@ export class TransportService {
     comments?: string
   ): Promise<TransportRequestForm> {
     try {
+      // Define approval workflow sequence (like TRF)
+      const approvalWorkflowSequence: Record<string, string | null> = {
+        "Pending Department Focal": "Pending Line Manager",
+        "Pending Line Manager": "Pending HOD", 
+        "Pending HOD": "Approved"
+      };
+
+      const terminalStatuses = ["Approved", "Rejected", "Cancelled"];
+
       const result = await sql.begin(async (sql) => {
         // Get current transport request
         const [transportRequest] = await sql`
@@ -441,60 +405,25 @@ export class TransportService {
           throw new Error('Transport request not found');
         }
 
-        // Get current approval steps
-        const approvalSteps = await sql`
-          SELECT * FROM transport_approval_steps 
-          WHERE transport_request_id = ${transportRequestId}
-          ORDER BY 
-            CASE role 
-              WHEN 'Requestor' THEN 1
-              WHEN 'Department Focal' THEN 2
-              WHEN 'Line Manager' THEN 3
-              WHEN 'HOD' THEN 4
-              ELSE 5
-            END
-        `;
+        const currentStatus = transportRequest.status;
 
-        // Find the current step for this approver role
-        const currentStep = approvalSteps.find((step: any) => step.role === approverRole);
-        if (!currentStep) {
-          throw new Error(`No approval step found for role: ${approverRole}`);
+        // Check if already in terminal state
+        if (terminalStatuses.includes(currentStatus)) {
+          throw new Error(`Transport request is already in terminal state: ${currentStatus}`);
         }
 
-        // Update the current step
-        await sql`
-          UPDATE transport_approval_steps 
-          SET 
-            status = ${action === 'approve' ? 'Approved' : 'Rejected'},
-            name = ${approverName},
-            date = ${new Date()},
-            comments = ${comments || ''}
-          WHERE transport_request_id = ${transportRequestId} AND role = ${approverRole}
-        `;
-
-        // Determine the new overall status
-        let newStatus = transportRequest.status;
+        let newStatus = currentStatus;
 
         if (action === 'reject') {
           newStatus = 'Rejected';
         } else if (action === 'approve') {
-          // Check what the next step should be
-          const roleOrder = ['Requestor', 'Department Focal', 'Line Manager', 'HOD'];
-          const currentRoleIndex = roleOrder.indexOf(approverRole);
+          // Get next status from workflow sequence
+          const nextStatus = approvalWorkflowSequence[currentStatus];
           
-          if (currentRoleIndex < roleOrder.length - 1) {
-            // Move to next approval step
-            const nextRole = roleOrder[currentRoleIndex + 1];
-            newStatus = `Pending ${nextRole}`;
-            
-            // Update next step status to Pending
-            await sql`
-              UPDATE transport_approval_steps 
-              SET status = 'Pending'
-              WHERE transport_request_id = ${transportRequestId} AND role = ${nextRole}
-            `;
+          if (nextStatus) {
+            newStatus = nextStatus;
           } else {
-            // All approvals complete
+            // If no next step defined, mark as approved
             newStatus = 'Approved';
           }
         }
@@ -502,8 +431,22 @@ export class TransportService {
         // Update transport request status
         await sql`
           UPDATE transport_requests 
-          SET status = ${newStatus}, updated_at = ${new Date()}
+          SET status = ${newStatus}, updated_at = NOW()
           WHERE id = ${transportRequestId}
+        `;
+
+        // Record the approval step (TRF-style - only record actual actions)
+        await sql`
+          INSERT INTO transport_approval_steps (
+            transport_request_id, role, name, status, date, comments
+          ) VALUES (
+            ${transportRequestId}, 
+            ${approverRole}, 
+            ${approverName}, 
+            ${action === 'approve' ? 'Approved' : 'Rejected'},
+            NOW(), 
+            ${comments || (action === 'approve' ? 'Approved' : 'Rejected')}
+          )
         `;
 
         return { success: true };
@@ -514,5 +457,66 @@ export class TransportService {
       console.error(`Error processing approval action for transport request ${transportRequestId}:`, error);
       throw new Error(`Failed to process approval action: ${error.message}`);
     }
+  }
+
+  // Generate full approval workflow including pending steps (similar to TRF approach)
+  private static generateFullApprovalWorkflow(
+    currentStatus: string, 
+    completedSteps: any[],
+    requestorName?: string
+  ): TransportApprovalStep[] {
+    // Define the expected workflow sequence
+    const expectedWorkflow = [
+      { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
+      { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
+      { role: 'Line Manager', name: 'TBD', status: 'Pending' as const },
+      { role: 'HOD', name: 'TBD', status: 'Pending' as const }
+    ];
+
+    // Map completed steps by role for easy lookup
+    const completedByRole = completedSteps.reduce((acc: any, step: any) => {
+      acc[step.role] = step;
+      return acc;
+    }, {});
+
+    // Generate the full workflow
+    const fullWorkflow: TransportApprovalStep[] = [];
+
+    for (const expectedStep of expectedWorkflow) {
+      const completedStep = completedByRole[expectedStep.role];
+      
+      if (completedStep) {
+        // Use the completed step data
+        fullWorkflow.push({
+          role: completedStep.role,
+          name: completedStep.name,
+          status: completedStep.status,
+          date: completedStep.date,
+          comments: completedStep.comments
+        });
+      } else {
+        // Determine status based on current request status
+        let stepStatus: TransportApprovalStep['status'] = 'Pending';
+        
+        if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
+          stepStatus = 'Not Started';
+        } else if (currentStatus === 'Approved') {
+          // If approved, all pending steps should show as not started unless they were actually completed
+          stepStatus = 'Not Started';
+        } else if (currentStatus === `Pending ${expectedStep.role}`) {
+          stepStatus = 'Current';
+        }
+
+        fullWorkflow.push({
+          role: expectedStep.role,
+          name: expectedStep.name,
+          status: stepStatus,
+          date: undefined,
+          comments: undefined
+        });
+      }
+    }
+
+    return fullWorkflow;
   }
 } 

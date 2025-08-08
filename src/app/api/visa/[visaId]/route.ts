@@ -62,7 +62,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const app = result[0];
     
     // Get approval steps for this visa application
-    const approvalSteps = await sql`
+    const completedApprovalSteps = await sql`
       SELECT 
         id,
         step_number as "stepNumber",
@@ -77,6 +77,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       WHERE visa_application_id = ${visaId}
       ORDER BY step_number ASC
     `;
+    
+    // Generate the complete approval workflow including expected pending steps
+    const fullApprovalHistory = generateFullVisaApprovalWorkflow(
+      app.status, 
+      completedApprovalSteps,
+      app.requestor_name || 'Unknown'
+    );
     
     // Map database fields to frontend expected format
     const visaApplication: VisaApplication = {
@@ -102,13 +109,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // Optional fields
       passportCopy: null,
       supportingDocumentsNotes: '',
-      approvalHistory: approvalSteps.map(step => ({
-        stepName: step.stepName || '',
-        approverName: step.approverName || undefined,
-        status: step.status as "Pending" | "Approved" | "Rejected",
-        date: step.stepDate ? new Date(step.stepDate) : undefined,
-        comments: step.comments || undefined
-      })) as VisaApprovalStep[]
+      approvalHistory: fullApprovalHistory
     };
     
     return NextResponse.json({ visaApplication });
@@ -205,4 +206,65 @@ export async function DELETE(request: NextRequest, { params }: { params: { visaI
     console.error(`API_VISA_DELETE_ERROR (PostgreSQL): ${error.message}`, error.stack);
     return NextResponse.json({ error: 'Failed to delete visa application.', details: error.message }, { status: 500 });
   }
+}
+
+// Generate full approval workflow including pending steps (similar to Transport/TRF approach)
+function generateFullVisaApprovalWorkflow(
+  currentStatus: string, 
+  completedSteps: any[],
+  requestorName?: string
+): any[] {
+  // Define the expected workflow sequence for Visa
+  const expectedWorkflow = [
+    { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
+    { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
+    { role: 'Line Manager/HOD', name: 'TBD', status: 'Pending' as const },
+    { role: 'Visa Clerk', name: 'TBD', status: 'Pending' as const }
+  ];
+
+  // Map completed steps by role for easy lookup
+  const completedByRole = completedSteps.reduce((acc: any, step: any) => {
+    acc[step.stepRole] = step;
+    return acc;
+  }, {});
+
+  // Generate the full workflow
+  const fullWorkflow: any[] = [];
+
+  for (const expectedStep of expectedWorkflow) {
+    const completedStep = completedByRole[expectedStep.role];
+    
+    if (completedStep) {
+      // Use the completed step data - map to expected format for Visa
+      fullWorkflow.push({
+        stepName: completedStep.stepName || '',
+        approverName: completedStep.approverName || undefined,
+        status: completedStep.status as "Pending" | "Approved" | "Rejected",
+        date: completedStep.stepDate ? new Date(completedStep.stepDate) : undefined,
+        comments: completedStep.comments || undefined
+      });
+    } else {
+      // Determine status based on current request status
+      let stepStatus: "Pending" | "Approved" | "Rejected" = 'Pending';
+      
+      if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
+        stepStatus = 'Rejected'; // Using Rejected as Visa doesn't have Not Started
+      } else if (currentStatus === 'Approved') {
+        // If approved, all pending steps should show as not started unless they were actually completed
+        stepStatus = 'Pending';
+      } else if (currentStatus === `Pending ${expectedStep.role}`) {
+        stepStatus = 'Pending';
+      }
+
+      fullWorkflow.push({
+        stepName: expectedStep.role,
+        approverName: expectedStep.name !== 'TBD' ? expectedStep.name : undefined,
+        status: stepStatus,
+        date: undefined,
+        comments: undefined
+      });
+    }
+  }
+
+  return fullWorkflow;
 }

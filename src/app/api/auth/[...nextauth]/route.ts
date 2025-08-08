@@ -64,6 +64,18 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role || null; // Role name from authorize
         token.permissions = []; // Initialize as empty
 
+        // Update last login time
+        try {
+          await sql`
+            UPDATE users 
+            SET last_login_at = NOW() 
+            WHERE id = ${user.id}
+          `;
+          console.log(`JWT Callback: Updated last login time for user ${user.id}`);
+        } catch (error) {
+          console.error('JWT Callback: Error updating last login time:', error);
+        }
+
         if (token.roleId) {
           try {
             console.log(`JWT Callback: Fetching permissions for roleId: ${token.roleId}`);

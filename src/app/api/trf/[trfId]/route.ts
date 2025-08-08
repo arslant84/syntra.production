@@ -401,10 +401,17 @@ export async function GET(
     }
 
     try {
-      approvalWorkflow =
+      const completedApprovalSteps =
         await sql`SELECT step_role as role, step_name as name, status, step_date as date, comments FROM trf_approval_steps WHERE trf_id = ${trfId} ORDER BY created_at ASC`;
       console.log(
-        `API_TRF_TRFID_GET (PostgreSQL): Fetched ${approvalWorkflow.length} approval steps.`,
+        `API_TRF_TRFID_GET (PostgreSQL): Fetched ${completedApprovalSteps.length} approval steps.`,
+      );
+      
+      // Generate the complete approval workflow including expected pending steps
+      approvalWorkflow = generateFullTrfApprovalWorkflow(
+        mainTrfData.status, 
+        completedApprovalSteps,
+        mainTrfData.requestor_name || 'Unknown'
       );
     } catch (dbError: any) {
       console.error(
@@ -1969,4 +1976,65 @@ export async function DELETE(
       { status: 500 },
     );
   }
+}
+
+// Generate full approval workflow including pending steps (similar to Transport approach)
+function generateFullTrfApprovalWorkflow(
+  currentStatus: string, 
+  completedSteps: any[],
+  requestorName?: string
+): any[] {
+  // Define the expected workflow sequence for TRF
+  const expectedWorkflow = [
+    { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
+    { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
+    { role: 'Line Manager', name: 'TBD', status: 'Pending' as const },
+    { role: 'HOD', name: 'TBD', status: 'Pending' as const }
+  ];
+
+  // Map completed steps by role for easy lookup
+  const completedByRole = completedSteps.reduce((acc: any, step: any) => {
+    acc[step.role] = step;
+    return acc;
+  }, {});
+
+  // Generate the full workflow
+  const fullWorkflow: any[] = [];
+
+  for (const expectedStep of expectedWorkflow) {
+    const completedStep = completedByRole[expectedStep.role];
+    
+    if (completedStep) {
+      // Use the completed step data
+      fullWorkflow.push({
+        role: completedStep.role,
+        name: completedStep.name,
+        status: completedStep.status,
+        date: completedStep.date,
+        comments: completedStep.comments
+      });
+    } else {
+      // Determine status based on current request status
+      let stepStatus = 'Pending';
+      
+      if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
+        stepStatus = 'Not Started';
+      } else if (currentStatus === 'Approved') {
+        // If approved, all pending steps should show as not started unless they were actually completed
+        stepStatus = 'Not Started';
+      } else if (currentStatus === `Pending ${expectedStep.role}`) {
+        stepStatus = 'Current';
+      }
+
+      fullWorkflow.push({
+        role: expectedStep.role,
+        name: expectedStep.name,
+        status: stepStatus,
+        date: undefined,
+        comments: undefined
+      });
+    }
+  }
+
+  return fullWorkflow;
 }

@@ -24,7 +24,6 @@ export default function ApprovalWorkflow({ steps }: ApprovalWorkflowProps) {
   }
   return (
     <div>
-      <h3 className="text-md font-semibold mb-4 text-foreground/90">Approval Workflow</h3>
       <div className="relative pl-3">
         {/* Vertical line connecting the dots */}
         <div className="absolute left-[18px] top-3 bottom-3 w-0.5 bg-border -z-10" />
@@ -40,7 +39,7 @@ export default function ApprovalWorkflow({ steps }: ApprovalWorkflowProps) {
             iconColor = "text-blue-500";
             badgeVariant = "default";
             badgeClasses = "bg-blue-500 text-white";
-          } else if (step.status === "Approved") {
+          } else if (step.status === "Approved" || step.status === "Submitted") {
             IconComponent = CheckCircle;
             iconColor = "text-green-500";
             badgeVariant = "default"; // Or a custom success variant
@@ -51,7 +50,7 @@ export default function ApprovalWorkflow({ steps }: ApprovalWorkflowProps) {
             badgeVariant = "destructive";
             badgeClasses = ""; // Destructive variant handles its own colors
           } else if (step.status === "Pending") {
-             IconComponent = Circle;
+             IconComponent = Clock;
              iconColor = "text-amber-500"; // Yellow for pending
              badgeVariant = "outline";
              badgeClasses = "border-amber-500 text-amber-600";
@@ -76,7 +75,7 @@ export default function ApprovalWorkflow({ steps }: ApprovalWorkflowProps) {
                        "text-xs",
                        (step.status === "Current" || step.status === "Approved" || step.status === "Rejected") ? "text-muted-foreground" : "text-muted-foreground/70"
                     )}>
-                      {step.name}
+                      {step.name !== 'TBD' ? step.name : 'To be assigned'}
                        {step.date && step.status !== "Pending" && step.status !== "Current" && (
                         <span className="text-xs text-muted-foreground/80 ml-2">({formatDateSafe(step.date)})</span>
                       )}

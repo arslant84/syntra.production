@@ -134,15 +134,7 @@ export default function TransportRequestView({
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Position</p>
-              <p className="text-lg">{transportRequest.position}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Cost Center</p>
-              <p className="text-lg">{transportRequest.costCenter}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Contact</p>
-              <p className="text-lg">{transportRequest.telEmail}</p>
+              <p className="text-lg">{transportRequest.position || 'N/A'}</p>
             </div>
           </div>
         </CardContent>
@@ -261,27 +253,35 @@ export default function TransportRequestView({
             {transportRequest.approvalWorkflow?.map((step, index) => (
               <div key={index} className="flex items-center gap-4">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step.status === 'Approved' ? 'bg-green-100 text-green-600' :
+                  step.status === 'Approved' || step.status === 'Submitted' ? 'bg-green-100 text-green-600' :
                   step.status === 'Rejected' ? 'bg-red-100 text-red-600' :
                   step.status === 'Current' ? 'bg-blue-100 text-blue-600' :
+                  step.status === 'Pending' ? 'bg-yellow-100 text-yellow-600' :
                   'bg-gray-100 text-gray-600'
                 }`}>
-                  {step.status === 'Approved' ? <CheckCircle className="h-4 w-4" /> :
+                  {step.status === 'Approved' || step.status === 'Submitted' ? <CheckCircle className="h-4 w-4" /> :
                    step.status === 'Rejected' ? <XCircle className="h-4 w-4" /> :
                    step.status === 'Current' ? <AlertCircle className="h-4 w-4" /> :
+                   step.status === 'Pending' ? <Clock className="h-4 w-4" /> :
                    <div className="w-2 h-2 rounded-full bg-gray-400" />}
                 </div>
                 <div className="flex-1">
                   <p className="font-medium">{step.role}</p>
-                  <p className="text-sm text-gray-600">{step.name}</p>
+                  <p className="text-sm text-gray-600">{step.name !== 'TBD' ? step.name : 'To be assigned'}</p>
                   {step.date && (
                     <p className="text-xs text-gray-500">{formatDate(step.date)}</p>
                   )}
-                  {step.comments && (
+                  {step.comments && step.comments !== 'Request submitted' && (
                     <p className="text-sm text-gray-600 mt-1">{step.comments}</p>
                   )}
                 </div>
-                <Badge className={getStatusColor(step.status)}>
+                <Badge className={`${
+                  step.status === 'Approved' || step.status === 'Submitted' ? 'bg-green-100 text-green-800' :
+                  step.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                  step.status === 'Current' ? 'bg-blue-100 text-blue-800' :
+                  step.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
                   {step.status}
                 </Badge>
               </div>

@@ -167,6 +167,56 @@ export default function EditTransportRequestPage({ params }: { params: Promise<{
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Requestor Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Requestor Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="requestorName">Full Name</Label>
+                <Input
+                  id="requestorName"
+                  value={transportRequest.requestorName || ''}
+                  onChange={(e) => updateField('requestorName', e.target.value)}
+                  placeholder="Enter your full name"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="staffId">Staff ID</Label>
+                <Input
+                  id="staffId"
+                  value={transportRequest.staffId || ''}
+                  onChange={(e) => updateField('staffId', e.target.value)}
+                  placeholder="Enter your staff ID"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="department">Department</Label>
+                <Input
+                  id="department"
+                  value={transportRequest.department || ''}
+                  onChange={(e) => updateField('department', e.target.value)}
+                  placeholder="Enter your department"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="position">Position</Label>
+                <Input
+                  id="position"
+                  value={transportRequest.position || ''}
+                  onChange={(e) => updateField('position', e.target.value)}
+                  placeholder="Enter your position"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Purpose */}
         <Card>
           <CardHeader>

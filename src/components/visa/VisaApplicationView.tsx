@@ -58,7 +58,7 @@ const ApprovalStepView: React.FC<{ step: VisaApprovalStep; isLast: boolean }> = 
             </div>
             <div className="pb-8">
                 <p className="font-semibold text-sm">{step.stepName} <span className="text-xs text-muted-foreground">({step.status})</span></p>
-                {step.approverName && <p className="text-xs text-muted-foreground">By: {step.approverName}</p>}
+                <p className="text-xs text-muted-foreground">By: {step.approverName || 'To be assigned'}</p>
                 {step.date && <p className="text-xs text-muted-foreground">Date: {formatDateSafe(step.date, "Pp")}</p>}
                 {step.comments && <p className="text-xs text-muted-foreground italic mt-1">Comment: {step.comments}</p>}
             </div>

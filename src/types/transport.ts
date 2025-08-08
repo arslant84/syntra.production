@@ -18,9 +18,6 @@ export interface TransportRequestorInformation {
   staffId: string;
   department: string;
   position: string;
-  costCenter: string;
-  telEmail: string;
-  email?: string;
 }
 
 export interface TransportDetails {
@@ -39,9 +36,6 @@ export interface TransportRequestData {
   staffId?: string;
   department?: string;
   position?: string;
-  costCenter?: string;
-  telEmail?: string;
-  email?: string;
   
   purpose: string;
   transportDetails: TransportDetails[];
@@ -68,7 +62,7 @@ export interface TransportRequestForm extends TransportRequestData, TransportApp
 export interface TransportApprovalStep {
   role: string; // e.g., 'Requestor', 'Line Manager', 'Department Focal', 'HOD'
   name: string;
-  status: 'Current' | 'Pending' | 'Approved' | 'Rejected' | 'Not Started' | 'Cancelled';
+  status: 'Current' | 'Pending' | 'Approved' | 'Rejected' | 'Not Started' | 'Cancelled' | 'Submitted';
   date?: Date | string;
   comments?: string;
 }

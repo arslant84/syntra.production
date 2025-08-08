@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -25,10 +25,51 @@ export default function NewTransportRequestPage() {
     additionalComments: '',
     confirmPolicy: false,
     confirmManagerApproval: false,
-    confirmTermsAndConditions: false
+    confirmTermsAndConditions: false,
+    requestorName: '',
+    staffId: '',
+    department: '',
+    position: ''
   });
 
   const transportTypes: TransportType[] = ['Local', 'Intercity', 'Airport Transfer', 'Charter', 'Other'];
+
+  // Fetch user details when component mounts
+  useEffect(() => {
+    const fetchUserDetails = async () => {
+      if (!session?.user) {
+        console.log('No session or user available');
+        return;
+      }
+
+      console.log('Fetching user details, session:', session);
+
+      try {
+        const response = await fetch('/api/user-details');
+        console.log('User details response status:', response.status);
+        
+        if (response.ok) {
+          const userDetails = await response.json();
+          console.log('User details received:', userDetails);
+          
+          setFormData(prev => ({
+            ...prev,
+            requestorName: userDetails.requestorName || '',
+            staffId: userDetails.staffId || '',
+            department: userDetails.department || '',
+            position: userDetails.position || ''
+          }));
+        } else {
+          const errorData = await response.json();
+          console.error('Error response from user-details API:', errorData);
+        }
+      } catch (error) {
+        console.error('Error fetching user details:', error);
+      }
+    };
+
+    fetchUserDetails();
+  }, [session]);
 
   const addTransportDetail = () => {
     const newDetail: TransportDetails = {
@@ -83,8 +124,7 @@ export default function NewTransportRequestPage() {
 
       const requestPayload = { 
         ...formData, 
-        userId,
-        requestorName: session?.user?.name || 'Unknown User'
+        userId
       };
       const response = await fetch('/api/transport', {
         method: 'POST',
@@ -137,6 +177,56 @@ export default function NewTransportRequestPage() {
 
         <form onSubmit={handleSubmit}>
           <div className="grid gap-6">
+            {/* Requestor Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Requestor Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="requestorName">Full Name</Label>
+                    <Input
+                      id="requestorName"
+                      value={formData.requestorName}
+                      onChange={(e) => setFormData(prev => ({ ...prev, requestorName: e.target.value }))}
+                      placeholder="Enter your full name"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="staffId">Staff ID</Label>
+                    <Input
+                      id="staffId"
+                      value={formData.staffId}
+                      onChange={(e) => setFormData(prev => ({ ...prev, staffId: e.target.value }))}
+                      placeholder="Enter your staff ID"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="department">Department</Label>
+                    <Input
+                      id="department"
+                      value={formData.department}
+                      onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                      placeholder="Enter your department"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="position">Position</Label>
+                    <Input
+                      id="position"
+                      value={formData.position}
+                      onChange={(e) => setFormData(prev => ({ ...prev, position: e.target.value }))}
+                      placeholder="Enter your position"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Purpose */}
             <Card>
               <CardHeader>

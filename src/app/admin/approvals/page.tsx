@@ -241,10 +241,40 @@ export default function AdminApprovalsPage() {
     
     startActionTransition(async () => {
       try {
+        // Determine the correct approver role based on current status and item type
+        let approverRole = MOCK_APPROVER_ROLE;
+        
+        // Common patterns for most systems
+        if (selectedItemForAction.status === 'Pending Department Focal') {
+          approverRole = 'Department Focal';
+        } else if (selectedItemForAction.status === 'Pending Line Manager') {
+          approverRole = 'Line Manager';
+        } else if (selectedItemForAction.status === 'Pending HOD') {
+          approverRole = 'HOD';
+        }
+        
+        // System-specific status patterns
+        if (itemType === 'Visa') {
+          if (selectedItemForAction.status === 'Pending Line Manager/HOD') {
+            approverRole = 'Line Manager/HOD';
+          } else if (selectedItemForAction.status === 'Pending Visa Clerk') {
+            approverRole = 'Visa Clerk';
+          }
+        } else if (itemType === 'Claim') {
+          if (selectedItemForAction.status === 'Pending Verification') {
+            approverRole = 'Verifier';
+          } else if (selectedItemForAction.status === 'Pending HOD Approval') {
+            approverRole = 'HOD';
+          } else if (selectedItemForAction.status === 'Pending Finance Approval') {
+            approverRole = 'Finance';
+          }
+        }
+        // Note: Accommodation uses TRF workflow, so it follows the common pattern above
+        
         const payload = {
           action,
           comments: comments || (action === 'approve' ? "Approved by Admin." : "Rejected by Admin."),
-          approverRole: MOCK_APPROVER_ROLE, // This would come from the logged-in user's session
+          approverRole: approverRole, // Use dynamic role based on status
           approverName: MOCK_APPROVER_NAME, // This would come from the logged-in user's session
         };
 

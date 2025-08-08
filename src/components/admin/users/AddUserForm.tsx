@@ -64,9 +64,22 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
     if (editingUser && availableRoles.length > 0) {
       console.log("Editing user in form:", editingUser);
       console.log("Available roles in form:", availableRoles);
-      const validRoleId = availableRoles.some(r => String(r.id) === String(editingUser.role_id)) ? String(editingUser.role_id) : null;
+      console.log("User role_id:", editingUser.role_id);
+      console.log("Available role IDs:", availableRoles.map(r => r.id));
+      
+      // More robust role ID comparison - handle null/undefined and string conversion
+      let validRoleId = null;
+      if (editingUser.role_id) {
+        const userRoleId = String(editingUser.role_id);
+        const matchingRole = availableRoles.find(r => String(r.id) === userRoleId);
+        if (matchingRole) {
+          validRoleId = userRoleId;
+        }
+      }
+      
       console.log("Form role_id value:", validRoleId);
-      form.reset({
+      
+      const resetData = {
         name: editingUser.name || '',
         email: editingUser.email || '',
         staff_id: editingUser.staff_id || null,
@@ -74,7 +87,16 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
         department: editingUser.department || null,
         status: (editingUser.status === 'Active' || editingUser.status === 'Inactive') ? editingUser.status : 'Active',
         password: '',
-      });
+      };
+      
+      console.log("Resetting form with data:", resetData);
+      form.reset(resetData);
+      
+      // Force update the role_id field specifically
+      setTimeout(() => {
+        console.log("Current form values after reset:", form.getValues());
+        form.setValue('role_id', validRoleId);
+      }, 100);
     } else if (!editingUser) {
       form.reset({
         name: '',
@@ -173,30 +195,42 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
         <FormField
           control={form.control}
           name="role_id"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Role</FormLabel>
-              <Select
-                onValueChange={(value) => field.onChange(value === NULL_ROLE_VALUE ? null : value)}
-                value={field.value === null ? NULL_ROLE_VALUE : String(field.value)}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value={NULL_ROLE_VALUE}>No Role</SelectItem>
-                  {availableRoles.map((roleOption) => (
-                    <SelectItem key={roleOption.id} value={String(roleOption.id)}>
-                      {roleOption.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            const currentValue = field.value === null || field.value === undefined ? NULL_ROLE_VALUE : String(field.value);
+            console.log("Role field render - field.value:", field.value, "currentValue:", currentValue);
+            
+            return (
+              <FormItem>
+                <FormLabel>Role</FormLabel>
+                <Select
+                  key={`role-select-${editingUser?.id || 'new'}`}
+                  onValueChange={(value) => {
+                    console.log("Role select onChange:", value);
+                    field.onChange(value === NULL_ROLE_VALUE ? null : value);
+                  }}
+                  value={currentValue}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a role">
+                        {currentValue === NULL_ROLE_VALUE ? "No Role" : 
+                         availableRoles.find(r => String(r.id) === currentValue)?.name || "Select a role"}
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value={NULL_ROLE_VALUE}>No Role</SelectItem>
+                    {availableRoles.map((roleOption) => (
+                      <SelectItem key={roleOption.id} value={String(roleOption.id)}>
+                        {roleOption.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
         />
         <FormField
           control={form.control}

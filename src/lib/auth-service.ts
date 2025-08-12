@@ -26,11 +26,6 @@ export async function hasPermission(permissionName: string): Promise<boolean> {
     
     // If no session or no user, return false
     if (!session || !session.user || !session.user.id) {
-      // In development mode, always return true for permission checks
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`Development mode: Granting permission '${permissionName}'`);
-        return true;
-      }
       return false;
     }
     
@@ -52,14 +47,7 @@ export async function hasPermission(permissionName: string): Promise<boolean> {
   } catch (error) {
     console.error('Error checking permission:', error);
     
-    // For development purposes, you might want to return true to bypass permission checks
-    // Remove this in production
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('Development mode: Bypassing permission check');
-      return true;
-    }
-    
-    // In case of error, deny permission by default
+    // In case of error, deny permission by default for security
     return false;
   }
 }
@@ -71,10 +59,6 @@ export async function hasPermission(permissionName: string): Promise<boolean> {
  */
 export async function getUserPermissions(userId: string): Promise<string[]> {
   try {
-    // In development mode with no database, return mock permissions
-    if (process.env.NODE_ENV === 'development' && !process.env.POSTGRES_URL) {
-      return ['manage_roles', 'view_users', 'manage_users'];
-    }
     
     // Query the database for user permissions
     const result = await sql`
@@ -100,10 +84,6 @@ export async function getUserPermissions(userId: string): Promise<string[]> {
  */
 export async function getUserRoles(userId: string): Promise<string[]> {
   try {
-    // In development mode with no database, return mock roles
-    if (process.env.NODE_ENV === 'development' && !process.env.POSTGRES_URL) {
-      return ['Administrator', 'Manager'];
-    }
     
     // Query the database for user roles
     const result = await sql`

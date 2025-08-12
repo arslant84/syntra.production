@@ -2,12 +2,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { z } from 'zod';
+import { requireAuth, requireRoles, createAuthError } from '@/lib/auth-utils';
 
 const actionSchema = z.object({
-  action: z.enum(['approve', 'reject']),
+  action: z.enum(['approve', 'reject', 'cancel']),
   comments: z.string().optional(),
-  approverRole: z.string(),
-  approverName: z.string(),
+  approverRole: z.string().optional(),
+  approverName: z.string().optional(),
 });
 
 interface RouteParams {
@@ -17,16 +18,20 @@ interface RouteParams {
 }
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
-  const { requestId } = await params;
-  console.log(`API_ACCOM_REQ_ACTION_POST_START (PostgreSQL): Processing action for accommodation request ${requestId}.`);
-  
-  if (!sql) {
-    console.error("API_ACCOM_REQ_ACTION_POST_ERROR (PostgreSQL): SQL client is not initialized.");
-    return NextResponse.json({ error: 'Database client not initialized. Check server logs.' }, { status: 503 });
-  }
-  
   try {
+    // SECURITY: Require authentication and authorization
+    const user = await requireRoles(['Department Focal', 'Line Manager', 'HOD', 'admin']);
+    console.log(`API_ACCOM_REQ_ACTION_POST_START: User ${user.email} (${user.role}) processing action`);
+
+    const { requestId } = await params;
+    console.log(`API_ACCOM_REQ_ACTION_POST_START (PostgreSQL): Processing action for accommodation request ${requestId}.`);
+  
+    if (!sql) {
+      console.error("API_ACCOM_REQ_ACTION_POST_ERROR (PostgreSQL): SQL client is not initialized.");
+      return NextResponse.json({ error: 'Database client not initialized. Check server logs.' }, { status: 503 });
+    }
     const body = await request.json();
+    console.log(`API_ACCOM_REQ_ACTION_POST_BODY: ${JSON.stringify(body)}`);
     const validationResult = actionSchema.safeParse(body);
     
     if (!validationResult.success) {
@@ -36,61 +41,110 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     
     const { action, comments, approverRole, approverName } = validationResult.data;
     
-    // First, get the accommodation request to find the associated TRF ID
+    // Get the accommodation request directly from travel_requests table
+    console.log(`API_ACCOM_REQ_ACTION_POST: Querying travel_requests for ID ${requestId}`);
     const accommodationRequests = await sql`
-      SELECT tad.trf_id
-      FROM trf_accommodation_details tad
-      WHERE tad.id = ${requestId}
+      SELECT id, status, travel_type, requestor_name 
+      FROM travel_requests 
+      WHERE id = ${requestId}
     `;
     
+    console.log(`API_ACCOM_REQ_ACTION_POST: Query result:`, accommodationRequests);
+    
     if (accommodationRequests.length === 0) {
+      console.log(`API_ACCOM_REQ_ACTION_POST: No accommodation request found with ID ${requestId}`);
       return NextResponse.json({ error: `Accommodation request with ID ${requestId} not found.` }, { status: 404 });
     }
     
-    const trfId = accommodationRequests[0].trf_id;
+    const accommodationRequest = accommodationRequests[0];
     
-    // Update the status of the travel request based on the action
-    const newStatus = action === 'approve' 
-      ? 'Approved' 
-      : 'Rejected';
+    const currentStatus = accommodationRequest.status;
+    
+    // Define approval workflow sequence
+    const approvalWorkflowSequence: Record<string, string> = {
+      'Pending Department Focal': 'Pending Line Manager',
+      'Pending Line Manager': 'Pending HOD', 
+      'Pending HOD': 'Approved'
+    };
+    
+    // Terminal statuses that don't allow further actions
+    const terminalStatuses = ['Approved', 'Rejected', 'Cancelled', 'Processing', 'Completed'];
+    
+    if (terminalStatuses.includes(currentStatus)) {
+      return NextResponse.json({ 
+        error: `Accommodation request is already in a terminal state: ${currentStatus}. No further actions allowed.` 
+      }, { status: 400 });
+    }
+    
+    let newStatus = currentStatus;
+    
+    if (action === 'approve') {
+      // Move to next step in approval workflow
+      const nextStep = approvalWorkflowSequence[currentStatus];
+      newStatus = nextStep || 'Approved';
+    } else if (action === 'reject') {
+      newStatus = 'Rejected';
+    } else if (action === 'cancel') {
+      newStatus = 'Cancelled';
+    }
+    
+    console.log(`API_ACCOM_REQ_ACTION_POST: Updating status from ${currentStatus} to ${newStatus} for request ${requestId}`);
     
     await sql`
       UPDATE travel_requests
       SET 
         status = ${newStatus},
         updated_at = NOW()
-      WHERE id = ${trfId}
+      WHERE id = ${requestId}
     `;
     
-    // Add an approval step record
-    await sql`
-      INSERT INTO trf_approval_steps (
-        trf_id, step_number, step_role, step_name, status, step_date, 
-        approver_id, approver_name, comments, created_at, updated_at
-      ) VALUES (
-        ${trfId},
-        (SELECT COALESCE(MAX(step_number), 0) + 1 FROM trf_approval_steps WHERE trf_id = ${trfId}),
-        ${approverRole},
-        ${action === 'approve' ? 'Accommodation Approval' : 'Accommodation Rejection'},
-        ${newStatus},
-        NOW(),
-        NULL, -- approver_id would come from authenticated user
-        ${approverName},
-        ${comments || (action === 'approve' ? 'Accommodation request approved.' : 'Accommodation request rejected.')},
-        NOW(),
-        NOW()
-      )
-    `;
+    console.log(`API_ACCOM_REQ_ACTION_POST: Status updated successfully`);
     
-    console.log(`API_ACCOM_REQ_ACTION_POST (PostgreSQL): Successfully ${action}d accommodation request ${requestId}.`);
+    // Add an approval step record (only for approve/reject actions)
+    if (action !== 'cancel' && approverRole && approverName) {
+      console.log(`API_ACCOM_REQ_ACTION_POST: Adding approval step for action ${action}`);
+      await sql`
+        INSERT INTO trf_approval_steps (trf_id, step_role, step_name, status, step_date, comments)
+        VALUES (
+          ${requestId}, 
+          ${approverRole}, 
+          ${approverName}, 
+          ${action === 'approve' ? 'Approved' : action === 'reject' ? 'Rejected' : 'Cancelled'}, 
+          NOW(), 
+          ${comments || (action === 'cancel' ? 'Cancelled by user/admin.' : (action === 'approve' ? 'Approved.' : 'Rejected.'))}
+        )
+      `;
+      console.log(`API_ACCOM_REQ_ACTION_POST: Approval step added successfully`);
+    }
+    
+    console.log(`API_ACCOM_REQ_ACTION_POST (PostgreSQL): Successfully ${action}ed accommodation request ${requestId}.`);
+    
+    const actionMessage = action === 'approve' 
+      ? 'approved' 
+      : action === 'reject'
+      ? 'rejected'
+      : 'cancelled';
     
     return NextResponse.json({ 
-      message: `Accommodation request ${action === 'approve' ? 'approved' : 'rejected'} successfully.`,
+      message: `Accommodation request ${actionMessage} successfully.`,
       status: newStatus
     });
-    
+
   } catch (error: any) {
-    console.error(`API_ACCOM_REQ_ACTION_POST_ERROR (PostgreSQL) for request ${requestId}:`, error.message, error.stack);
-    return NextResponse.json({ error: `Failed to process accommodation request.`, details: error.message }, { status: 500 });
+    // Handle authentication/authorization errors
+    if (error.message === 'UNAUTHORIZED') {
+      const authError = createAuthError('UNAUTHORIZED');
+      return NextResponse.json({ error: authError.message }, { status: authError.status });
+    }
+    
+    if (error.message === 'FORBIDDEN') {
+      const authError = createAuthError('FORBIDDEN');
+      return NextResponse.json({ error: authError.message }, { status: authError.status });
+    }
+
+    console.error(`API_ACCOM_REQ_ACTION_POST_ERROR (PostgreSQL):`, error.message, error.stack);
+    return NextResponse.json({ 
+      error: 'Failed to process accommodation request.' 
+    }, { status: 500 });
   }
 }

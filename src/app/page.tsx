@@ -13,7 +13,8 @@ import {
   BedDouble,
   Search,
   StickyNote,
-  ClipboardList 
+  ClipboardList,
+  CarFront
 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ type SummaryData = {
   visaUpdates: number;
   draftClaims: number;
   pendingAccommodation: number;
+  pendingTransport: number;
 };
 
 type ActivityItem = {
@@ -54,7 +56,8 @@ export default function HomePage() {
     pendingTrfs: 0,
     visaUpdates: 0,
     draftClaims: 0,
-    pendingAccommodation: 0
+    pendingAccommodation: 0,
+    pendingTransport: 0,
   });
   
   const [activities, setActivities] = useState<ActivityItem[]>([]);
@@ -126,12 +129,17 @@ export default function HomePage() {
                 <PlusCircle className="mr-2 h-5 w-5" /> Process Visa
               </Button>
             </Link>
+            <Link href="/transport/new" passHref>
+              <Button size="lg" variant="default" className="w-48 whitespace-normal text-center">
+                <PlusCircle className="mr-2 h-5 w-5" /> New Transport Request
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <SummaryCard 
           title="My Pending TSRs" 
           value={(summaryData.pendingTrfs || 0).toString()} 
@@ -163,6 +171,14 @@ export default function HomePage() {
           description="Available locations / new requests" 
           iconBgColor="bg-indigo-100 dark:bg-indigo-800/30"
           iconColor="text-indigo-600 dark:text-indigo-400"
+        />
+        <SummaryCard 
+          title="Book Transport" 
+          value={(summaryData.pendingTransport || 0).toString()}
+          icon={CarFront} 
+          description="Available locations / new requests" 
+          iconBgColor="bg-green-100 dark:bg-green-800/30"
+          iconColor="text-green-600 dark:text-green-400"
         />
       </div>
       

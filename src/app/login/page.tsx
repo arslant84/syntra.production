@@ -88,6 +88,24 @@ export default function LoginPage() {
         >
           {loading ? "Signing in..." : "Sign in"}
         </button>
+        
+        <div className="mt-4 text-center">
+          <div className="text-gray-500 text-sm mb-3">or</div>
+          <button
+            type="button"
+            onClick={() => signIn('azure-ad')}
+            className="w-full bg-white border border-gray-300 text-gray-700 py-2 rounded font-semibold hover:bg-gray-50 transition shadow-md flex items-center justify-center gap-2"
+            disabled={loading}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8.64 9.05L1.73 2.14H8.64V9.05Z" fill="#F25022"/>
+              <path d="M9.36 9.05V2.14H16.27L9.36 9.05Z" fill="#7FBA00"/>
+              <path d="M9.36 9.77L16.27 16.68H9.36V9.77Z" fill="#00A4EF"/>
+              <path d="M8.64 9.77V16.68H1.73L8.64 9.77Z" fill="#FFB900"/>
+            </svg>
+            Sign in with Microsoft
+          </button>
+        </div>
       </form>
     </div>
   );

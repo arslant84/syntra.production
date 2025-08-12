@@ -1,8 +1,6 @@
 "use client";
 
-import React from 'react';
 import { SessionProvider } from "next-auth/react";
-import AppLayout from '@/components/layout/AppLayout';
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -11,7 +9,7 @@ interface AppProvidersProps {
 export default function AppProviders({ children }: AppProvidersProps) {
   return (
     <SessionProvider>
-      <AppLayout>{children}</AppLayout>
+      {children}
     </SessionProvider>
   );
 }

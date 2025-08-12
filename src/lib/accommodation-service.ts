@@ -1,5 +1,14 @@
 import { sql } from '@/lib/db';
-import { type AccommodationRequestDetails, StaffHouseData, RoomData, BookingData, StaffGuest } from '@/types/accommodation';
+import { type AccommodationRequestDetails, StaffHouseData, RoomData, BookingData, StaffGuest, BookingStatus } from '@/types/accommodation';
+
+// Define approval workflow types (similar to transport)
+interface AccommodationApprovalStep {
+  role: string;
+  name: string;
+  status: 'Submitted' | 'Approved' | 'Rejected' | 'Current' | 'Pending';
+  date?: string;
+  comments?: string;
+}
 
 /**
  * Fetches all accommodation requests from the database
@@ -87,7 +96,7 @@ export async function getAccommodationRequests(userId?: string): Promise<Accommo
       requestedCheckInDate: new Date(request.requestedCheckInDate),
       requestedCheckOutDate: new Date(request.requestedCheckOutDate),
       requestedRoomType: request.requestedRoomType,
-      status: request.status as 'Pending Assignment' | 'Confirmed' | 'Rejected' | 'Blocked',
+      status: request.status as BookingStatus,
       assignedRoomName: request.assignedRoomName,
       assignedStaffHouseName: request.assignedStaffHouseName,
       submittedDate: new Date(request.submittedDate),
@@ -107,7 +116,7 @@ export async function getAccommodationRequests(userId?: string): Promise<Accommo
  * @param bookingId The ID of the accommodation request
  * @returns The accommodation request details or null if not found
  */
-export async function getAccommodationRequestById(requestId: string): Promise<AccommodationRequestDetails | null> {
+export async function getAccommodationRequestById(requestId: string): Promise<(AccommodationRequestDetails & { approvalWorkflow?: AccommodationApprovalStep[] }) | null> {
   const bookingId = requestId; // Alias for parameter consistency
   try {
     const [request] = await sql`
@@ -145,6 +154,18 @@ export async function getAccommodationRequestById(requestId: string): Promise<Ac
       return null;
     }
 
+    // Fetch approval workflow steps
+    const approvalResult = await sql`
+      SELECT * FROM trf_approval_steps WHERE trf_id = ${bookingId} ORDER BY step_date
+    `;
+
+    // Generate the complete approval workflow including expected pending steps
+    const fullApprovalWorkflow = generateFullApprovalWorkflow(
+      request.status, 
+      approvalResult,
+      request.requestorName
+    );
+
     // Format dates and ensure proper typing
     return {
       id: request.id,
@@ -157,14 +178,15 @@ export async function getAccommodationRequestById(requestId: string): Promise<Ac
       requestedCheckInDate: new Date(request.requestedCheckInDate),
       requestedCheckOutDate: new Date(request.requestedCheckOutDate),
       requestedRoomType: request.requestedRoomType,
-      status: request.status as 'Pending Assignment' | 'Confirmed' | 'Rejected' | 'Blocked',
+      status: request.status as BookingStatus,
       assignedRoomName: request.assignedRoomName,
       assignedStaffHouseName: request.assignedStaffHouseName,
       submittedDate: new Date(request.submittedDate),
       lastUpdatedDate: request.lastUpdatedDate ? new Date(request.lastUpdatedDate) : new Date(request.submittedDate),
       specialRequests: request.specialRequests,
       flightArrivalTime: request.flightArrivalTime,
-      flightDepartureTime: request.flightDepartureTime
+      flightDepartureTime: request.flightDepartureTime,
+      approvalWorkflow: fullApprovalWorkflow
     };
   } catch (error) {
     console.error(`Error fetching accommodation request with ID ${bookingId}:`, error);
@@ -299,4 +321,69 @@ export async function getAccommodationBookings(year: number, month: number): Pro
     // Return empty array to avoid breaking the UI
     return [];
   }
+}
+
+/**
+ * Generate full approval workflow including pending steps
+ * @param currentStatus Current status of the request
+ * @param completedSteps Array of completed approval steps
+ * @param requestorName Name of the requestor
+ * @returns Array of approval workflow steps
+ */
+function generateFullApprovalWorkflow(
+  currentStatus: string, 
+  completedSteps: any[],
+  requestorName?: string
+): AccommodationApprovalStep[] {
+  // Define the expected workflow sequence
+  const expectedWorkflow = [
+    { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
+    { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
+    { role: 'Line Manager', name: 'TBD', status: 'Pending' as const },
+    { role: 'HOD', name: 'TBD', status: 'Pending' as const }
+  ];
+
+  // Map completed steps by role for easy lookup
+  const completedByRole = completedSteps.reduce((acc: any, step: any) => {
+    acc[step.role] = step;
+    return acc;
+  }, {});
+
+  // Generate the full workflow
+  const fullWorkflow: AccommodationApprovalStep[] = [];
+
+  for (const expectedStep of expectedWorkflow) {
+    const completedStep = completedByRole[expectedStep.role];
+    
+    if (completedStep) {
+      // Use the completed step data
+      fullWorkflow.push({
+        role: completedStep.role,
+        name: completedStep.name,
+        status: completedStep.status,
+        date: completedStep.date,
+        comments: completedStep.comments
+      });
+    } else {
+      // Determine status based on current request status
+      let stepStatus: AccommodationApprovalStep['status'] = 'Pending';
+      
+      if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
+        stepStatus = 'Pending';
+      } else if (currentStatus === 'Approved') {
+        // If approved, all pending steps should show as pending unless they were actually completed
+        stepStatus = 'Pending';
+      } else if (currentStatus === `Pending ${expectedStep.role}`) {
+        stepStatus = 'Current';
+      }
+
+      fullWorkflow.push({
+        role: expectedStep.role,
+        name: expectedStep.name,
+        status: stepStatus
+      });
+    }
+  }
+
+  return fullWorkflow;
 }

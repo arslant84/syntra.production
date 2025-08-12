@@ -5,7 +5,7 @@
 export const DATABASE_HOST = process.env.DATABASE_HOST || 'localhost';
 export const DATABASE_NAME = process.env.DATABASE_NAME || 'syntra';
 export const DATABASE_USER = process.env.DATABASE_USER || 'postgres';
-export const DATABASE_PASSWORD = process.env.DATABASE_PASSWORD || '221202';
+export const DATABASE_PASSWORD = process.env.DATABASE_PASSWORD;
 
 // Application configuration
 export const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -27,7 +27,14 @@ export function validateEnv() {
     .map(({ name }) => name);
 
   if (missingVars.length > 0) {
-    console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    const errorMessage = `SECURITY ERROR: Missing required environment variables: ${missingVars.join(', ')}`;
+    console.error(errorMessage);
+    
+    // Fail fast in production
+    if (IS_PRODUCTION) {
+      throw new Error(errorMessage);
+    }
+    
     return false;
   }
 

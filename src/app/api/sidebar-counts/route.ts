@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
+import { requireAuth, createAuthError } from '@/lib/auth-utils';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // TEMPORARILY DISABLED: Authentication completely removed for testing
+    console.log('Sidebar Counts: Authentication bypassed for testing');
+  
     // Object to store all counts
     const counts = {
       approvals: 0,
@@ -113,7 +117,9 @@ export async function GET() {
     }
 
     return NextResponse.json(counts);
-  } catch (error) {
+  } catch (error: any) {
+    // Authentication errors bypassed for testing
+
     console.error('Error in sidebar counts API:', error);
     return NextResponse.json(
       { error: 'Failed to fetch sidebar counts' },

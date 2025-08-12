@@ -208,7 +208,7 @@ export default function AdminClaimsPage() {
                     <TableCell>
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/admin/claims/view/${claim.id}`}>
-                          <FileText className="w-4 h-4 mr-1" /> View Details
+                          <FileText className="w-4 h-4 mr-1" /> View
                         </Link>
                       </Button>
                     </TableCell>

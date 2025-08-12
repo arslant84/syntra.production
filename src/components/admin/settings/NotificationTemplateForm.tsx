@@ -1,18 +1,16 @@
-// src/components/admin/settings/NotificationTemplateForm.tsx
-"use client";
-
-import React, { useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
-import { NotificationTemplate, NotificationTemplateFormValues, NotificationEventType } from '@/types/notifications';
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Loader2 } from 'lucide-react';
+import { NotificationTemplate, NotificationTemplateFormValues } from '@/types/notifications';
 
 interface NotificationTemplateFormProps {
-  initialData?: NotificationTemplate | null;
-  eventTypes: NotificationEventType[];
+  initialData?: NotificationTemplateFormValues | null;
+  eventTypes: { id: string; name: string }[];
   onFormSubmit: (data: NotificationTemplateFormValues) => Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -25,16 +23,31 @@ export default function NotificationTemplateForm({
   onFormSubmit,
   onCancel,
   isSubmitting,
-  submitError
+  submitError,
 }: NotificationTemplateFormProps) {
-  const [formData, setFormData] = useState<NotificationTemplateFormValues>({
-    name: initialData?.name || '',
-    description: initialData?.description || '',
-    subject: initialData?.subject || '',
-    body: initialData?.body || '',
-    type: initialData?.type || 'email',
-    eventType: initialData?.eventType || ''
+  const [formData, setFormData] = useState<NotificationTemplateFormValues>(initialData || {
+    name: '',
+    description: '',
+    subject: '',
+    body: '',
+    type: 'email',
+    eventType: ''
   });
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData(initialData);
+    } else {
+      setFormData({
+        name: '',
+        description: '',
+        subject: '',
+        body: '',
+        type: 'email',
+        eventType: ''
+      });
+    }
+  }, [initialData]);
 
   const handleChange = (field: keyof NotificationTemplateFormValues, value: string) => {
     setFormData(prev => ({
@@ -106,11 +119,15 @@ export default function NotificationTemplateForm({
             <SelectValue placeholder="Select event type" />
           </SelectTrigger>
           <SelectContent>
-            {eventTypes.map((eventType) => (
-              <SelectItem key={eventType.id} value={eventType.id}>
-                {eventType.name}
-              </SelectItem>
-            ))}
+            {eventTypes?.length > 0 ? (
+              eventTypes.map((eventType) => (
+                <SelectItem key={eventType.id} value={eventType.id}>
+                  {eventType.name}
+                </SelectItem>
+              ))
+            ) : (
+              <SelectItem value="no-types" disabled>No event types available</SelectItem>
+            )}
           </SelectContent>
         </Select>
       </div>

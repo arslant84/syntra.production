@@ -262,6 +262,7 @@ export default function TravelDetailsForm({ initialData, onSubmit, onBack }: Tra
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button variant={"outline"} className={cn("w-full h-10 pl-3 text-left font-normal", !field.value && "text-muted-foreground")}> {field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button>
+                              </FormControl>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
                               <Calendar

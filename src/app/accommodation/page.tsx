@@ -13,10 +13,10 @@ import { format } from 'date-fns';
 import { FilterBar } from '@/components/ui/FilterBar';
 
 const getStatusBadgeVariant = (status: string) => {
-  if (status?.toLowerCase().includes('confirmed')) return 'default';
+  if (status?.toLowerCase().includes('confirmed') || status === 'Approved' || status === 'Completed') return 'default';
   if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
-  if (status?.toLowerCase().includes('pending')) return 'outline';
-  if (["Blocked"].includes(status)) return 'secondary';
+  if (status?.toLowerCase().includes('pending') || status === 'Draft') return 'outline';
+  if (["Blocked", "Processing"].includes(status)) return 'secondary';
   return 'secondary';
 };
 
@@ -86,9 +86,17 @@ export default function AccommodationRequestsPage() {
         onSearchTermChange={setSearchTerm}
         statusOptions={[
           { value: "ALL", label: "All Statuses" },
-          { value: "Confirmed", label: "Confirmed" },
-          { value: "Pending Assignment", label: "Pending Assignment" },
+          { value: "Draft", label: "Draft" },
+          { value: "Pending Department Focal", label: "Pending Department Focal" },
+          { value: "Pending Line Manager", label: "Pending Line Manager" },
+          { value: "Pending HOD", label: "Pending HOD" },
+          { value: "Approved", label: "Approved" },
           { value: "Rejected", label: "Rejected" },
+          { value: "Cancelled", label: "Cancelled" },
+          { value: "Processing", label: "Processing" },
+          { value: "Completed", label: "Completed" },
+          { value: "Pending Assignment", label: "Pending Assignment" },
+          { value: "Confirmed", label: "Confirmed" },
           { value: "Blocked", label: "Blocked" },
         ]}
         statusFilter={statusFilter}
@@ -138,7 +146,7 @@ export default function AccommodationRequestsPage() {
                         {format(req.requestedCheckInDate, 'PPP')} - {format(req.requestedCheckOutDate, 'PPP')}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusBadgeVariant(req.status)} className={req.status === "Confirmed" ? "bg-green-600 text-white" : ""}>
+                        <Badge variant={getStatusBadgeVariant(req.status)} className={(req.status === "Confirmed" || req.status === "Approved") ? "bg-green-600 text-white" : ""}>
                           {req.status}
                         </Badge>
                       </TableCell>

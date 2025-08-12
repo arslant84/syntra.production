@@ -9,6 +9,8 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
+    console.log('Fetching pending accommodation requests...');
+    
     // Query for accommodation requests that don't have assigned rooms yet
     // This uses the trf_accommodation_details table which stores specific accommodation requests
     const result = await sql`
@@ -34,13 +36,16 @@ export async function GET() {
       JOIN 
         travel_requests tr ON tad.trf_id = tr.id
       LEFT JOIN 
-        accommodation_bookings ab ON ab.trf_id = tr.id
+        accommodation_bookings ab ON ab.trf_id = tr.id 
+          AND ab.status IN ('Confirmed', 'Checked-in', 'Checked-out')
       WHERE 
         tr.status IN ('Approved', 'Pending')
         AND ab.id IS NULL
       ORDER BY 
         tad.created_at DESC
     `;
+    
+    console.log(`Found ${result.length} pending accommodation requests`);
     
     // Transform the data to match the expected AdminTrfForAccommodation interface
     const transformedRequests = result.map(req => {

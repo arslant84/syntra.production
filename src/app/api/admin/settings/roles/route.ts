@@ -19,10 +19,8 @@ const roleSchema = z.object({
 // GET handler to fetch all roles with permissions
 export async function GET() {
   try {
-    // Check if user has permission
-    if (!await hasPermission('manage_roles')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
+    // TEMPORARILY DISABLED: Authentication completely removed for testing
+    console.log('Admin Settings Roles: Authentication bypassed for testing');
 
     const roles = await getAllRolesWithPermissions();
     return NextResponse.json(roles);

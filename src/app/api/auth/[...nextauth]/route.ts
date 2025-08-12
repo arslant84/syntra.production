@@ -1,6 +1,8 @@
 // src/app/api/auth/[...nextauth]/route.ts
 import NextAuth, { type NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import AzureADProvider from 'next-auth/providers/azure-ad';
+import bcrypt from 'bcryptjs';
 import { sql } from '@/lib/db'; // Assuming named export
 
 if (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET === 'YOUR_STRONG_RANDOM_SECRET_HERE_PLEASE_REPLACE_ME') {
@@ -16,6 +18,16 @@ if (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET === 'YOUR_STRONG
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    AzureADProvider({
+      clientId: process.env.AZURE_AD_CLIENT_ID!,
+      clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
+      tenantId: process.env.AZURE_AD_TENANT_ID!,
+      authorization: {
+        params: {
+          scope: "openid profile email User.Read"
+        }
+      }
+    }),
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
@@ -38,8 +50,9 @@ export const authOptions: NextAuthOptions = {
         if (!users.length) return null;
         const user = users[0];
 
-        // Check password (plaintext for now; use bcrypt in production)
-        if (credentials.password !== user.password) return null;
+        // Check password using bcrypt
+        const isValidPassword = await bcrypt.compare(credentials.password, user.password);
+        if (!isValidPassword) return null;
 
         return {
           id: user.id,
@@ -55,13 +68,57 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
-      // `user` object is passed on initial sign-in
+    async jwt({ token, user, account, trigger, session }) {
+      console.log('JWT callback triggered', { token, user, account, trigger, session });
+      
+      // Handle initial sign-in
       if (user) {
         console.log('JWT Callback: Initial sign-in, user object:', user);
-        token.uid = user.id;
-        token.roleId = user.roleId || null; 
-        token.role = user.role || null; // Role name from authorize
+        
+        // Handle Azure AD sign-in
+        if (account?.provider === 'azure-ad') {
+          console.log('JWT Callback: Azure AD sign-in detected');
+          
+          // Check if user exists in database, if not create them
+          let dbUser;
+          try {
+            const existingUsers = await sql`
+              SELECT id, name, email, role_id, role
+              FROM users
+              WHERE email = ${user.email}
+              LIMIT 1
+            `;
+
+            if (existingUsers.length > 0) {
+              dbUser = existingUsers[0];
+              console.log('JWT Callback: Found existing user in database:', dbUser);
+            } else {
+              // Create new user with default role
+              const newUserResult = await sql`
+                INSERT INTO users (name, email, role_id, role, created_at, updated_at)
+                VALUES (${user.name}, ${user.email}, 1, 'user', NOW(), NOW())
+                RETURNING id, name, email, role_id, role
+              `;
+              dbUser = newUserResult[0];
+              console.log('JWT Callback: Created new user in database:', dbUser);
+            }
+
+            token.uid = dbUser.id;
+            token.roleId = dbUser.role_id;
+            token.role = dbUser.role;
+          } catch (error) {
+            console.error('JWT Callback: Error handling Azure AD user:', error);
+            token.uid = user.id;
+            token.roleId = 1; // Default role
+            token.role = 'user';
+          }
+        } else {
+          // Handle credentials sign-in
+          token.uid = user.id;
+          token.roleId = user.roleId || null;
+          token.role = user.role || null;
+        }
+
         token.permissions = []; // Initialize as empty
 
         // Update last login time
@@ -69,13 +126,14 @@ export const authOptions: NextAuthOptions = {
           await sql`
             UPDATE users 
             SET last_login_at = NOW() 
-            WHERE id = ${user.id}
+            WHERE id = ${token.uid}
           `;
-          console.log(`JWT Callback: Updated last login time for user ${user.id}`);
+          console.log(`JWT Callback: Updated last login time for user ${token.uid}`);
         } catch (error) {
           console.error('JWT Callback: Error updating last login time:', error);
         }
 
+        // Fetch permissions
         if (token.roleId) {
           try {
             console.log(`JWT Callback: Fetching permissions for roleId: ${token.roleId}`);
@@ -101,9 +159,11 @@ export const authOptions: NextAuthOptions = {
         // For example, if role or permissions could be updated live
         // For now, we are not implementing live session updates beyond login
       }
+      console.log('Returning token:', token);
       return token;
     },
     async session({ session, token }) {
+      console.log('Session callback triggered', { session, token });
       // Transfer properties from JWT token to session object
       if (session.user) {
         session.user.id = token.uid as string;
@@ -114,6 +174,7 @@ export const authOptions: NextAuthOptions = {
       } else {
         console.warn("Session Callback: session.user is undefined");
       }
+      console.log('Returning session:', session);
       return session;
     },
   },

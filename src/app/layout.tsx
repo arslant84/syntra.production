@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 // import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import AppProviders from '@/components/providers/AppProviders'; // Import the new wrapper
+import AppLayout from '@/components/layout/AppLayout';
 import { Toaster } from "@/components/ui/toaster";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -32,7 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body style={{ backgroundImage: "url('/background.jpg')", backgroundSize: 'cover', backgroundPosition: 'center', minHeight: '100vh' }}>
         <AppProviders>
-          {children}
+          <AppLayout>
+            {children}
+          </AppLayout>
         </AppProviders>
       </body>
     </html>

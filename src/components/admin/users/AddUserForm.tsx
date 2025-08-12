@@ -22,6 +22,7 @@ function getUserFormSchema(isEdit: boolean) {
     staff_id: z.string().nullable().optional(),
     role_id: z.string().uuid("Invalid Role ID format.").nullable().optional(),
     department: z.string().nullable().optional(),
+    gender: z.enum(['Male', 'Female']).nullable().optional(),
     status: z.enum(['Active', 'Inactive']).default('Active'),
     password: isEdit
       ? z.string().min(0).or(z.string().min(15, { message: "Password must be at least 15 characters." })).optional()
@@ -55,6 +56,7 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
       staff_id: null,
       role_id: null,
       department: null,
+      gender: null,
       status: 'Active',
       password: '',
     },
@@ -85,6 +87,7 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
         staff_id: editingUser.staff_id || null,
         role_id: validRoleId,
         department: editingUser.department || null,
+        gender: (editingUser as any).gender || null,
         status: (editingUser.status === 'Active' || editingUser.status === 'Inactive') ? editingUser.status : 'Active',
         password: '',
       };
@@ -104,6 +107,7 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
         staff_id: null,
         role_id: null,
         department: null,
+        gender: null,
         status: 'Active',
         password: '',
       });
@@ -241,6 +245,28 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
               <FormControl>
                 <Input placeholder="Enter department" {...field} value={field.value ?? ""} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="gender"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Gender (Optional)</FormLabel>
+              <Select onValueChange={(value) => field.onChange(value === 'null' ? null : value)} value={field.value || 'null'}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="null">Not specified</SelectItem>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}

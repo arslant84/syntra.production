@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO } from 'date-fns';
 import { requireRole } from '@/lib/authz';
+import { requireAuth, createAuthError } from '@/lib/auth-utils';
 
 const roleCreateSchema = z.object({
   name: z.string().min(2, "Role name must be at least 2 characters."),
@@ -12,20 +13,14 @@ const roleCreateSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  console.log("API_ROLES_GET_START (PostgreSQL): Fetching roles.");
-  
-  // Debug environment variables
-  console.log("API_ROLES_GET_DEBUG: Environment variables check:");
-  console.log("DATABASE_HOST:", process.env.DATABASE_HOST || 'NOT SET');
-  console.log("DATABASE_NAME:", process.env.DATABASE_NAME || 'NOT SET');
-  console.log("DATABASE_USER:", process.env.DATABASE_USER || 'NOT SET');
-  console.log("DATABASE_PASSWORD:", process.env.DATABASE_PASSWORD ? 'SET (value hidden)' : 'NOT SET');
-  
-  if (!sql) {
-    console.error("API_ROLES_GET_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
-    return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
-  }
   try {
+    // TEMPORARILY DISABLED: Authentication completely removed for testing
+    console.log('API_ROLES_GET_START: Authentication bypassed for testing');
+    
+    if (!sql) {
+      console.error("API_ROLES_GET_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
+      return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
+    }
     const rolesData = await sql`
       SELECT 
         r.id, r.name, r.description, r.created_at, r.updated_at,
@@ -45,8 +40,14 @@ export async function GET(request: NextRequest) {
     console.log(`API_ROLES_GET (PostgreSQL): Fetched ${roles.length} roles.`);
     return NextResponse.json({ roles });
   } catch (error: any) {
+    // Temporarily disable auth errors for testing
+    if (error.message === 'UNAUTHORIZED') {
+      console.log('Auth error bypassed for testing - roles endpoint');
+      // Continue without authentication for now
+    }
+
     console.error("API_ROLES_GET_ERROR (PostgreSQL):", error.message, error.stack);
-    return NextResponse.json({ error: 'Failed to fetch roles.', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch roles.' }, { status: 500 });
   }
 }
 

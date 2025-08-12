@@ -1,7 +1,19 @@
 
 export type LocationType = 'Ashgabat' | 'Kiyanly' | 'Turkmenbashy';
 export type GuestGender = 'Male' | 'Female';
-export type BookingStatus = "Available" | "Reserved" | "Occupied" | "Blocked";
+// Database booking statuses from accommodation_bookings table
+export type BookingStatus = 
+  | 'Confirmed'
+  | 'Checked-in'
+  | 'Checked-out' 
+  | 'Cancelled'
+  | 'Blocked';
+
+// Room types from accommodation_rooms table
+export type RoomType = 'Single' | 'Double' | 'Suite' | 'Tent';
+
+// Room availability status from accommodation_rooms table
+export type RoomStatus = 'Available' | 'Maintenance' | 'Reserved';
 
 export interface StaffGuest {
   id: string;
@@ -13,7 +25,10 @@ export interface StaffGuest {
 export interface RoomData {
   id: string;
   name: string; // e.g., "Room #1"
-  genderRestriction?: GuestGender; // Optional: for gender-specific rooms
+  staff_house_id: string;
+  room_type?: RoomType; // Single, Double, Suite, Tent
+  capacity?: number; // Default 1
+  status?: RoomStatus; // Available, Maintenance, Reserved
 }
 
 export interface StaffHouseData {

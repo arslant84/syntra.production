@@ -2,6 +2,9 @@ import { sql } from './db';
 import { TransportRequestForm, TransportRequestSummary, TransportDetails, TransportApprovalStep } from '@/types/transport';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 
+import { emailService } from './email-service';
+import { NotificationEventType } from '@/types/notifications';
+
 export class TransportService {
   // Create a new transport request
   static async createTransportRequest(data: Partial<TransportRequestForm>): Promise<TransportRequestForm> {
@@ -76,6 +79,21 @@ export class TransportService {
 
         return request;
       });
+
+      // Send notification
+      const template = await sql`SELECT subject, body FROM notification_templates WHERE name = ${'new_transport_request' as NotificationEventType}`;
+      if (template.length > 0) {
+        const subject = template[0].subject.replace('{requestId}', transportId);
+        const body = template[0].body.replace('{requestorName}', requestData.requestorName || 'User').replace('{requestId}', transportId);
+        
+        // For now, send to a placeholder email. In a real app, determine actual recipient.
+        await emailService.sendEmail({
+          to: 'approver@example.com', // Placeholder
+          cc: 'requestor@example.com', // Placeholder
+          subject,
+          body,
+        });
+      }
 
       return this.getTransportRequestById(transportId);
     } catch (error) {

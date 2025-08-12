@@ -136,7 +136,7 @@ export default function AdminApprovalsPage() {
       
       // 4. Fetch pending accommodation requests
       try {
-        const accommodationStatusesToFetch = ["Pending Department Focal", "Pending Approval"].join(',');
+        const accommodationStatusesToFetch = ["Pending Department Focal", "Pending Line Manager", "Pending HOD"].join(',');
         console.log(`AdminApprovalsPage: Fetching Accommodation requests with statuses: ${accommodationStatusesToFetch}`);
         
         const accommodationResponse = await fetch(`/api/accommodation/requests?statuses=${encodeURIComponent(accommodationStatusesToFetch)}&limit=50`);

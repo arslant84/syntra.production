@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
+import { requireAuth, createAuthError } from '@/lib/auth-utils';
 
 const accommodationRequestSchema = z.object({
   trfId: z.string().optional().nullable(), // Can be optional if not directly tied to a TRF
@@ -24,11 +25,14 @@ const accommodationRequestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  console.log("API_ACCOM_REQ_POST_START (PostgreSQL): Creating accommodation request.");
-  if (!sql) {
-    return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
-  }
   try {
+    // SECURITY: Require authentication
+    const user = await requireAuth();
+    console.log(`API_ACCOM_REQ_POST_START: User ${user.email} creating accommodation request.`);
+
+    if (!sql) {
+      return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
+    }
     const body = await request.json();
     const validationResult = accommodationRequestSchema.safeParse(body);
 
@@ -71,6 +75,13 @@ export async function POST(request: NextRequest) {
       ) RETURNING *
     `;
     
+    // Create initial approval step (like TSR does)
+    console.log("API_ACCOM_REQ_POST (PostgreSQL): Creating initial approval step for accommodation request:", accomRequestId);
+    await sql`
+      INSERT INTO trf_approval_steps (trf_id, step_role, step_name, status, step_date, comments)
+      VALUES (${newTravelRequest.id}, 'Requestor', ${data.requestorName}, 'Approved', NOW(), 'Submitted accommodation request.')
+    `;
+    
     // Combine the data for the response
     // For standalone accommodation requests, the main ID should be the ACCOM ID
     // and trfId should only be populated if this was created from a TSR
@@ -98,16 +109,26 @@ export async function POST(request: NextRequest) {
       requestId: accomRequestId
     }, { status: 201 });
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message === 'UNAUTHORIZED') {
+      const authError = createAuthError('UNAUTHORIZED');
+      return NextResponse.json({ error: authError.message }, { status: authError.status });
+    }
+    
     console.error("API_ACCOM_REQ_POST_ERROR (PostgreSQL):", error.message, error.stack);
-    return NextResponse.json({ error: 'Failed to create accommodation request.', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create accommodation request.' }, { status: 500 });
   }
 }
 
 export async function GET(request: NextRequest) {
-  console.log("API_ACCOM_REQ_GET_START (PostgreSQL): Fetching accommodation requests.");
-  if (!sql) {
-    return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
-  }
+  try {
+    // SECURITY: Require authentication
+    const user = await requireAuth();
+    console.log(`API_ACCOM_REQ_GET_START: User ${user.email} fetching accommodation requests.`);
+
+    if (!sql) {
+      return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
+    }
   
   // Parse query parameters
   const url = new URL(request.url);
@@ -127,20 +148,8 @@ export async function GET(request: NextRequest) {
     if (statuses.length > 0) {
       console.log(`API_ACCOM_REQ_GET (PostgreSQL): Using statuses filter with values: ${JSON.stringify(statuses)}`);
       
-      // Create a dynamic query based on the number of statuses
-      // For approval queue, only return standalone accommodation requests (travel_type = 'Accommodation')
-      let whereClause = '';
-      for (let i = 0; i < statuses.length; i++) {
-        whereClause += i === 0 ? 'WHERE (' : ' OR ';
-        whereClause += `tr.status = '${statuses[i].replace(/'/g, "''")}'`; // Escape single quotes
-      }
-      // Close the parentheses if we have any conditions
-      if (statuses.length > 0) {
-        whereClause += ') AND tr.travel_type = \'Accommodation\'';
-      }
-      
-      // Use raw SQL query with manual escaping for simplicity
-      const query = `
+      // Use proper parameterized query for security - NO SQL injection risk
+      requests = await sql`
         SELECT DISTINCT ON (tr.id)
           tr.id,
           NULL as "trfId",
@@ -164,14 +173,13 @@ export async function GET(request: NextRequest) {
           trf_accommodation_details tad
         LEFT JOIN 
           travel_requests tr ON tad.trf_id = tr.id
-        ${whereClause}
+        WHERE tr.status = ANY(${statuses}) 
+          AND tr.travel_type = 'Accommodation'
         ORDER BY 
           tr.id, tr.submitted_at DESC
         LIMIT ${limit}
       `;
-      
-      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Executing query: ${query}`);
-      requests = await (sql as any).unsafe(query);
+      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Found ${requests.length} requests with status filtering`);
     } else {
       // When not filtering by status
       requests = await sql`
@@ -205,7 +213,10 @@ export async function GET(request: NextRequest) {
           tr.id, tr.submitted_at DESC
         LIMIT ${limit}
       `;
+      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Found ${requests.length} requests without status filtering`);
     }
+    
+    console.log(`API_ACCOM_REQ_GET (PostgreSQL): Total requests found: ${requests.length}`);
     
     const formattedRequests = requests.map(req => ({
         ...req,
@@ -216,7 +227,23 @@ export async function GET(request: NextRequest) {
     }));
     return NextResponse.json({ accommodationRequests: formattedRequests });
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message === 'UNAUTHORIZED') {
+      const authError = createAuthError('UNAUTHORIZED');
+      return NextResponse.json({ error: authError.message }, { status: authError.status });
+    }
+    
     console.error("API_ACCOM_REQ_GET_ERROR (PostgreSQL):", error.message, error.stack);
-    return NextResponse.json({ error: 'Failed to fetch accommodation requests.', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch accommodation requests.' }, { status: 500 });
+  }
+  } catch (error: any) {
+    // Handle authentication errors from outer try block
+    if (error.message === 'UNAUTHORIZED') {
+      const authError = createAuthError('UNAUTHORIZED');
+      return NextResponse.json({ error: authError.message }, { status: authError.status });
+    }
+    
+    console.error("API_ACCOM_REQ_GET_ERROR (Authentication):", error.message);
+    return NextResponse.json({ error: 'Authentication failed.' }, { status: 401 });
   }
 }

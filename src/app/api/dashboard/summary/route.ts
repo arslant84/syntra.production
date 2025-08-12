@@ -1,20 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
-// For development, we'll use a mock user
+import { requireAuth, createAuthError } from '@/lib/auth-utils';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // For development, use a mock user
-    // In production, you would implement proper authentication
-    const mockUser = {
-      id: 'dev-user-id',
-      email: 'dev@example.com',
-      name: 'Development User'
-    };
+    // TEMPORARILY DISABLED: Authentication completely removed for testing
+    console.log('Dashboard Summary: Authentication bypassed for testing');
     
-    const userId = mockUser.id;
-    // Use email as staff_id
-    const staffId = mockUser.email;
+    // Use mock user data for testing
+    const userId = 'test-user-id';
+    const staffId = 'test@example.com';
 
     // Get pending TRF count
     let pendingTRFs = 0;
@@ -185,13 +180,30 @@ export async function GET() {
       console.error('Error fetching accommodation bookings:', err);
     }
 
+    // Get pending transport requests count
+    let pendingTransport = 0;
+    try {
+      console.log('Fetching pending transport requests...');
+      const transportQuery = await sql`
+        SELECT COUNT(*) AS count FROM transport_requests
+        WHERE status = 'Pending Department Focal'
+      `;
+      pendingTransport = parseInt(transportQuery[0]?.count || '0');
+      console.log(`Found ${pendingTransport} pending transport requests`);
+    } catch (err) {
+      console.error('Error fetching transport requests:', err);
+    }
+
     return NextResponse.json({
       pendingTrfs: pendingTRFs,
       visaUpdates,
       draftClaims,
-      pendingAccommodation: accommodationBookings
+      pendingAccommodation: accommodationBookings,
+      pendingTransport
     });
-  } catch (error) {
+  } catch (error: any) {
+    // Authentication errors bypassed for testing
+
     console.error('Error in dashboard summary API:', error);
     return NextResponse.json(
       { error: 'Failed to fetch dashboard summary' },

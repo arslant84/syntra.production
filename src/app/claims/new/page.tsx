@@ -46,10 +46,7 @@ export default function NewClaimPage() {
         variant: "default",
       });
       
-      // Wait a moment to ensure the database has been updated
-      setTimeout(() => {
-        router.push('/claims'); // Redirect to claims list or dashboard
-      }, 1000);
+      router.push('/claims'); // Redirect to claims list or dashboard
     } catch (error) {
       console.error('Failed to submit claim:', error);
       toast({

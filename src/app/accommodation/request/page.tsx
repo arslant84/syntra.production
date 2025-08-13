@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = 'force-dynamic';
-
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -39,17 +37,20 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { type LocationType, type GuestGender } from '@/types/accommodation';
+import { useToast } from "@/hooks/use-toast"; // Correctly placed import
+
+export const dynamic = 'force-dynamic';
 
 // Form schema with validation
 const formSchema = z.object({
   requestorName: z.string().min(1, { message: "Requestor name is required" }),
   requestorId: z.string().optional(),
-  requestorGender: z.enum(["Male", "Female"], { 
-    required_error: "Please select gender" 
+  requestorGender: z.enum(["Male", "Female"], {
+    required_error: "Please select gender"
   }),
   department: z.string().optional(),
-  location: z.enum(["Ashgabat", "Kiyanly", "Turkmenbashy"], { 
-    required_error: "Please select location" 
+  location: z.enum(["Ashgabat", "Kiyanly", "Turkmenbashy"], {
+    required_error: "Please select location"
   }),
   requestedCheckInDate: z.date({
     required_error: "Check-in date is required",
@@ -72,8 +73,7 @@ type FormValues = z.infer<typeof formSchema>;
 export default function AccommodationRequestPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const { toast } = useToast();
 
   // Initialize form with default values
   const form = useForm<FormValues>({
@@ -97,7 +97,6 @@ export default function AccommodationRequestPage() {
   // Handle form submission
   async function onSubmit(values: FormValues) {
     setIsSubmitting(true);
-    setSubmitError(null);
     
     try {
       const response = await fetch('/api/accommodation/requests', {
@@ -114,47 +113,25 @@ export default function AccommodationRequestPage() {
         throw new Error(data.error || 'Failed to submit accommodation request');
       }
       
-      setSubmitSuccess(true);
-      // Reset form after successful submission
       form.reset();
       
-      // Redirect to success page or show success message
-      setTimeout(() => {
-        router.push('/accommodation');
-      }, 2000);
+      toast({
+        title: `Accommodation Request Submitted!`,
+        description: `Your accommodation request has been submitted successfully.`,
+        variant: "default"
+      });
+      router.push('/accommodation');
       
     } catch (error: any) {
       console.error('Error submitting accommodation request:', error);
-      setSubmitError(error.message || 'An unexpected error occurred');
+      toast({
+        title: `Error Submitting Accommodation Request`,
+        description: error.message || 'An unexpected error occurred.',
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  if (submitSuccess) {
-    return (
-      <div className="container mx-auto py-12 px-4">
-        <Card className="max-w-3xl mx-auto">
-          <CardHeader>
-            <CardTitle className="text-green-600 flex items-center gap-2">
-              <Bed className="h-6 w-6" />
-              Accommodation Request Submitted
-            </CardTitle>
-            <CardDescription>
-              Your accommodation request has been submitted successfully.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p>You will be redirected to the accommodation dashboard shortly.</p>
-          </CardContent>
-          <CardFooter>
-            <Button onClick={() => router.push('/accommodation')}>
-              Go to Accommodation Dashboard
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
   }
 
   return (
@@ -170,13 +147,6 @@ export default function AccommodationRequestPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {submitError && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{submitError}</AlertDescription>
-            </Alert>
-          )}
-          
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

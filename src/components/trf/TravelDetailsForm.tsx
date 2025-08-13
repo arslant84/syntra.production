@@ -19,7 +19,7 @@ import { format, isValid, startOfDay, getDay } from "date-fns";
 import { CalendarIcon, MapPin, PlusCircle, Trash2, ClipboardList, Utensils, Bed, Car, Landmark, CreditCard, FileText } from "lucide-react";
 
 const itinerarySegmentSchema = z.object({
-  date: z.date({ required_error: "Date is required." }).nullable(),
+  date: z.date({ required_error: "Date is required." }),
   day: z.string().optional(),
   from: z.string().min(1, "Origin is required."),
   to: z.string().min(1, "Destination is required."),
@@ -40,9 +40,9 @@ const mealProvisionSchema = z.object({
 
 const accommodationDetailSchema = z.object({
   accommodationType: z.enum(['Hotel/Отели', 'Staff House/PKC Kampung/Kiyanly camp', 'Other'], { required_error: "Accommodation type is required." }),
-  checkInDate: z.date({ required_error: "Check-in date is required."}).nullable(),
+  checkInDate: z.date({ required_error: "Check-in date is required."}),
   checkInTime: z.string().optional().refine(val => val === '' || /^([01]\d|2[0-3]):([0-5]\d)$/.test(val!), { message: "Invalid time format (HH:MM)" }),
-  checkOutDate: z.date({ required_error: "Check-out date is required."}).nullable(),
+  checkOutDate: z.date({ required_error: "Check-out date is required."}),
   checkOutTime: z.string().optional().refine(val => val === '' || /^([01]\d|2[0-3]):([0-5]\d)$/.test(val!), { message: "Invalid time format (HH:MM)" }),
   remarks: z.string().optional(),
   otherTypeDescription: z.string().optional(),
@@ -59,7 +59,7 @@ const accommodationDetailSchema = z.object({
 
 
 const companyTransportDetailSchema = z.object({
-  date: z.date({ required_error: "Date is required."}).nullable(),
+  date: z.date({ required_error: "Date is required."}),
   day: z.string().optional(),
   from: z.string().min(1, "Origin is required."),
   to: z.string().min(1, "Destination is required."),
@@ -75,7 +75,7 @@ const advanceBankDetailsSchema = z.object({
 });
 
 const advanceAmountRequestedItemSchema = z.object({
-  dateFrom: z.date({required_error: "Date From is required"}).nullable(),
+  dateFrom: z.date({required_error: "Date From is required"}),
   dateTo: z.date().nullable(),
   lh: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number().nonnegative("Must be non-negative").optional().or(z.literal(''))),
   ma: z.preprocess(val => String(val) === '' ? '' : Number(val), z.number().nonnegative("Must be non-negative").optional().or(z.literal(''))),

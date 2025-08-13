@@ -5,6 +5,7 @@ import { sql } from '@/lib/db';
 import { formatISO, parseISO, isValid } from 'date-fns';
 import { mapFrontendItineraryToDb } from './itinerary-fix';
 import { generateRequestId } from '@/utils/requestIdGenerator';
+import { TSRAutoGenerationService } from '@/lib/tsr-auto-generation-service';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -29,17 +30,17 @@ const externalPartyRequestorInfoSchema = z.object({
 const itinerarySegmentSchemaDb = z.object({
   id: z.string().optional(),
   date: z.coerce.date({invalid_type_error: "Invalid date format for itinerary segment."}).nullable(),
-  day: z.string().min(1, "Day is required."),
+  day: z.string().optional().transform(val => val || ""),
   from: z.string().min(1, "Origin is required."),
   to: z.string().min(1, "Destination is required."),
   etd: z.string().regex(timeRegex, "Invalid ETD (HH:MM)").optional().nullable().or(z.literal("")),
   eta: z.string().regex(timeRegex, "Invalid ETA (HH:MM)").optional().nullable().or(z.literal("")),
-  flightNumber: z.string().min(1, "Flight/Rein/Class is required."),
+  flightNumber: z.string().optional().transform(val => val || ""),
   remarks: z.string().optional().nullable(),
 });
 
 const mealProvisionSchemaDb = z.object({
-  dateFromTo: z.string().min(1, "Date From/To is required for meal provision."),
+  dateFromTo: z.string().optional().transform(val => val || ""),
   breakfast: z.coerce.number().int().nonnegative("Must be a non-negative integer").optional().default(0),
   lunch: z.coerce.number().int().nonnegative("Must be a non-negative integer").optional().default(0),
   dinner: z.coerce.number().int().nonnegative("Must be a non-negative integer").optional().default(0),
@@ -76,15 +77,15 @@ const externalPartyAccommodationDetailSchemaDb = z.object({
   id: z.string().optional(),
   checkInDate: z.coerce.date({invalid_type_error: "Invalid check-in date format."}).nullable(),
   checkOutDate: z.coerce.date({invalid_type_error: "Invalid check-out date format."}).nullable(),
-  placeOfStay: z.string().min(1, "Place of stay is required."),
+  placeOfStay: z.string().optional().transform(val => val || ""),
   estimatedCostPerNight: z.coerce.number().nonnegative("Must be non-negative").optional().nullable(),
   remarks: z.string().optional().nullable(),
 });
 
 const companyTransportDetailSchemaDb = z.object({
   id: z.string().optional(),
-  date: z.coerce.date({invalid_type_error: "Invalid date format for transport."}).nullable(),
-  day: z.string().min(1, "Day is required."),
+  date: z.coerce.date({invalid_type_error: "Invalid date format for transport."}),
+  day: z.string().optional().transform(val => val || ""),
   from: z.string().min(1, "Origin is required."),
   to: z.string().min(1, "Destination is required."),
   btNoRequired: z.string().optional().nullable(),
@@ -94,8 +95,8 @@ const companyTransportDetailSchemaDb = z.object({
 });
 
 const advanceBankDetailsSchemaDb = z.object({
-  bankName: z.string().min(1, "Bank name is required."),
-  accountNumber: z.string().min(1, "Account number is required."),
+  bankName: z.string().optional().transform(val => val || ""),
+  accountNumber: z.string().optional().transform(val => val || ""),
 });
 
 const advanceAmountRequestedItemSchemaDb = z.object({
@@ -112,7 +113,7 @@ const advanceAmountRequestedItemSchemaDb = z.object({
 });
 
 const domesticTrfDetailsSchema = z.object({
-  purpose: z.string().min(10, "Purpose of travel must be at least 10 characters."),
+  purpose: z.string().min(5, "Purpose of travel must be at least 5 characters."),
   itinerary: z.array(itinerarySegmentSchemaDb).min(1, "At least one itinerary segment is required."),
   mealProvision: mealProvisionSchemaDb,
   accommodationDetails: z.array(accommodationDetailSchemaDb).optional().default([]),
@@ -120,17 +121,27 @@ const domesticTrfDetailsSchema = z.object({
 });
 
 const overseasTrfDetailsSchema = z.object({
-  purpose: z.string().min(10, "Purpose of travel must be at least 10 characters."),
+  purpose: z.string().min(5, "Purpose of travel must be at least 5 characters."),
   itinerary: z.array(itinerarySegmentSchemaDb).min(1, "At least one itinerary segment is required."),
   advanceBankDetails: advanceBankDetailsSchemaDb.optional(),  // Make optional to handle different form structures
-  advanceAmountRequested: z.array(advanceAmountRequestedItemSchemaDb).min(1, "At least one advance amount item is required.").optional(),  // Make optional to handle different form structures
+  advanceAmountRequested: z.array(advanceAmountRequestedItemSchemaDb).optional().refine(
+    (arr) => !arr || arr.length > 0, 
+    "If advance amount is provided, at least one item is required."
+  ),
+});
+
+const homeLeaveDetailsSchema = z.object({
+  purpose: z.string().min(5, "Purpose of travel must be at least 5 characters."),
+  itinerary: z.array(itinerarySegmentSchemaDb).min(1, "At least one itinerary segment is required."),
+  advanceBankDetails: advanceBankDetailsSchemaDb.optional(),  // Optional for home leave
+  advanceAmountRequested: z.array(advanceAmountRequestedItemSchemaDb).optional(),  // Optional and no minimum requirement
 });
 
 const externalPartiesTrfDetailsSchema = z.object({
-  purpose: z.string().min(10, "Purpose of travel must be at least 10 characters."),
+  purpose: z.string().min(5, "Purpose of travel must be at least 5 characters."),
   itinerary: z.array(itinerarySegmentSchemaDb).min(1, "At least one itinerary segment is required."),
   accommodationDetails: z.array(externalPartyAccommodationDetailSchemaDb).optional().default([]),
-  mealProvision: mealProvisionSchemaDb,
+  mealProvision: mealProvisionSchemaDb.optional(),
 });
 
 const baseTrfSchema = z.object({
@@ -144,7 +155,7 @@ const baseTrfSchema = z.object({
 const trfSubmissionSchema = z.discriminatedUnion("travelType", [
   baseTrfSchema.extend({ travelType: z.literal("Domestic"), requestorInfo: requestorInfoSchema, domesticTravelDetails: domesticTrfDetailsSchema }),
   baseTrfSchema.extend({ travelType: z.literal("Overseas"), requestorInfo: requestorInfoSchema, overseasTravelDetails: overseasTrfDetailsSchema }),
-  baseTrfSchema.extend({ travelType: z.literal("Home Leave Passage"), requestorInfo: requestorInfoSchema, overseasTravelDetails: overseasTrfDetailsSchema }),
+  baseTrfSchema.extend({ travelType: z.literal("Home Leave Passage"), requestorInfo: requestorInfoSchema, overseasTravelDetails: homeLeaveDetailsSchema }),
   baseTrfSchema.extend({ travelType: z.literal("External Parties"), externalPartyRequestorInfo: externalPartyRequestorInfoSchema, externalPartiesTravelDetails: externalPartiesTrfDetailsSchema }),
 ]);
 
@@ -422,10 +433,21 @@ export async function POST(request: NextRequest) {
           }));
           await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, 'trf_id', 'accommodation_type', 'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time', 'location', 'from_date', 'to_date', 'from_location', 'to_location', 'bt_no_required', 'accommodation_type_n', 'address', 'place_of_stay', 'estimated_cost_per_night', 'other_type_description', 'remarks')}`;
         }
-        // Note: Company transport details are handled differently in the database schema
-        // We're not inserting them separately as there's no dedicated table for this in the current schema
+        // Insert company transport details
         if (details.companyTransportDetails && details.companyTransportDetails.length > 0) {
-          console.log("API_TRF_POST (PostgreSQL): Company transport details provided but not inserted due to schema limitations");
+          const transportInserts = details.companyTransportDetails.map(transport => ({
+            trf_id: trfId,
+            transport_date: transport.date ? formatISO(transport.date, { representation: 'date' }) : null,
+            day_of_week: transport.day || null,
+            from_location: transport.from || null,
+            to_location: transport.to || null,
+            bt_no_required: transport.btNoRequired || null,
+            accommodation_type_n: transport.accommodationTypeN || null,
+            address: transport.address || null,
+            remarks: transport.remarks || null,
+          }));
+          await tx`INSERT INTO trf_company_transport_details ${tx(transportInserts, 'trf_id', 'transport_date', 'day_of_week', 'from_location', 'to_location', 'bt_no_required', 'accommodation_type_n', 'address', 'remarks')}`;
+          console.log("API_TRF_POST (PostgreSQL): Successfully inserted company transport details.");
         }
       } else if (validatedData.travelType === "Overseas" || validatedData.travelType === "Home Leave Passage") {
         const details = validatedData.overseasTravelDetails;
@@ -533,13 +555,26 @@ export async function POST(request: NextRequest) {
         console.log("API_TRF_POST (PostgreSQL): Inserting external party details for TRF ID:", trfId);
          if (details.accommodationDetails && details.accommodationDetails.length > 0) {
           const accomInserts = details.accommodationDetails.map(acc => ({
-            trf_id: trfId, accommodation_type: 'External Party Provided', // Specific type for clarity
+            trf_id: trfId, 
+            accommodation_type: 'External Party Provided', // Specific type for clarity
             check_in_date: acc.checkInDate ? formatISO(acc.checkInDate, { representation: 'date' }) : null,
+            check_in_time: '', // Default empty string
             check_out_date: acc.checkOutDate ? formatISO(acc.checkOutDate, { representation: 'date' }) : null,
-            place_of_stay: acc.placeOfStay, estimated_cost_per_night: Number(acc.estimatedCostPerNight || 0),
+            check_out_time: '', // Default empty string
+            location: '', // Default empty string
+            from_date: null, // Default null
+            to_date: null, // Default null
+            from_location: '', // Default empty string
+            to_location: '', // Default empty string
+            bt_no_required: '', // Default empty string
+            accommodation_type_n: '', // Default empty string
+            address: '', // Default empty string
+            place_of_stay: acc.placeOfStay || '', 
+            estimated_cost_per_night: Number(acc.estimatedCostPerNight || 0),
+            other_type_description: null, // Default null
             remarks: acc.remarks || null,
           }));
-          await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, 'trf_id', 'accommodation_type', 'check_in_date', 'check_out_date', 'place_of_stay', 'estimated_cost_per_night', 'remarks')}`;
+          await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, 'trf_id', 'accommodation_type', 'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time', 'location', 'from_date', 'to_date', 'from_location', 'to_location', 'bt_no_required', 'accommodation_type_n', 'address', 'place_of_stay', 'estimated_cost_per_night', 'other_type_description', 'remarks')}`;
         }
       }
 
@@ -557,10 +592,37 @@ export async function POST(request: NextRequest) {
     const notificationLog = `Placeholder: Send Notification - New TRF Submitted - ID: ${resultTrfId}. To Requestor: ${requestorNameVal}. To Dept Focal: [Dept Focal Email/User ID]`;
     console.log(notificationLog);
 
+    // Auto-generate Transport and Accommodation requests if applicable
+    let autoGeneratedRequests = { transportRequests: [], accommodationRequests: [] };
+    try {
+      const tsrData = {
+        id: resultTrfId,
+        travelType: validatedData.travelType,
+        requestorName: requestorNameVal || 'Unknown',
+        staffId: validatedData.requestorInfo?.staffId,
+        department: validatedData.requestorInfo?.department,
+        position: validatedData.requestorInfo?.position,
+        purpose: purposeVal,
+        domesticTravelDetails: validatedData.domesticTravelDetails,
+        externalPartiesTravelDetails: validatedData.externalPartiesTravelDetails,
+        overseasTravelDetails: validatedData.overseasTravelDetails
+      };
+
+      autoGeneratedRequests = await TSRAutoGenerationService.autoGenerateRequests(tsrData, 'system');
+      
+      if (autoGeneratedRequests.transportRequests.length > 0 || autoGeneratedRequests.accommodationRequests.length > 0) {
+        console.log(`API_TRF_POST: Auto-generated ${autoGeneratedRequests.transportRequests.length} transport requests and ${autoGeneratedRequests.accommodationRequests.length} accommodation requests for TSR ${resultTrfId}`);
+      }
+    } catch (autoGenError) {
+      console.error(`API_TRF_POST_AUTO_GEN_ERROR: Failed to auto-generate requests for TSR ${resultTrfId}:`, autoGenError);
+      // Don't fail the entire TSR submission due to auto-generation errors
+    }
+
     return NextResponse.json({ 
       message: 'Travel request submitted successfully!', 
       trfId: resultTrfId,
-      requestId: trfRequestId 
+      requestId: trfRequestId,
+      autoGenerated: autoGeneratedRequests
     }, { status: 201 });
 
   } catch (error: any) {

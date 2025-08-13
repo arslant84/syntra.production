@@ -167,15 +167,16 @@ export default function OverseasFormContent() {
   const handleFinalSubmit = async (data: ApprovalSubmissionData) => {
     setApprovalData(data);
     const finalTSRData = {
-      requestorName: requestorInfo.requestorName,
-      staffId: requestorInfo.staffId,
-      department: requestorInfo.department,
-      position: requestorInfo.position,
-      costCenter: requestorInfo.costCenter,
-      telEmail: requestorInfo.telEmail,
-      email: requestorInfo.email,
-
       travelType: 'Overseas',
+      requestorInfo: {
+        requestorName: requestorInfo.requestorName,
+        staffId: requestorInfo.staffId,
+        department: requestorInfo.department,
+        position: requestorInfo.position,
+        costCenter: requestorInfo.costCenter,
+        telEmail: requestorInfo.telEmail,
+        email: requestorInfo.email,
+      },
       overseasTravelDetails: {
         ...travelDetails,
         itinerary: (travelDetails.itinerary || []).map(seg => ({ 

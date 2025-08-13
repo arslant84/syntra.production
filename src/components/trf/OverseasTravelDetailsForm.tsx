@@ -23,8 +23,8 @@ const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 // Zod schema for itinerary segment validation
 const itinerarySegmentSchema = z.object({
   id: z.string().optional(),
-  date: z.date({ required_error: "Date is required." }).nullable(),
-  day: z.string().min(1, "Day is required."),
+  date: z.date({ required_error: "Date is required." }),
+  day: z.string().optional().transform(val => val || ""),
   from: z.string().min(1, "Origin is required."),
   to: z.string().min(1, "Destination is required."),
   etd: z.string().regex(timeRegex, "Invalid ETD format (HH:MM)").optional().or(z.literal("")),
@@ -42,8 +42,8 @@ const advanceBankDetailsSchema = z.object({
 // Zod schema for advance amount requested item validation
 const advanceAmountRequestedItemSchema = z.object({
   id: z.string().optional(),
-  dateFrom: z.date({ required_error: "Date From is required." }).nullable(),
-  dateTo: z.date({ required_error: "Date To is required." }).nullable(),
+  dateFrom: z.date({ required_error: "Date From is required." }),
+  dateTo: z.date({ required_error: "Date To is required." }),
   lh: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().int().nonnegative("Must be non-negative").optional()),
   ma: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().int().nonnegative("Must be non-negative").optional()),
   oa: z.preprocess(val => String(val) === '' ? 0 : Number(val), z.number().int().nonnegative("Must be non-negative").optional()),
@@ -172,11 +172,12 @@ export default function OverseasTravelDetailsForm({ initialData, onSubmit, onBac
   // Handle form submission with explicit type annotation
   // Handle form submission with explicit type annotation
   const handleSubmit = form.handleSubmit((data: any) => {
-    // Filter out empty itinerary segments before submission
+    // Filter out empty itinerary segments before submission (only require essential fields)
     const filteredItinerary = data.itinerary.filter((seg: any) =>
-      seg.date && seg.day && seg.from && seg.to && seg.flightNumber
+      seg.date && seg.from && seg.to
     ).map((seg: any) => ({
       ...seg,
+      day: seg.date && isValid(seg.date) ? weekdayNames[getDay(seg.date)] : '',
       remarks: seg.remarks || "",
       flightNumber: seg.flightNumber || ""
     }));

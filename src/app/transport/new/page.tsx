@@ -141,21 +141,29 @@ export default function NewTransportRequestPage() {
           statusText: response.statusText,
           body: errorData
         });
+        // Refined error toast
         toast({
-          title: "Error",
-          description: `Failed to create transport request: ${response.status} ${response.statusText}`,
+          title: "Error Submitting Transport Request",
+          description: `Failed to create transport request: ${response.status} ${response.statusText}. Details: ${errorData}`,
           variant: "destructive",
         });
         throw new Error(`Failed to create transport request: ${response.status} - ${errorData}`);
       }
 
       const result = await response.json();
-      router.push(`/transport/view/${result.id}`);
-    } catch (error) {
-      console.error('Error creating transport request:', error);
+      // Add success toast
       toast({
-        title: "Error",
-        description: "Failed to create transport request.",
+        title: "Transport Request Submitted!",
+        description: `Transport Request ID ${result.id} processed successfully.`,
+        variant: "default",
+      });
+      router.push(`/transport/view/${result.id}`);
+    } catch (error: any) { // Add : any for type safety
+      console.error('Error creating transport request:', error);
+      // Refined error toast
+      toast({
+        title: "Error Submitting Transport Request",
+        description: error.message || "An unexpected error occurred.",
         variant: "destructive",
       });
     } finally {

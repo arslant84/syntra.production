@@ -21,20 +21,20 @@ const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const itinerarySegmentSchema = z.object({
   id: z.string().optional(),
-  date: z.date({ required_error: "Date is required." }).nullable(),
-  day: z.string().min(1, "Day is required."),
+  date: z.date({ required_error: "Date is required." }),
+  day: z.string().optional().transform(val => val || ""),
   from: z.string().min(1, "Origin is required."),
   to: z.string().min(1, "Destination is required."),
   // Ensure etd and eta are always strings (never undefined) to match interface
-  etd: z.string().regex(timeRegex, "Invalid ETD (HH:MM)").optional().or(z.literal("")).transform(val => val || ""),
-  eta: z.string().regex(timeRegex, "Invalid ETA (HH:MM)").optional().or(z.literal("")).transform(val => val || ""),
-  flightNumber: z.string().min(1, "Flight/Rein is required."),
+  etd: z.string().optional().refine(val => val === '' || !val || timeRegex.test(val), "Invalid ETD format (HH:MM)").transform(val => val || ""),
+  eta: z.string().optional().refine(val => val === '' || !val || timeRegex.test(val), "Invalid ETA format (HH:MM)").transform(val => val || ""),
+  flightNumber: z.string().optional().transform(val => val || ""),
   flightClass: z.string().default(""), // Added to match interface requirement
   remarks: z.string().optional().transform(val => val || ""), // Ensure remarks is always a string
 });
 
 const mealProvisionSchema = z.object({
-  dateFromTo: z.string().min(1, "Date From/To is required for meal provision."),
+  dateFromTo: z.string().optional().transform(val => val || ""),
   // Allow both number and string types to match MealProvisionDetails interface
   breakfast: z.union([z.string(), z.number()]).transform(val => String(val) === '' ? '0' : val),
   lunch: z.union([z.string(), z.number()]).transform(val => String(val) === '' ? '0' : val),
@@ -75,7 +75,7 @@ const accommodationDetailSchema = z.object({
 const companyTransportDetailSchema = z.object({
   id: z.string().optional(),
   date: z.date().nullable(),
-  day: z.string().min(1, "Day is required."),
+  day: z.string().optional().transform(val => val || ""),
   from: z.string().min(1, "Origin is required."),
   to: z.string().min(1, "Destination is required."),
   btNoRequired: z.string().optional().transform(val => val || ""),
@@ -87,7 +87,7 @@ const companyTransportDetailSchema = z.object({
 const domesticTravelDetailsSchema = z.object({
   purpose: z.string().min(1, "Purpose of travel is required."),
   tripType: z.enum(['One Way', 'Round Trip']).default('One Way'),
-  itinerary: z.array(itinerarySegmentSchema).optional(),
+  itinerary: z.array(itinerarySegmentSchema).min(1, "At least one itinerary segment is required."),
   mealProvision: mealProvisionSchema.optional(),
   accommodationDetails: z.array(accommodationDetailSchema).optional(),
   companyTransportDetails: z.array(companyTransportDetailSchema).optional(),
@@ -190,6 +190,7 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
       tripType: data.tripType,
       itinerary: data.itinerary.map(item => ({
         ...item,
+        day: item.date && isValid(item.date) ? weekdayNames[getDay(item.date)] : '',
         remarks: item.remarks || '',
       })),
       mealProvision: {
@@ -199,10 +200,13 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
         ...item,
         remarks: item.remarks || '',
       })),
-      companyTransportDetails: (data.companyTransportDetails || []).map(item => ({
-        ...item,
-        remarks: item.remarks || '',
-      })),
+      companyTransportDetails: (data.companyTransportDetails || [])
+        .filter(item => item.from && item.to && item.date) // Only include transport requests with essential fields
+        .map(item => ({
+          ...item,
+          day: item.date && isValid(item.date) ? weekdayNames[getDay(item.date)] : '',
+          remarks: item.remarks || '',
+        })),
     };
     onSubmit(formattedData);
   });

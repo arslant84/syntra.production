@@ -22,13 +22,8 @@ const cancellableStatuses: TrfStatus[] = ["Pending Department Focal", "Pending L
 const terminalOrProcessingStatuses: TrfStatus[] = ["Approved", "Rejected", "Cancelled", "Processing Flights", "Processing Accommodation", "Awaiting Visa", "TRF Processed"];
 
 function requiresHodApproval(trf: { travel_type?: string | null, estimated_cost?: number | string | null }): boolean {
-  if (trf.travel_type === 'Overseas' || trf.travel_type === 'Home Leave Passage') {
-    return true;
-  }
-  if (trf.estimated_cost && Number(trf.estimated_cost) > 1000) {
-      return true;
-  }
-  return false; 
+  // All travel requests require HOD approval regardless of type or cost
+  return true;
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ trfId: string }> }) {

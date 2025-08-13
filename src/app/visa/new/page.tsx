@@ -59,7 +59,7 @@ export default function NewVisaApplicationPage() {
     } catch (error) {
       console.error('Error submitting visa application:', error);
       toast({
-        title: 'Submission Failed',
+        title: 'Error Submitting Visa Application',
         description: error instanceof Error ? error.message : 'Failed to submit visa application',
         variant: 'destructive',
       });

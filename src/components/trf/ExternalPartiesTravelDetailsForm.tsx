@@ -24,8 +24,8 @@ const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
 
 const itinerarySegmentSchema = z.object({
   id: z.string().optional(),
-  date: z.date({ required_error: "Date is required." }).nullable(),
-  day: z.string().min(1, "Day is required."),
+  date: z.date({ required_error: "Date is required." }),
+  day: z.string().optional().transform(val => val || ""),
   from: z.string().min(1, "Origin is required."),
   to: z.string().min(1, "Destination is required."),
   etd: z.string().regex(timeRegex, "Invalid ETD (HH:MM)").optional().or(z.literal("")),
@@ -36,8 +36,8 @@ const itinerarySegmentSchema = z.object({
 
 const externalPartyAccommodationDetailSchema = z.object({
   id: z.string().optional(),
-  checkInDate: z.date({ required_error: "Check-in date is required."}).nullable(),
-  checkOutDate: z.date({ required_error: "Check-out date is required."}).nullable(),
+  checkInDate: z.date({ required_error: "Check-in date is required."}),
+  checkOutDate: z.date({ required_error: "Check-out date is required."}),
   placeOfStay: z.string().min(1, "Place of stay is required."),
   estimatedCostPerNight: z.preprocess(
     (val) => (val === "" || val === null || val === undefined) ? null : Number(val),
@@ -150,13 +150,19 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
       itinerary: data.itinerary.map(item => ({
         ...item,
         date: item.date ? new Date(item.date) : null,
+        day: item.day || (item.date && isValid(new Date(item.date)) ? weekdayNames[getDay(new Date(item.date))] : ''),
+        remarks: item.remarks || '',
       })),
-      accommodationDetails: data.accommodationDetails?.map(detail => ({
-        ...detail,
-        checkInDate: detail.checkInDate ? new Date(detail.checkInDate) : null,
-        checkOutDate: detail.checkOutDate ? new Date(detail.checkOutDate) : null,
-        estimatedCostPerNight: Number(detail.estimatedCostPerNight) || 0,
-      })),
+      accommodationDetails: data.accommodationDetails
+        ?.filter(detail => detail.checkInDate && detail.checkOutDate) // Only include accommodation with dates
+        ?.map(detail => ({
+          ...detail,
+          checkInDate: detail.checkInDate ? new Date(detail.checkInDate) : null,
+          checkOutDate: detail.checkOutDate ? new Date(detail.checkOutDate) : null,
+          estimatedCostPerNight: Number(detail.estimatedCostPerNight) || 0,
+          placeOfStay: detail.placeOfStay || '',
+          remarks: detail.remarks || '',
+        })) || [],
       mealProvision: {
         ...data.mealProvision,
         breakfast: Number(data.mealProvision.breakfast) || 0,

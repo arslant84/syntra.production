@@ -168,16 +168,16 @@ export default function HomeLeaveFormContent() {
   const handleFinalSubmit = async (data: ApprovalSubmissionData) => {
     setApprovalData(data);
     const finalTSRData = {
-      requestorName: requestorInfo.requestorName,
-      staffId: requestorInfo.staffId,
-      department: requestorInfo.department,
-      position: requestorInfo.position,
-      costCenter: requestorInfo.costCenter,
-      telEmail: requestorInfo.telEmail,
-      email: requestorInfo.email,
-
       travelType: 'Home Leave Passage',
-      status: isEditMode ? 'Editing' : 'Submitted',
+      requestorInfo: {
+        requestorName: requestorInfo.requestorName,
+        staffId: requestorInfo.staffId,
+        department: requestorInfo.department,
+        position: requestorInfo.position,
+        costCenter: requestorInfo.costCenter,
+        telEmail: requestorInfo.telEmail,
+        email: requestorInfo.email,
+      },
       overseasTravelDetails: { // Home Leave uses overseas structure
         ...travelDetails,
         itinerary: (travelDetails.itinerary || []).map(seg => ({ 
@@ -194,7 +194,6 @@ export default function HomeLeaveFormContent() {
       confirmPolicy: data.confirmPolicy,
       confirmManagerApproval: data.confirmManagerApproval,
       confirmTermsAndConditions: data.confirmTermsAndConditions,
-      approvalWorkflow: approvalWorkflow, // Include the approval workflow
       estimatedCost: 3000, // Mock estimated cost
     };
 

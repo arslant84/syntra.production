@@ -8,15 +8,10 @@
 
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
+const config = require('./config');
 
 // Database configuration
-const pool = new Pool({
-  host: process.env.DATABASE_HOST || 'localhost',
-  database: process.env.DATABASE_NAME || 'syntra',
-  user: process.env.DATABASE_USER || 'postgres',
-  password: process.env.DATABASE_PASSWORD,
-  port: process.env.DATABASE_PORT || 5432,
-});
+const pool = new Pool(config.database);
 
 async function migratePasswords() {
   console.log('🔄 Starting password migration...');
@@ -91,12 +86,6 @@ function promptForConfirmation() {
     process.stdin.pause();
     migratePasswords();
   });
-}
-
-// Check if required environment variables are set
-if (!process.env.DATABASE_PASSWORD) {
-  console.error('❌ DATABASE_PASSWORD environment variable is required');
-  process.exit(1);
 }
 
 // Start the migration process

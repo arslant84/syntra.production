@@ -1,12 +1,31 @@
 import { sql } from '@/lib/db';
-import { type AccommodationRequestDetails, StaffHouseData, RoomData, BookingData, StaffGuest, BookingStatus } from '@/types/accommodation';
 
-// Define approval workflow types (similar to transport)
+export interface AccommodationRequestDetails {
+  id: string;
+  trfId?: string;
+  requestorName: string;
+  requestorId: string;
+  requestorGender: string;
+  department: string;
+  location: string;
+  requestedCheckInDate: string;
+  requestedCheckOutDate: string;
+  requestedRoomType: string;
+  status: string;
+  assignedRoomName?: string;
+  assignedStaffHouseName?: string;
+  submittedDate: string;
+  lastUpdatedDate: string;
+  specialRequests?: string;
+  flightArrivalTime?: string;
+  flightDepartureTime?: string;
+}
+
 interface AccommodationApprovalStep {
-  role: string;
+  role: string; // e.g., 'Requestor', 'Department Focal', 'Line Manager', 'HOD'
   name: string;
-  status: 'Submitted' | 'Approved' | 'Rejected' | 'Current' | 'Pending';
-  date?: string;
+  status: 'Current' | 'Pending' | 'Approved' | 'Rejected' | 'Not Started' | 'Cancelled' | 'Submitted';
+  date?: Date | string;
   comments?: string;
 }
 
@@ -43,11 +62,12 @@ export async function getAccommodationRequests(userId?: string): Promise<Accommo
             tad.check_in_time as "flightArrivalTime",
             tad.check_out_time as "flightDepartureTime"
           FROM 
-            trf_accommodation_details tad
-          LEFT JOIN 
-            travel_requests tr ON tad.trf_id = tr.id
+            travel_requests tr
+          INNER JOIN 
+            trf_accommodation_details tad ON tad.trf_id = tr.id
           WHERE 
             tr.staff_id = ${userId}
+            AND tr.id IS NOT NULL
           ORDER BY 
             tr.id, tr.submitted_at DESC
         `
@@ -75,35 +95,43 @@ export async function getAccommodationRequests(userId?: string): Promise<Accommo
             tad.check_in_time as "flightArrivalTime",
             tad.check_out_time as "flightDepartureTime"
           FROM 
-            trf_accommodation_details tad
-          LEFT JOIN 
-            travel_requests tr ON tad.trf_id = tr.id
+            travel_requests tr
+          INNER JOIN 
+            trf_accommodation_details tad ON tad.trf_id = tr.id
+          WHERE 
+            tr.id IS NOT NULL
           ORDER BY 
             tr.id, tr.submitted_at DESC
         `;
 
-    const accommodationRequests = await query;
+    const results = await query;
+    
+    if (!results || results.length === 0) {
+      console.log('No accommodation requests found');
+      return [];
+    }
 
-    // Format dates and ensure proper typing
-    return accommodationRequests.map(request => ({
-      id: request.id,
-      trfId: request.trfId,
-      requestorName: request.requestorName,
-      requestorId: request.requestorId,
-      requestorGender: request.requestorGender as 'Male' | 'Female',
-      department: request.department,
-      location: request.location as 'Ashgabat' | 'Kiyanly' | 'Turkmenbashy',
-      requestedCheckInDate: new Date(request.requestedCheckInDate),
-      requestedCheckOutDate: new Date(request.requestedCheckOutDate),
-      requestedRoomType: request.requestedRoomType,
-      status: request.status as BookingStatus,
-      assignedRoomName: request.assignedRoomName,
-      assignedStaffHouseName: request.assignedStaffHouseName,
-      submittedDate: new Date(request.submittedDate),
-      lastUpdatedDate: request.lastUpdatedDate ? new Date(request.lastUpdatedDate) : new Date(request.submittedDate),
-      specialRequests: request.specialRequests,
-      flightArrivalTime: request.flightArrivalTime,
-      flightDepartureTime: request.flightDepartureTime
+    console.log(`Found ${results.length} travel requests with accommodation details`);
+    
+    return results.map((row: any) => ({
+      id: row.id,
+      trfId: row.trfId,
+      requestorName: row.requestorName,
+      requestorId: row.requestorId,
+      requestorGender: row.requestorGender,
+      department: row.department,
+      location: row.location,
+      requestedCheckInDate: row.requestedCheckInDate,
+      requestedCheckOutDate: row.requestedCheckOutDate,
+      requestedRoomType: row.requestedRoomType,
+      status: row.status,
+      assignedRoomName: row.assignedRoomName,
+      assignedStaffHouseName: row.assignedStaffHouseName,
+      submittedDate: row.submittedDate,
+      lastUpdatedDate: row.lastUpdatedDate,
+      specialRequests: row.specialRequests,
+      flightArrivalTime: row.flightArrivalTime,
+      flightDepartureTime: row.flightDepartureTime,
     }));
   } catch (error) {
     console.error('Error fetching accommodation requests:', error);
@@ -358,29 +386,35 @@ function generateFullApprovalWorkflow(
     if (completedStep) {
       // Use the completed step data
       fullWorkflow.push({
-        role: completedStep.role,
-        name: completedStep.name,
-        status: completedStep.status,
-        date: completedStep.date,
-        comments: completedStep.comments
+        role: completedStep.role || expectedStep.role,
+        name: completedStep.name || completedStep.approver_name || expectedStep.name,
+        status: completedStep.status as "Current" | "Pending" | "Approved" | "Rejected" | "Not Started" | "Cancelled" | "Submitted",
+        date: completedStep.step_date ? new Date(completedStep.step_date) : undefined,
+        comments: completedStep.comments || undefined
       });
     } else {
-      // Determine status based on current request status
+      // Determine status based on current request status and role
       let stepStatus: AccommodationApprovalStep['status'] = 'Pending';
       
-      if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
-        stepStatus = 'Pending';
-      } else if (currentStatus === 'Approved') {
-        // If approved, all pending steps should show as pending unless they were actually completed
-        stepStatus = 'Pending';
+      // Handle the initial requestor step
+      if (expectedStep.role === 'Requestor') {
+        stepStatus = 'Submitted';
       } else if (currentStatus === `Pending ${expectedStep.role}`) {
-        stepStatus = 'Current';
+        stepStatus = 'Current'; // Current pending step
+      } else if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
+        stepStatus = 'Pending'; // Keep as Pending for not-yet-reached steps
+      } else if (currentStatus === 'Approved') {
+        stepStatus = 'Pending'; // Pending steps that weren't recorded
+      } else {
+        stepStatus = 'Pending';
       }
 
       fullWorkflow.push({
         role: expectedStep.role,
-        name: expectedStep.name,
-        status: stepStatus
+        name: expectedStep.name !== 'TBD' ? expectedStep.name : 'To be assigned',
+        status: stepStatus,
+        date: undefined,
+        comments: undefined
       });
     }
   }

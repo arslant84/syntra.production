@@ -1,28 +1,60 @@
-export interface NotificationTemplate {
+// TypeScript types for notification system
+
+export interface UserNotification {
   id: string;
-  name: string;
-  subject: string;
-  body: string;
-  createdAt: string;
-  updatedAt: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'approval_request' | 'status_update' | 'system';
+  category: 'workflow_approval' | 'personal_status' | 'system_alert';
+  priority: 'high' | 'normal' | 'low';
+  relatedEntityType?: 'trf' | 'claim' | 'visa' | 'transport' | 'accommodation';
+  relatedEntityId?: string;
+  actionRequired: boolean;
+  actionUrl?: string;
+  isRead: boolean;
+  isDismissed: boolean;
+  readAt?: Date;
+  dismissedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  expiresAt?: Date;
 }
 
-export type NotificationEventType = 
-  | 'new_transport_request'
-  | 'transport_request_approved'
-  | 'transport_request_rejected'
-  | 'new_trf_request'
-  | 'trf_request_approved'
-  | 'trf_request_rejected'
-  | 'new_claim'
-  | 'claim_approved'
-  | 'claim_rejected'
-  | 'new_accommodation_request'
-  | 'accommodation_request_approved'
-  | 'accommodation_request_rejected';
+export interface NotificationCounts {
+  total: number;
+  unread: number;
+  pendingActions: number;
+  approvalRequests: number;
+  statusUpdates: number;
+}
 
-export interface NotificationTemplateFormValues {
-  name: string;
-  subject: string;
-  body: string;
+export interface CreateNotificationParams {
+  userId: string;
+  title: string;
+  message: string;
+  type: 'approval_request' | 'status_update' | 'system';
+  category: 'workflow_approval' | 'personal_status' | 'system_alert';
+  priority?: 'high' | 'normal' | 'low';
+  relatedEntityType?: 'trf' | 'claim' | 'visa' | 'transport' | 'accommodation';
+  relatedEntityId?: string;
+  actionRequired?: boolean;
+  actionUrl?: string;
+  expiresAt?: Date;
+}
+
+export interface NotificationPreferences {
+  id: string;
+  userId: string;
+  emailEnabled: boolean;
+  inappEnabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SSENotificationEvent {
+  type: 'connected' | 'notification_update' | 'counts' | 'heartbeat';
+  data?: any;
+  message?: string;
+  timestamp: string;
 }

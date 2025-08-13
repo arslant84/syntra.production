@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
+import { NotificationService } from '@/lib/notification-service';
 
 // Placeholder for claim actions
 const claimActionSchema = z.object({
@@ -64,6 +65,85 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         RETURNING *
     `;
     // TODO: Log action in an audit/approval_steps table for claims
+
+    // Create notifications for claim action
+    try {
+      // Get the claim requestor information
+      const claimDetails = await sql`
+        SELECT staff_name, staff_no, department_code 
+        FROM expense_claims 
+        WHERE id = ${claimId}
+      `;
+
+      if (claimDetails.length > 0) {
+        const claimInfo = claimDetails[0];
+        
+        // Notify the requestor about status update
+        const requestorUser = await sql`
+          SELECT id FROM users 
+          WHERE staff_id = ${claimInfo.staff_no} OR name = ${claimInfo.staff_name}
+          LIMIT 1
+        `;
+        
+        if (requestorUser.length > 0) {
+          await NotificationService.createStatusUpdate({
+            requestorId: requestorUser[0].id,
+            status: updatedClaim.status,
+            entityType: 'claim',
+            entityId: claimId,
+            approverName: validationResult.data.approverName || 'System',
+            comments: comments || undefined
+          });
+        }
+
+        // If moving to next approval step, notify next approver
+        if (nextStatus === 'Pending HOD Approval') {
+          const hodApprovers = await sql`
+            SELECT u.id, u.name 
+            FROM users u
+            INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+            INNER JOIN permissions p ON rp.permission_id = p.id
+            WHERE p.name = 'approve_claims_hod'
+              AND u.department = ${claimInfo.department_code}
+              AND u.status = 'Active'
+          `;
+
+          for (const approver of hodApprovers) {
+            await NotificationService.createApprovalRequest({
+              approverId: approver.id,
+              requestorName: claimInfo.staff_name,
+              entityType: 'claim',
+              entityId: claimId,
+              entityTitle: `Expense Claim`
+            });
+          }
+        } else if (nextStatus === 'Pending Finance Approval') {
+          const financeApprovers = await sql`
+            SELECT u.id, u.name 
+            FROM users u
+            INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+            INNER JOIN permissions p ON rp.permission_id = p.id
+            WHERE p.name = 'process_claims'
+              AND u.status = 'Active'
+          `;
+
+          for (const approver of financeApprovers) {
+            await NotificationService.createApprovalRequest({
+              approverId: approver.id,
+              requestorName: claimInfo.staff_name,
+              entityType: 'claim',
+              entityId: claimId,
+              entityTitle: `Expense Claim`
+            });
+          }
+        }
+
+        console.log(`Created notifications for claim ${claimId} ${effectiveAction} action`);
+      }
+    } catch (notificationError) {
+      console.error(`Failed to create notifications for claim ${claimId}:`, notificationError);
+      // Don't fail the claim action due to notification errors
+    }
 
     console.log(`API_CLAIMS_ACTION_POST (PostgreSQL): Claim ${claimId} action '${action}' processed. New status: ${updatedClaim.status}`);
     return NextResponse.json({ message: `Claim action '${action}' processed.`, claim: updatedClaim });

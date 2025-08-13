@@ -4,6 +4,10 @@ import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO, parseISO } from 'date-fns';
 import { requireRole } from '@/lib/authz';
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { hashPassword } from '@/lib/password-utils';
+import { hasPermission } from '@/lib/permissions';
 
 const userCreateSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -17,6 +21,11 @@ const userCreateSchema = z.object({
 
 export async function GET(request: NextRequest) {
   console.log("API_USERS_GET_START (PostgreSQL): Handler entered.");
+  
+  // Check if user has permission to view users
+  if (!await hasPermission('view_users') && !await hasPermission('manage_users')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
   
   // Debug environment variables
   console.log("API_USERS_GET_DEBUG: Environment variables check:");
@@ -128,11 +137,18 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  // Require admin role
+  // Require admin role - accept both "System Administrator" and "admin" for backwards compatibility
   try {
-    await requireRole(request, ['System Administrator']);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: err.message === 'Forbidden' ? 403 : 401 });
+    const session = await getServerSession(authOptions);
+    console.log("SESSION DEBUG (POST):", session);
+    const allowedAdminRoles = ["System Administrator", "admin"];
+    if (!session?.user?.role || !allowedAdminRoles.includes(session.user.role)) {
+      console.log("POST AUTH FAILED - User role:", session?.user?.role, "- Allowed roles:", allowedAdminRoles);
+      return NextResponse.json({ error: "Not authenticated or not an admin" }, { status: 401 });
+    }
+  } catch (authError) {
+    console.error("POST AUTH ERROR:", authError);
+    return NextResponse.json({ error: "Authentication failed" }, { status: 401 });
   }
   console.log("API_USERS_POST_START (PostgreSQL): Handler entered.");
   if (!sql) {
@@ -153,6 +169,9 @@ export async function POST(request: NextRequest) {
     if (password.length < 15) {
       return NextResponse.json({ error: "Password must be at least 15 characters." }, { status: 400 });
     }
+
+    // Hash the password before storing
+    const hashedPassword = await hashPassword(password);
 
     // Check for duplicate email
     const existingByEmail = await sql`SELECT id FROM users WHERE email = ${email}`;
@@ -179,7 +198,7 @@ export async function POST(request: NextRequest) {
     
     const newUserArray = await sql`
       INSERT INTO users (name, email, password, role_id, role, department, staff_id, status, created_at, updated_at)
-      VALUES (${name}, ${email}, ${password}, ${role_id || null}, ${roleName || null}, ${department || null}, ${staff_id || null}, ${status}, NOW(), NOW())
+      VALUES (${name}, ${email}, ${hashedPassword}, ${role_id || null}, ${roleName || null}, ${department || null}, ${staff_id || null}, ${status}, NOW(), NOW())
       RETURNING id, name, email, role_id, role AS "roleName", department, staff_id, status, last_login_at AS "lastLogin", created_at, updated_at
     `;
     const newUser = newUserArray[0];

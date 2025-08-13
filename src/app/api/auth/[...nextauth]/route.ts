@@ -35,32 +35,66 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials, req) {
+        console.log('NEXTAUTH CREDENTIALS - Login attempt for:', credentials?.email);
+        
         if (!credentials?.email || !credentials.password) {
+          console.log('NEXTAUTH CREDENTIALS - Missing email or password');
           return null;
         }
 
-        // Fetch user from DB
-        const users = await sql`
-          SELECT id, name, email, password, role_id, role
-          FROM users
-          WHERE email = ${credentials.email}
-          LIMIT 1
-        `;
+        try {
+          // Fetch user from DB
+          const users = await sql`
+            SELECT id, name, email, password, role_id, role, status
+            FROM users
+            WHERE email = ${credentials.email}
+            LIMIT 1
+          `;
 
-        if (!users.length) return null;
-        const user = users[0];
+          console.log('NEXTAUTH CREDENTIALS - User found:', users.length > 0);
 
-        // Check password using bcrypt
-        const isValidPassword = await bcrypt.compare(credentials.password, user.password);
-        if (!isValidPassword) return null;
+          if (!users.length) {
+            console.log('NEXTAUTH CREDENTIALS - No user found with email:', credentials.email);
+            return null;
+          }
+          
+          const user = users[0];
+          console.log('NEXTAUTH CREDENTIALS - User details:', {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            hasPassword: !!user.password
+          });
 
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          roleId: user.role_id,
-          role: user.role,
-        };
+          // Check if user is active
+          if (user.status !== 'Active') {
+            console.log('NEXTAUTH CREDENTIALS - User is not active:', user.status);
+            return null;
+          }
+
+          // Check password using bcrypt
+          const isValidPassword = await bcrypt.compare(credentials.password, user.password);
+          console.log('NEXTAUTH CREDENTIALS - Password valid:', isValidPassword);
+
+          if (!isValidPassword) {
+            console.log('NEXTAUTH CREDENTIALS - Invalid password for user:', credentials.email);
+            return null;
+          }
+
+          console.log('NEXTAUTH CREDENTIALS - Login successful for:', credentials.email);
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            roleId: user.role_id,
+            role: user.role,
+          };
+        } catch (error) {
+          console.error('NEXTAUTH CREDENTIALS - Error during authentication:', error);
+          return null;
+        }
       },
     }),
   ],

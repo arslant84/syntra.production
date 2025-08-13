@@ -3,28 +3,36 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import type { VisaStatus } from '@/types/visa';
+import { hasPermission } from '@/lib/permissions';
 
 const visaActionSchema = z.object({
   action: z.enum(["approve", "reject", "mark_processing", "upload_visa", "cancel"]),
   comments: z.string().optional().nullable(),
-  approverRole: z.string().optional().nullable(),
-  approverName: z.string().optional().nullable(),
+  approverRole: z.string(), // Make required like TSR
+  approverName: z.string(), // Make required like TSR
   visaCopyFilename: z.string().optional().nullable(), // For upload_visa action
 });
 
-// Define the visa approval workflow sequence
+// Define the visa approval workflow sequence (matching TSR pattern)
 const visaApprovalWorkflow: Record<string, VisaStatus | null> = {
   "Pending Department Focal": "Pending Line Manager/HOD",
   "Pending Line Manager/HOD": "Pending Visa Clerk",
   "Pending Visa Clerk": "Processing with Embassy", // Visa clerk marks as processing
-  // "Processing with Embassy" can then become "Approved" or "Rejected" by Visa Clerk via "upload_visa" or "reject"
+  "Processing with Embassy": "Approved", // Processing can lead to approval
 };
 
 const terminalVisaStatuses: VisaStatus[] = ["Approved", "Rejected", "Cancelled"];
+const cancellableStatuses: VisaStatus[] = ["Pending Department Focal", "Pending Line Manager/HOD", "Pending Visa Clerk", "Draft"];
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
   const { visaId } = await params;
   console.log(`API_VISA_ACTION_POST_START (PostgreSQL): Action for visa ${visaId}.`);
+  
+  // Check if user has permission to process visa applications
+  if (!await hasPermission('process_visa_applications')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
+  
   if (!sql) {
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
   }
@@ -45,25 +53,55 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     const currentStatus = currentVisaApp.status as VisaStatus;
 
-    if (terminalVisaStatuses.includes(currentStatus) && action !== "upload_visa") { // Allow upload_visa even if approved
-        return NextResponse.json({ error: `Visa application is already in a terminal state: ${currentStatus}.` }, { status: 400 });
+    if (terminalVisaStatuses.includes(currentStatus) && action !== "upload_visa") {
+        console.log(`API_VISA_ACTION_POST (PostgreSQL): Visa ${visaId} is already in a terminal state: ${currentStatus}. No action taken.`);
+        return NextResponse.json({ error: `Visa application is already in a terminal state: ${currentStatus}. No further actions allowed.` }, { status: 400 });
     }
     
     let nextStatus: VisaStatus = currentStatus;
-    let stepStatus = action === "approve" ? "Approved" : action === "reject" ? "Rejected" : "Processed";
+    let stepStatus = "Processed";
     let updateFields: any = {};
+    let notificationMessage = "";
+    let nextNotificationRecipient = "Requestor";
 
     if (action === "approve") {
-      nextStatus = visaApprovalWorkflow[currentStatus] || "Approved"; // Default to Approved if at end
+      // Follow the approval workflow sequence
+      let nextStepInSequence = visaApprovalWorkflow[currentStatus];
+      
+      if (nextStepInSequence) {
+        nextStatus = nextStepInSequence;
+        if (nextStatus !== "Approved") {
+          nextNotificationRecipient = `Next Approver (${nextStatus}) & Requestor`;
+        } else {
+          nextNotificationRecipient = `Visa Clerk & Requestor`;
+        }
+      } else if (currentStatus === "Processing with Embassy") {
+        // If processing and being approved, it's final approval
+        nextStatus = "Approved";
+        nextNotificationRecipient = `Requestor`;
+      } else {
+        // Default to approved if no specific workflow
+        nextStatus = "Approved";
+        nextNotificationRecipient = `Requestor`;
+      }
+      stepStatus = "Approved";
+      notificationMessage = `Your visa application (${visaId}) has been approved by ${approverName} (${approverRole}) and is now ${nextStatus}.`;
+
     } else if (action === "reject") {
       if (!comments || comments.trim() === "") {
         return NextResponse.json({ error: "Rejection comments are required." }, { status: 400 });
       }
       nextStatus = "Rejected";
       updateFields.rejection_reason = comments;
+      stepStatus = "Rejected";
+      notificationMessage = `Your visa application (${visaId}) has been rejected by ${approverName} (${approverRole}). Reason: ${comments}`;
+      nextNotificationRecipient = `Requestor`;
     } else if (action === "mark_processing") {
       if (currentStatus === "Pending Visa Clerk") {
         nextStatus = "Processing with Embassy";
+        stepStatus = "Processing";
+        notificationMessage = `Your visa application (${visaId}) is now being processed with the embassy.`;
+        nextNotificationRecipient = `Requestor`;
       } else {
         return NextResponse.json({ error: `Cannot mark as processing from status: ${currentStatus}` }, { status: 400 });
       }
@@ -71,75 +109,80 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (!visaCopyFilename) {
         return NextResponse.json({ error: "Visa copy filename is required for this action." }, { status: 400 });
       }
-      nextStatus = "Approved"; // Assume uploading visa means it's approved
+      nextStatus = "Approved";
       updateFields.visa_copy_filename = visaCopyFilename;
-      stepStatus = "Visa Uploaded"; // For the approval step log
+      stepStatus = "Visa Uploaded";
+      notificationMessage = `Your visa application (${visaId}) has been completed and the visa copy has been uploaded.`;
+      nextNotificationRecipient = `Requestor`;
     } else if (action === "cancel") {
+      if (!cancellableStatuses.includes(currentStatus)) {
+        return NextResponse.json({ error: `Visa application with status ${currentStatus} cannot be cancelled.` }, { status: 400 });
+      }
       nextStatus = "Cancelled";
+      stepStatus = "Cancelled";
+      notificationMessage = `Your visa application (${visaId}) has been cancelled.`;
+      nextNotificationRecipient = `Requestor & Relevant Approvers`;
     } else {
-      return NextResponse.json({ error: "Invalid action." }, { status: 400 });
+      return NextResponse.json({ error: "Invalid action specified." }, { status: 400 });
     }
 
-    updateFields.status = nextStatus;
-    updateFields.last_updated_date = sql`NOW()`;
+    // Fix the iterable error by handling the transaction result properly (following TSR pattern)
+    const result = await sql.begin(async tx => {
+        // Handle additional fields separately if needed
+        let updatedVisaResult;
+        if (updateFields.rejection_reason) {
+            updatedVisaResult = await tx`
+                UPDATE visa_applications
+                SET status = ${nextStatus}, last_updated_date = NOW(), rejection_reason = ${updateFields.rejection_reason}
+                WHERE id = ${visaId}
+                RETURNING *
+            `;
+        } else if (updateFields.visa_copy_filename) {
+            updatedVisaResult = await tx`
+                UPDATE visa_applications
+                SET status = ${nextStatus}, last_updated_date = NOW(), visa_copy_filename = ${updateFields.visa_copy_filename}
+                WHERE id = ${visaId}
+                RETURNING *
+            `;
+        } else {
+            updatedVisaResult = await tx`
+                UPDATE visa_applications
+                SET status = ${nextStatus}, last_updated_date = NOW()
+                WHERE id = ${visaId}
+                RETURNING *
+            `;
+        }
+        
+        // Get the next step number for this visa application
+        const stepNumberResult = await tx`
+            SELECT COALESCE(MAX(step_number), 0) + 1 as next_step_number 
+            FROM visa_approval_steps 
+            WHERE visa_application_id = ${visaId}
+        `;
+        const nextStepNumber = stepNumberResult[0]?.next_step_number || 1;
 
-    // Construct SET clause manually without using sql.join which doesn't exist
-    const setClauses = Object.entries(updateFields).map(([key, value]) => sql`${sql(key)} = ${value}`);
-    let setClause = setClauses[0];
-    for (let i = 1; i < setClauses.length; i++) {
-      setClause = sql`${setClause}, ${setClauses[i]}`;
-    }
-
-    const [updatedApp] = await sql.begin(async tx => {
-      const [app] = await tx`
-        UPDATE visa_applications
-        SET ${setClause}
-        WHERE id = ${visaId}
-        RETURNING *
-      `;
-      await tx`
-        INSERT INTO visa_approval_steps (visa_application_id, step_name, approver_name, status, step_date, comments)
-        VALUES (${visaId}, ${approverRole || 'User'}, ${approverName || currentVisaApp.requestor_name || 'User'}, ${stepStatus}, NOW(), ${comments || null})
-      `;
-      return app;
+        await tx`
+            INSERT INTO visa_approval_steps (visa_application_id, step_number, step_role, step_name, approver_name, status, step_date, comments, created_at, updated_at)
+            VALUES (${visaId}, ${nextStepNumber}, ${approverRole}, ${approverRole}, ${approverName}, ${stepStatus}, NOW(), ${comments || (action === "cancel" ? "Cancelled by user/admin." : (action === "approve" ? "Approved." : ""))}, NOW(), NOW())
+        `;
+        return updatedVisaResult;
     });
     
-    console.log(`API_VISA_ACTION_POST (PostgreSQL): Visa App ${visaId} action '${action}' processed. New status: ${updatedApp.status}`);
+    // Safely extract the first result
+    const updated = result && result.length > 0 ? result[0] : null;
     
-    // Format the response to match what the frontend expects (similar to GET endpoint)
-    const formattedVisa = {
-      id: updatedApp.id,
-      userId: updatedApp.user_id || '',
-      applicantName: updatedApp.requestor_name,
-      requestorName: updatedApp.requestor_name,
-      travelPurpose: updatedApp.travel_purpose,
-      destination: updatedApp.destination,
-      employeeId: updatedApp.staff_id || '',
-      staffId: updatedApp.staff_id || '',
-      nationality: '', // Default empty string since column doesn't exist
-      department: updatedApp.department || '',
-      position: updatedApp.position || '',
-      email: updatedApp.email || '',
-      visaType: updatedApp.visa_type || '',
-      tripStartDate: updatedApp.trip_start_date ? new Date(updatedApp.trip_start_date) : null,
-      tripEndDate: updatedApp.trip_end_date ? new Date(updatedApp.trip_end_date) : null,
-      passportNumber: updatedApp.passport_number || '',
-      passportExpiryDate: updatedApp.passport_expiry_date ? new Date(updatedApp.passport_expiry_date) : null,
-      itineraryDetails: updatedApp.additional_comments ? updatedApp.additional_comments.split('\n\nSupporting Documents:')[0] : '',
-      supportingDocumentsNotes: updatedApp.additional_comments && updatedApp.additional_comments.includes('\n\nSupporting Documents:') 
-        ? updatedApp.additional_comments.split('\n\nSupporting Documents:')[1] 
-        : '',
-      additionalComments: updatedApp.additional_comments || '',
-      status: updatedApp.status,
-      submittedDate: updatedApp.submitted_date ? new Date(updatedApp.submitted_date) : new Date(),
-      lastUpdatedDate: updatedApp.last_updated_date ? new Date(updatedApp.last_updated_date) : new Date(),
-      passportCopy: null,
-      supportingDocumentsNotes: '',
-      approvalHistory: [] // Will be populated by a separate query if needed
-    };
+    if (!updated) {
+      console.error(`API_VISA_ACTION_POST_ERROR (PostgreSQL): Failed to update visa application ${visaId}`);
+      return NextResponse.json({ error: 'Failed to update visa application' }, { status: 500 });
+    }
     
-    // TODO: Placeholder for notification
-    return NextResponse.json(formattedVisa);
+    const requestorEmailVal = updated.email || `${updated.requestor_name}@example.com`;
+    const finalNotificationLog = `Placeholder: Send Notification - Visa ${visaId} - Action: ${action.toUpperCase()} by ${approverName} (${approverRole}). Old Status: ${currentStatus}. New Status: ${updated.status}. Comments: ${comments || 'N/A'}. Notify ${nextNotificationRecipient}. To Requestor (${requestorEmailVal}): "${notificationMessage}"`;
+    console.log(finalNotificationLog);
+
+    console.log(`API_VISA_ACTION_POST (PostgreSQL): Visa App ${visaId} action '${action}' processed. New status: ${updated.status}`);
+    
+    return NextResponse.json({ message: `Visa application ${action}ed successfully.`, visa: updated });
 
   } catch (error: any) {
     console.error(`API_VISA_ACTION_POST_ERROR (PostgreSQL) for visa ${visaId}:`, error.message, error.stack);

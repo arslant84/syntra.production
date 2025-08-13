@@ -110,7 +110,7 @@ export default function AdminApprovalsPage() {
       }
       
       // 3. Fetch pending visa applications
-      const visaStatusesToFetch = ["Pending Review", "Pending Approval", "Pending Department Focal", "Processing with Embassy"].join(',');
+      const visaStatusesToFetch = ["Pending Department Focal", "Pending Line Manager/HOD", "Pending Visa Clerk"].join(',');
       console.log(`AdminApprovalsPage: Fetching Visa applications with statuses: ${visaStatusesToFetch}`);
       
       const visaResponse = await fetch(`/api/visa?statuses=${encodeURIComponent(visaStatusesToFetch)}&limit=50`);

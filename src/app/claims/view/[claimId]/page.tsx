@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { format, isValid, formatISO } from "date-fns";
 import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info, ArrowLeft, Edit, Ban, Printer, Loader2 } from "lucide-react";
+import ApprovalWorkflow from "@/components/trf/ApprovalWorkflow";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -461,6 +462,16 @@ export default function ClaimViewPage() {
               </div>
             </div>
           </section>
+
+          {/* Approval Workflow */}
+          {claim?.approvalWorkflow && claim.approvalWorkflow.length > 0 && (
+            <section>
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+                <CheckCircle className="print:hidden" /> Approval Workflow
+              </h3>
+              <ApprovalWorkflow steps={claim.approvalWorkflow} />
+            </section>
+          )}
         </CardContent>
       </Card>
     </div>

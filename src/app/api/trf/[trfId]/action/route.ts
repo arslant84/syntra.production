@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import type { TravelRequestForm, TrfStatus } from '@/types/trf';
+import { NotificationService } from '@/lib/notification-service';
 
 const actionSchema = z.object({
   action: z.enum(["approve", "reject", "cancel"]),
@@ -137,8 +138,59 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Failed to update TRF' }, { status: 500 });
     }
     
-    const finalNotificationLog = `Placeholder: Send Notification - TRF ${trfId} - Action: ${action.toUpperCase()} by ${approverName} (${approverRole}). Old Status: ${currentTrfStatus}. New Status: ${updated.status}. Comments: ${comments || 'N/A'}. Notify ${nextNotificationRecipient}. To Requestor (${requestorEmailVal}): "${notificationMessage}"`;
-    console.log(finalNotificationLog);
+    // Create real notifications instead of placeholder log
+    try {
+      // Notify the original requestor about status update
+      if (currentTrf.staff_id) {
+        const requestorUser = await sql`
+          SELECT id FROM users WHERE staff_id = ${currentTrf.staff_id} OR email = ${currentTrf.staff_id} LIMIT 1
+        `;
+        
+        if (requestorUser.length > 0) {
+          await NotificationService.createStatusUpdate({
+            requestorId: requestorUser[0].id,
+            status: updated.status,
+            entityType: 'trf',
+            entityId: trfId,
+            approverName,
+            comments: comments || undefined
+          });
+        }
+      }
+
+      // If approved and moving to next step, notify next approver
+      if (action === 'approve' && nextStatus !== 'Approved') {
+        const nextApproverPermission = nextStatus === 'Pending Line Manager' ? 'approve_trf_manager' : 
+                                     nextStatus === 'Pending HOD' ? 'approve_trf_hod' : null;
+        
+        if (nextApproverPermission) {
+          const nextApprovers = await sql`
+            SELECT u.id, u.name 
+            FROM users u
+            INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+            INNER JOIN permissions p ON rp.permission_id = p.id
+            WHERE p.name = ${nextApproverPermission}
+              AND u.department = ${currentTrf.department}
+              AND u.status = 'Active'
+          `;
+
+          for (const nextApprover of nextApprovers) {
+            await NotificationService.createApprovalRequest({
+              approverId: nextApprover.id,
+              requestorName: currentTrf.requestor_name,
+              entityType: 'trf',
+              entityId: trfId,
+              entityTitle: `${currentTrf.purpose || 'Travel Request'}`
+            });
+          }
+        }
+      }
+
+      console.log(`Created notifications for TRF ${trfId} ${action} by ${approverName}`);
+    } catch (notificationError) {
+      console.error(`Failed to create notifications for TRF ${trfId}:`, notificationError);
+      // Don't fail the approval due to notification errors
+    }
 
     return NextResponse.json({ message: `TRF ${action}ed successfully.`, trf: updated });
 

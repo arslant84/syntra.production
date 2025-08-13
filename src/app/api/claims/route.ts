@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { sql } from '@/lib/db'; // Assuming PostgreSQL setup
 import { formatISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
+import { hasPermission } from '@/lib/permissions';
+import { NotificationService } from '@/lib/notification-service';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -80,6 +82,12 @@ const expenseClaimCreateSchema = z.object({
 
 export async function POST(request: NextRequest) {
   console.log("API_CLAIMS_POST_START (PostgreSQL): Creating expense claim.");
+  
+  // Check if user has permission to create claims
+  if (!await hasPermission('create_claims')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
+  
   if (!sql) {
     console.error("API_CLAIMS_POST_ERROR (PostgreSQL): SQL client is not initialized.");
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
@@ -171,7 +179,37 @@ export async function POST(request: NextRequest) {
     
     console.log("API_CLAIMS_POST (PostgreSQL): Expense claim created successfully:", newClaim);
     console.log("API_CLAIMS_POST (PostgreSQL): Generated claim ID:", claimRequestId);
-     // TODO: Notification
+    
+    // Create notification for department focal approval
+    try {
+      // Find the department focal who needs to approve this claim
+      const departmentFocals = await sql`
+        SELECT u.id, u.name 
+        FROM users u
+        INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+        INNER JOIN permissions p ON rp.permission_id = p.id
+        WHERE p.name = 'approve_claims_focal'
+          AND u.department = ${data.headerDetails.departmentCode}
+          AND u.status = 'Active'
+      `;
+
+      if (departmentFocals.length > 0) {
+        for (const focal of departmentFocals) {
+          await NotificationService.createApprovalRequest({
+            approverId: focal.id,
+            requestorName: data.headerDetails.staffName,
+            entityType: 'claim',
+            entityId: claimRequestId,
+            entityTitle: `${data.headerDetails.documentType} - ${data.bankDetails.purposeOfClaim}`
+          });
+        }
+        console.log(`Created approval notifications for claim ${claimRequestId}`);
+      }
+    } catch (notificationError) {
+      console.error(`Failed to create approval notifications for claim ${claimRequestId}:`, notificationError);
+      // Don't fail the claim submission due to notification errors
+    }
+    
     return NextResponse.json({ 
       message: 'Expense claim submitted successfully!', 
       claimId: newClaim,
@@ -185,6 +223,12 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   console.log("API_CLAIMS_GET_START (PostgreSQL): Fetching claims.");
+  
+  // Check if user has permission to view claims
+  if (!await hasPermission('create_claims') && !await hasPermission('view_all_claims')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
+  
   if (!sql) {
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
   }

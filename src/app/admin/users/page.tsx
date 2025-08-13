@@ -202,8 +202,11 @@ export default function UserManagementPage() {
                     if (text) errorMessage += `: ${text}`;
                 } catch {}
             }
-            // Pass both message and details
-            throw { message: errorMessage, details: errorDetails };
+            // Create a proper Error object with additional properties
+            const error = new Error(errorMessage);
+            (error as any).details = errorDetails;
+            (error as any).status = response.status;
+            throw error;
         }
         let result;
         try {
@@ -216,14 +219,48 @@ export default function UserManagementPage() {
         handleCloseUserModal();
     } catch (error) {
         console.error(`Error in handleUserFormSubmit (UserManagementPage / ${isEditMode ? 'edit' : 'add'}) before re-throw:`, error);
-        let errorToThrow = error;
-        if (error && typeof error === 'object' && !Object.keys(error).length && error.constructor === Object) {
-             errorToThrow = new Error("An unspecified error occurred. Server may be down or sent an empty error response.");
-        } else if (!(error instanceof Error) && !(error && ((error as any).details || (error as any).error || (error as any).message))) {
-            const originalErrorStr = typeof error === 'string' ? error : JSON.stringify(error);
-            errorToThrow = new Error(`An unexpected error occurred: ${originalErrorStr.substring(0, 100)}`);
+        console.error('Error type:', typeof error);
+        console.error('Error constructor:', error?.constructor?.name);
+        console.error('Error keys:', error ? Object.keys(error) : 'error is falsy');
+        console.error('Error instanceof Error:', error instanceof Error);
+        
+        // Handle null/undefined errors
+        if (!error) {
+            throw new Error("An unknown error occurred (error was null/undefined)");
         }
-        throw errorToThrow; // This will be caught by AddUserForm's handleSubmit
+        
+        // If error is already a proper Error instance, just re-throw it
+        if (error instanceof Error) {
+            throw error;
+        }
+        
+        // Handle empty object errors
+        if (typeof error === 'object' && Object.keys(error).length === 0) {
+            throw new Error("An unspecified error occurred. Server may be down or sent an empty error response.");
+        }
+        
+        // Handle object errors with message or details
+        if (typeof error === 'object' && (error.message || error.details || error.error)) {
+            const errorMessage = error.message || error.error || 'An error occurred';
+            const newError = new Error(errorMessage);
+            (newError as any).details = error.details;
+            (newError as any).status = error.status;
+            throw newError;
+        }
+        
+        // Handle string errors
+        if (typeof error === 'string') {
+            throw new Error(error);
+        }
+        
+        // Fallback for any other type of error
+        try {
+            const errorMessage = `An unexpected error occurred: ${JSON.stringify(error).substring(0, 100)}`;
+            throw new Error(errorMessage);
+        } catch {
+            // JSON.stringify failed, so create a basic error
+            throw new Error(`An unexpected error occurred: ${String(error).substring(0, 100)}`);
+        }
     }
   }, [editingUser, fetchUsers, toast, currentPage]);
 

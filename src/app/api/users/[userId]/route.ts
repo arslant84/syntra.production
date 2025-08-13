@@ -6,6 +6,7 @@ import { formatISO } from 'date-fns';
 import { requireRole } from '@/lib/authz';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { hasPermission } from '@/lib/permissions';
 
 const userUpdateSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
@@ -20,6 +21,12 @@ const userUpdateSchema = z.object({
 export async function GET(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
   console.log(`API_USERID_GET_START (PostgreSQL): Fetching user ${userId}.`);
+  
+  // Check if user has permission to view profiles
+  if (!await hasPermission('view_profiles') && !await hasPermission('manage_users')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
+  
   if (!sql) {
     console.error("API_USERID_GET_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
@@ -55,10 +62,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
-  const session = await getServerSession(authOptions);
-  console.log("SESSION DEBUG (PATCH):", session);
-  if (!session?.user?.role || session.user.role !== "System Administrator") {
-    return NextResponse.json({ error: "Not authenticated or not an admin" }, { status: 401 });
+  try {
+    const session = await getServerSession(authOptions);
+    console.log("SESSION DEBUG (PATCH):", session);
+    const allowedAdminRoles = ["System Administrator", "admin"];
+    if (!session?.user?.role || !allowedAdminRoles.includes(session.user.role)) {
+      console.log("PATCH AUTH FAILED - User role:", session?.user?.role, "- Allowed roles:", allowedAdminRoles);
+      return NextResponse.json({ error: "Not authenticated or not an admin" }, { status: 401 });
+    }
+  } catch (authError) {
+    console.error("PATCH AUTH ERROR:", authError);
+    return NextResponse.json({ error: "Authentication failed" }, { status: 401 });
   }
   const { userId } = await params;
   console.log(`API_USERID_PATCH_START (PostgreSQL): Updating user ${userId}.`);
@@ -193,6 +207,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   } catch (error: any) {
     // Log the full error object for debugging
     console.error(`API_USERID_PATCH_ERROR (PostgreSQL) for user ${userId}:`, error);
+    console.error('Error details:', {
+      message: error?.message,
+      stack: error?.stack,
+      code: error?.code,
+      constraint_name: error?.constraint_name
+    });
+    
     if (error.code === '23505') { // Unique constraint violation
       if (error.constraint_name?.includes('email')) {
         return NextResponse.json({ error: 'User with this email already exists.', details: error.message }, { status: 409 });
@@ -201,15 +222,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: 'User with this Staff ID already exists.', details: error.message }, { status: 409 });
       }
     }
-    return NextResponse.json({ error: 'Failed to update user.', details: error.message, fullError: error }, { status: 500 });
+    
+    return NextResponse.json({ 
+      error: 'Failed to update user.', 
+      details: error?.message || 'Unknown error occurred',
+      debugInfo: {
+        errorType: error?.constructor?.name,
+        hasMessage: !!error?.message,
+        hasStack: !!error?.stack,
+        keys: Object.keys(error || {})
+      }
+    }, { status: 500 });
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
-  const session = await getServerSession(authOptions);
-  console.log("SESSION DEBUG (DELETE):", session);
-  if (!session?.user?.role || session.user.role !== "System Administrator") {
-    return NextResponse.json({ error: "Not authenticated or not an admin" }, { status: 401 });
+  try {
+    const session = await getServerSession(authOptions);
+    console.log("SESSION DEBUG (DELETE):", session);
+    const allowedAdminRoles = ["System Administrator", "admin"];
+    if (!session?.user?.role || !allowedAdminRoles.includes(session.user.role)) {
+      console.log("DELETE AUTH FAILED - User role:", session?.user?.role, "- Allowed roles:", allowedAdminRoles);
+      return NextResponse.json({ error: "Not authenticated or not an admin" }, { status: 401 });
+    }
+  } catch (authError) {
+    console.error("DELETE AUTH ERROR:", authError);
+    return NextResponse.json({ error: "Authentication failed" }, { status: 401 });
   }
   const { userId } = await params;
   console.log(`API_USERID_DELETE_START (PostgreSQL): Deleting user ${userId}.`);

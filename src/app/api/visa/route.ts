@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db'; // Assuming PostgreSQL setup
 import { formatISO, parseISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
+import { hasPermission } from '@/lib/permissions';
 
 const visaApplicationCreateSchema = z.object({
   applicantName: z.string().min(1, "Applicant name is required"),
@@ -30,6 +31,12 @@ const visaApplicationCreateSchema = z.object({
 
 export async function POST(request: NextRequest) {
   console.log("API_VISA_POST_START (PostgreSQL): Creating visa application.");
+  
+  // Check if user has permission to create visa applications - using create_trf as requestors should be able to create visa applications
+  if (!await hasPermission('create_trf')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
+  
   if (!sql) {
     console.error("API_VISA_POST_ERROR (PostgreSQL): SQL client is not initialized.");
     return NextResponse.json({ error: 'Database client not initialized. Check server logs.' }, { status: 503 });
@@ -96,6 +103,12 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   console.log("API_VISA_GET_START (PostgreSQL): Fetching visa applications.");
+  
+  // Check if user has permission to view visa applications (either process or view)
+  if (!await hasPermission('process_visa_applications') && !await hasPermission('view_visa_applications')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
+  
   if (!sql) {
     console.error("API_VISA_GET_ERROR (PostgreSQL): SQL client is not initialized.");
     return NextResponse.json({ error: 'Database client not initialized. Check server logs.' }, { status: 503 });

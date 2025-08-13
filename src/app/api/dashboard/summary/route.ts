@@ -1,11 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { requireAuth, createAuthError } from '@/lib/auth-utils';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
-    // TEMPORARILY DISABLED: Authentication completely removed for testing
-    console.log('Dashboard Summary: Authentication bypassed for testing');
+    // Check if user has permission to view dashboard summary
+    if (!await hasPermission('view_dashboard_summary')) {
+      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+    }
     
     // Use mock user data for testing
     const userId = 'test-user-id';
@@ -137,47 +140,34 @@ export async function GET(request: NextRequest) {
     // Get accommodation booking count
     let accommodationBookings = 0;
     try {
-      console.log('Checking accommodation_bookings table...');
-      // First check if the table exists
-      const bookingsTableCheck = await sql`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_name = 'accommodation_bookings'
-        ) as exists
-      `;
+      console.log('Checking accommodation requests...');
       
-      if (bookingsTableCheck[0]?.exists) {
-        console.log('accommodation_bookings table exists, fetching pending bookings...');
-        const bookingsQuery = await sql`
-          SELECT COUNT(*) AS count FROM accommodation_bookings
-          WHERE status = 'Pending'
+      // Count travel requests that have accommodation details
+      const accommodationQuery = await sql`
+        SELECT COUNT(DISTINCT tr.id) AS count 
+        FROM travel_requests tr
+        INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
+        WHERE tr.status = 'Pending Department Focal' 
+           OR tr.status = 'Pending Line Manager'
+           OR tr.status = 'Pending HOD'
+           OR tr.status = 'Pending Approval'
+      `;
+      accommodationBookings = parseInt(accommodationQuery[0]?.count || '0');
+      console.log(`Found ${accommodationBookings} pending accommodation requests`);
+      
+      // If no pending requests, check for any accommodation requests
+      if (accommodationBookings === 0) {
+        const anyAccommodationQuery = await sql`
+          SELECT COUNT(DISTINCT tr.id) AS count 
+          FROM travel_requests tr
+          INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
         `;
-        accommodationBookings = parseInt(bookingsQuery[0]?.count || '0');
-        console.log(`Found ${accommodationBookings} pending accommodation bookings`);
-        
-        // If no pending bookings, check for reserved ones
-        if (accommodationBookings === 0) {
-          const reservedQuery = await sql`
-            SELECT COUNT(*) AS count FROM accommodation_bookings
-            WHERE status = 'Reserved'
-          `;
-          accommodationBookings = parseInt(reservedQuery[0]?.count || '0');
-          console.log(`Found ${accommodationBookings} reserved accommodation bookings`);
-        }
-        
-        // If still no results, try to get any bookings
-        if (accommodationBookings === 0) {
-          const anyBookingsQuery = await sql`
-            SELECT COUNT(*) AS count FROM accommodation_bookings
-          `;
-          accommodationBookings = parseInt(anyBookingsQuery[0]?.count || '0');
-          console.log(`Found ${accommodationBookings} total accommodation bookings`);
-        }
-      } else {
-        console.log('accommodation_bookings table does not exist');
+        accommodationBookings = parseInt(anyAccommodationQuery[0]?.count || '0');
+        console.log(`Found ${accommodationBookings} total accommodation requests`);
       }
+      
     } catch (err) {
-      console.error('Error fetching accommodation bookings:', err);
+      console.error('Error fetching accommodation requests:', err);
     }
 
     // Get pending transport requests count

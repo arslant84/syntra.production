@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { format, isValid } from "date-fns";
 import { cn } from "@/lib/utils";
 import { UserCircle, Briefcase, MapPin, CalendarDays, Bed, MessageSquare, CheckCircle2, AlertCircle, Clock, Link as LinkIcon } from "lucide-react";
+import ApprovalWorkflow from "../trf/ApprovalWorkflow";
 import Link from 'next/link';
 
 interface AccommodationRequestDetailsViewProps {
@@ -50,7 +51,7 @@ export default function AccommodationRequestDetailsView({ requestData }: Accommo
     location, requestedCheckInDate, requestedCheckOutDate, requestedRoomType,
     status, assignedRoomName, assignedStaffHouseName,
     specialRequests, notes, submittedDate, lastUpdatedDate,
-    flightArrivalTime, flightDepartureTime
+    flightArrivalTime, flightDepartureTime, approvalWorkflow
   } = requestData;
 
   return (
@@ -133,6 +134,20 @@ export default function AccommodationRequestDetailsView({ requestData }: Accommo
             <CardContent className="pt-4">
                 <DetailItem label="Notes" value={<p className="whitespace-pre-wrap">{notes}</p>} fullWidth />
             </CardContent>
+        </Card>
+      )}
+
+      {/* Approval Workflow */}
+      {approvalWorkflow && approvalWorkflow.length > 0 && (
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-primary" /> Approval Workflow
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <ApprovalWorkflow steps={approvalWorkflow} />
+          </CardContent>
         </Card>
       )}
 

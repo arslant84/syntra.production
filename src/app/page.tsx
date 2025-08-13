@@ -36,9 +36,9 @@ type ActivityItem = {
   title: string;
   status: string;
   dateInfo: string;
-  icon: string;
   link: string;
   statusVariant: 'default' | 'outline';
+  icon: string;
 };
 
 // Icon mapping for dynamic icon rendering
@@ -230,7 +230,7 @@ export default function HomePage() {
                 const IconComponent = iconMap[item.icon as keyof typeof iconMap] || FileText;
                 
                 return (
-                  <Card key={item.id} className="hover:shadow-md transition-shadow duration-200 ease-in-out">
+                  <Card key={`${item.type}-${item.id}`} className="hover:shadow-md transition-shadow duration-200 ease-in-out">
                     <CardContent className="p-4 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-4 flex-grow">
                         <div className={cn(

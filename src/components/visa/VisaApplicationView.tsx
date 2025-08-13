@@ -7,7 +7,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from '@/components/ui/badge';
 import { format, isValid } from "date-fns";
 import { cn } from "@/lib/utils";
-import { UserCircle, Briefcase, Plane, Paperclip, CalendarDays, Globe, Flag, FileBadge, CheckCircle, Circle, AlertCircle, Clock, Link2, Mail, MapPin, FileText, Info, CreditCard } from "lucide-react";
+import { UserCircle, Briefcase, Plane, Paperclip, CalendarDays, Globe, Flag, FileBadge, Link2, Mail, MapPin, FileText, Info, CreditCard } from "lucide-react";
+import ApprovalWorkflow from "../trf/ApprovalWorkflow";
 import Link from 'next/link';
 import React from 'react';
 
@@ -35,43 +36,13 @@ const DetailItem: React.FC<{ label: string; value?: string | number | null | Rea
   );
 };
 
-const ApprovalStepView: React.FC<{ step: VisaApprovalStep; isLast: boolean }> = ({ step, isLast }) => {
-    let IconComponent = Circle;
-    let iconColor = "text-muted-foreground";
-
-    if (step.status === "Approved") {
-        IconComponent = CheckCircle;
-        iconColor = "text-green-500";
-    } else if (step.status === "Rejected") {
-        IconComponent = AlertCircle;
-        iconColor = "text-destructive";
-    } else if (step.status === "Pending") { 
-        IconComponent = Clock;
-        iconColor = "text-amber-500";
-    }
-    
-    return (
-        <div className="flex items-start">
-            <div className="flex flex-col items-center mr-4">
-                <IconComponent className={cn("w-6 h-6", iconColor)} />
-                {!isLast && <div className="w-0.5 h-8 bg-border mt-1"></div>}
-            </div>
-            <div className="pb-8">
-                <p className="font-semibold text-sm">{step.stepName} <span className="text-xs text-muted-foreground">({step.status})</span></p>
-                <p className="text-xs text-muted-foreground">By: {step.approverName || 'To be assigned'}</p>
-                {step.date && <p className="text-xs text-muted-foreground">Date: {formatDateSafe(step.date, "Pp")}</p>}
-                {step.comments && <p className="text-xs text-muted-foreground italic mt-1">Comment: {step.comments}</p>}
-            </div>
-        </div>
-    );
-};
 
 
 export default function VisaApplicationView({ visaData }: VisaApplicationViewProps) {
   const {
     id, userId, applicantName, travelPurpose, destination, employeeId,
     tripStartDate, tripEndDate, itineraryDetails, status, submittedDate, lastUpdatedDate, 
-    approvalHistory, requestorName, staffId, department, position, email, visaType,
+    approvalWorkflow, approvalHistory, requestorName, staffId, department, position, email, visaType,
     passportNumber, passportExpiryDate, additionalComments, supportingDocumentsNotes
   } = visaData;
 
@@ -193,15 +164,13 @@ export default function VisaApplicationView({ visaData }: VisaApplicationViewPro
         </CardContent>
       </Card>
 
-      {approvalHistory && approvalHistory.length > 0 && (
+      {(approvalWorkflow || approvalHistory) && (approvalWorkflow || approvalHistory)!.length > 0 && (
         <Card className="shadow-md print:shadow-none print:border-none print:break-inside-avoid">
           <CardHeader className="print:p-0 print:mb-2">
             <CardTitle className="text-lg font-semibold print:text-base">Approval Workflow</CardTitle>
           </CardHeader>
           <CardContent className="print:p-0">
-            {approvalHistory.map((step, index) => (
-              <ApprovalStepView key={index} step={step} isLast={index === approvalHistory.length - 1} />
-            ))}
+            <ApprovalWorkflow steps={approvalWorkflow || approvalHistory || []} />
           </CardContent>
         </Card>
       )}

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { TransportService } from '@/lib/transport-service';
+import { hasPermission } from '@/lib/permissions';
+import { sql } from '@/lib/db';
+import { NotificationService } from '@/lib/notification-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,6 +12,11 @@ export async function GET(request: NextRequest) {
     
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user has permission to view transport requests
+    if (!await hasPermission('create_transport_requests') && !await hasPermission('manage_transport_requests') && !await hasPermission('view_all_transport')) {
+      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -79,11 +87,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check if user has permission to create transport requests
+    if (!await hasPermission('create_transport_requests')) {
+      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+    }
+
     const body = await request.json();
     const userId = session.user.id || session.user.email;
     const requestData = { ...body, userId };
     
     const transportRequest = await TransportService.createTransportRequest(requestData);
+    
+    // Create notification for transport admin/approvers
+    try {
+      // Find transport admins and managers who need to approve
+      const transportApprovers = await sql`
+        SELECT u.id, u.name 
+        FROM users u
+        INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+        INNER JOIN permissions p ON rp.permission_id = p.id
+        WHERE p.name IN ('manage_transport_requests', 'approve_transport_requests')
+          AND u.status = 'Active'
+      `;
+
+      for (const approver of transportApprovers) {
+        await NotificationService.createApprovalRequest({
+          approverId: approver.id,
+          requestorName: session.user.name || 'User',
+          entityType: 'transport',
+          entityId: transportRequest.id,
+          entityTitle: `Transport Request`
+        });
+      }
+      
+      console.log(`Created approval notifications for transport request ${transportRequest.id}`);
+    } catch (notificationError) {
+      console.error(`Failed to create approval notifications for transport request:`, notificationError);
+    }
     
     return NextResponse.json(transportRequest, { status: 201 });
   } catch (error) {

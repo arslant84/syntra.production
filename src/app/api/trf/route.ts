@@ -6,6 +6,8 @@ import { formatISO, parseISO, isValid } from 'date-fns';
 import { mapFrontendItineraryToDb } from './itinerary-fix';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 import { TSRAutoGenerationService } from '@/lib/tsr-auto-generation-service';
+import { hasPermission } from '@/lib/permissions';
+import { NotificationService } from '@/lib/notification-service';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -161,6 +163,11 @@ const trfSubmissionSchema = z.discriminatedUnion("travelType", [
 
 export async function POST(request: NextRequest) {
   console.log("API_TRF_POST_START (PostgreSQL): Handler entered.");
+  
+  // Check if user has permission to create TRF
+  if (!await hasPermission('create_trf')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
   
   try {
     if (!sql) {
@@ -618,6 +625,36 @@ export async function POST(request: NextRequest) {
       // Don't fail the entire TSR submission due to auto-generation errors
     }
 
+    // Create notification for department focal approval
+    try {
+      // Find the department focal who needs to approve this TRF
+      const departmentFocals = await sql`
+        SELECT u.id, u.name 
+        FROM users u
+        INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+        INNER JOIN permissions p ON rp.permission_id = p.id
+        WHERE p.name = 'approve_trf_focal'
+          AND u.department = ${dbRequestorInfo.department}
+          AND u.status = 'Active'
+      `;
+
+      if (departmentFocals.length > 0) {
+        for (const focal of departmentFocals) {
+          await NotificationService.createApprovalRequest({
+            approverId: focal.id,
+            requestorName: dbRequestorInfo.requestorName,
+            entityType: 'trf',
+            entityId: trfRequestId,
+            entityTitle: `${trfData.travelType} - ${trfData.purpose || 'Travel Request'}`
+          });
+        }
+        console.log(`Created approval notifications for TRF ${trfRequestId}`);
+      }
+    } catch (notificationError) {
+      console.error(`Failed to create approval notifications for TRF ${trfRequestId}:`, notificationError);
+      // Don't fail the TRF submission due to notification errors
+    }
+
     return NextResponse.json({ 
       message: 'Travel request submitted successfully!', 
       trfId: resultTrfId,
@@ -641,6 +678,12 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   console.log("API_TRF_GET_START (PostgreSQL): Fetching TRFs.");
+  
+  // Check if user has permission to view TRFs - we'll allow both create_trf (own TRFs) and view_all_trf (all TRFs)
+  if (!await hasPermission('create_trf') && !await hasPermission('view_all_trf')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
+  
   if (!sql) {
     console.error("API_TRF_GET_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });

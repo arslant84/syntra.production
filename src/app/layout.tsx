@@ -1,30 +1,15 @@
 
 import React from 'react';
 import type { Metadata } from 'next';
-// Temporarily removed font imports to avoid SWC requirement
-// import { Geist, Geist_Mono } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import './globals.css';
-import AppProviders from '@/components/providers/AppProviders'; // Import the new wrapper
 import AppLayout from '@/components/layout/AppLayout';
-import { Toaster } from "@/components/ui/toaster";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import AppProviders from '@/components/providers/AppProviders';
 
-// Temporarily commented out font configurations
-// const geistSans = Geist({
-//   variable: '--font-geist-sans',
-//   subsets: ['latin'],
-// });
-
-// const geistMono = Geist_Mono({
-//   variable: '--font-geist-mono',
-//   subsets: ['latin'],
-// });
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Synchronised Travel',
+  title: 'SynTra - Synchronised Travel',
   description: 'PC(T)SB - Synchronised Travel',
 };
 

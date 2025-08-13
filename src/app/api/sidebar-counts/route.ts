@@ -1,11 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { requireAuth, createAuthError } from '@/lib/auth-utils';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
-    // TEMPORARILY DISABLED: Authentication completely removed for testing
-    console.log('Sidebar Counts: Authentication bypassed for testing');
+    // Check if user has permission to view sidebar counts
+    if (!await hasPermission('view_sidebar_counts')) {
+      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+    }
   
     // Object to store all counts
     const counts = {
@@ -67,22 +70,18 @@ export async function GET(request: NextRequest) {
       `;
       pendingVisas = parseInt(visaQuery[0]?.count || '0');
       
-      // Count pending accommodation bookings
+      // Count pending accommodation requests
       let pendingAccommodation = 0;
-      const bookingsTableCheck = await sql`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_name = 'accommodation_bookings'
-        ) as exists
+      const accommodationQuery = await sql`
+        SELECT COUNT(DISTINCT tr.id) AS count 
+        FROM travel_requests tr
+        INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
+        WHERE tr.status = 'Pending Department Focal' 
+           OR tr.status = 'Pending Line Manager'
+           OR tr.status = 'Pending HOD'
+           OR tr.status = 'Pending Approval'
       `;
-      
-      if (bookingsTableCheck[0]?.exists) {
-        const bookingsQuery = await sql`
-          SELECT COUNT(*) AS count FROM accommodation_bookings
-          WHERE status = 'Pending'
-        `;
-        pendingAccommodation = parseInt(bookingsQuery[0]?.count || '0');
-      }
+      pendingAccommodation = parseInt(accommodationQuery[0]?.count || '0');
       
       // Store individual counts
       counts.claims = pendingClaims;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { sql } from '@/lib/db';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +13,11 @@ export async function GET(request: NextRequest) {
     if (!session?.user?.email) {
       console.log('User details API - No session or email');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Users can always view their own profile, admins can view any profile
+    if (!await hasPermission('manage_own_profile') && !await hasPermission('view_profiles')) {
+      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
     }
 
     console.log('User details API - Looking for user with email:', session.user.email);

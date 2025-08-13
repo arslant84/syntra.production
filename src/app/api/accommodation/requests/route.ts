@@ -170,18 +170,18 @@ export async function GET(request: NextRequest) {
           tad.check_in_time as "flightArrivalTime",
           tad.check_out_time as "flightDepartureTime"
         FROM 
-          trf_accommodation_details tad
-        LEFT JOIN 
-          travel_requests tr ON tad.trf_id = tr.id
+          travel_requests tr
+        INNER JOIN 
+          trf_accommodation_details tad ON tad.trf_id = tr.id
         WHERE tr.status = ANY(${statuses}) 
-          AND tr.travel_type = 'Accommodation'
+          AND tr.id IS NOT NULL
         ORDER BY 
           tr.id, tr.submitted_at DESC
         LIMIT ${limit}
       `;
       console.log(`API_ACCOM_REQ_GET (PostgreSQL): Found ${requests.length} requests with status filtering`);
     } else {
-      // When not filtering by status
+      // When not filtering by status - get travel requests that have accommodation details
       requests = await sql`
         SELECT DISTINCT ON (tr.id)
           tr.id,
@@ -206,17 +206,19 @@ export async function GET(request: NextRequest) {
           tad.check_in_time as "flightArrivalTime",
           tad.check_out_time as "flightDepartureTime"
         FROM 
-          trf_accommodation_details tad
-        LEFT JOIN 
-          travel_requests tr ON tad.trf_id = tr.id
+          travel_requests tr
+        INNER JOIN 
+          trf_accommodation_details tad ON tad.trf_id = tr.id
+        WHERE 
+          tr.id IS NOT NULL
         ORDER BY 
           tr.id, tr.submitted_at DESC
         LIMIT ${limit}
       `;
-      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Found ${requests.length} requests without status filtering`);
+      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Found ${requests.length} travel requests with accommodation details`);
     }
     
-    console.log(`API_ACCOM_REQ_GET (PostgreSQL): Total requests found: ${requests.length}`);
+    console.log(`API_ACCOM_REQ_GET (PostgreSQL): Total unique requests found: ${requests.length}`);
     
     const formattedRequests = requests.map(req => ({
         ...req,
@@ -237,13 +239,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch accommodation requests.' }, { status: 500 });
   }
   } catch (error: any) {
-    // Handle authentication errors from outer try block
+    // Handle authentication errors
     if (error.message === 'UNAUTHORIZED') {
       const authError = createAuthError('UNAUTHORIZED');
       return NextResponse.json({ error: authError.message }, { status: authError.status });
     }
     
-    console.error("API_ACCOM_REQ_GET_ERROR (Authentication):", error.message);
-    return NextResponse.json({ error: 'Authentication failed.' }, { status: 401 });
+    console.error("API_ACCOM_REQ_GET_ERROR (PostgreSQL):", error.message, error.stack);
+    return NextResponse.json({ error: 'Failed to fetch accommodation requests.' }, { status: 500 });
   }
 }

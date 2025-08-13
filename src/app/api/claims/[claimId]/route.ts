@@ -171,6 +171,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       status: claim.status,
       submittedAt: claim.submitted_at
     };
+
+    // Get approval steps for this claim
+    const completedApprovalSteps = await sql`
+      SELECT 
+        id,
+        step_role as "stepRole", 
+        step_name as "stepName",
+        status,
+        step_date as "stepDate",
+        comments,
+        created_at
+      FROM claims_approval_steps
+      WHERE claim_id = ${claimId}
+      ORDER BY created_at ASC
+    `;
+
+    // Generate the complete approval workflow including expected pending steps
+    const fullApprovalWorkflow = generateFullClaimApprovalWorkflow(
+      claim.status,
+      completedApprovalSteps,
+      claim.requestor_name || claim.staff_name || 'Unknown'
+    );
+
+    claimData.approvalWorkflow = fullApprovalWorkflow;
     
     console.log(`API_CLAIMS_GET_BY_ID (PostgreSQL): Successfully fetched claim ${claimId}`);
     return NextResponse.json({ claimData });
@@ -179,6 +203,75 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.error(`API_CLAIMS_GET_BY_ID_ERROR (PostgreSQL) for claim ${claimId}:`, error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch claim details.', details: error.message }, { status: 500 });
   }
+}
+
+// Generate full approval workflow including pending steps (using TSR pattern)
+function generateFullClaimApprovalWorkflow(
+  currentStatus: string,
+  completedSteps: any[],
+  requestorName?: string
+): any[] {
+  // Define the expected workflow sequence for Claims
+  const expectedWorkflow = [
+    { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
+    { role: 'Verifier', name: 'TBD', status: 'Pending' as const },
+    { role: 'HOD', name: 'TBD', status: 'Pending' as const },
+    { role: 'Finance', name: 'TBD', status: 'Pending' as const }
+  ];
+
+  // Map completed steps by role for easy lookup
+  const completedByRole = completedSteps.reduce((acc: any, step: any) => {
+    acc[step.stepRole] = step;
+    return acc;
+  }, {});
+
+  // Generate the full workflow
+  const fullWorkflow: any[] = [];
+
+  for (const expectedStep of expectedWorkflow) {
+    const completedStep = completedByRole[expectedStep.role];
+    
+    if (completedStep) {
+      // Use the completed step data
+      fullWorkflow.push({
+        role: completedStep.stepRole || expectedStep.role,
+        name: completedStep.stepName || expectedStep.name,
+        status: completedStep.status as "Current" | "Pending" | "Approved" | "Rejected" | "Not Started" | "Cancelled" | "Submitted",
+        date: completedStep.stepDate ? new Date(completedStep.stepDate) : undefined,
+        comments: completedStep.comments || undefined
+      });
+    } else {
+      // Determine status based on current request status and role
+      let stepStatus: "Current" | "Pending" | "Approved" | "Rejected" | "Not Started" | "Cancelled" | "Submitted" = 'Pending';
+      
+      // Handle the initial requestor step
+      if (expectedStep.role === 'Requestor') {
+        stepStatus = 'Submitted';
+      } else if (currentStatus === 'Pending Verification' && expectedStep.role === 'Verifier') {
+        stepStatus = 'Current';
+      } else if (currentStatus === 'Pending HOD Approval' && expectedStep.role === 'HOD') {
+        stepStatus = 'Current';
+      } else if (currentStatus === 'Pending Finance Approval' && expectedStep.role === 'Finance') {
+        stepStatus = 'Current';
+      } else if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
+        stepStatus = 'Pending'; // Keep as Pending for not-yet-reached steps
+      } else if (currentStatus === 'Approved' || currentStatus === 'Processed') {
+        stepStatus = 'Pending'; // Pending steps that weren't recorded
+      } else {
+        stepStatus = 'Pending';
+      }
+
+      fullWorkflow.push({
+        role: expectedStep.role,
+        name: expectedStep.name !== 'TBD' ? expectedStep.name : 'To be assigned',
+        status: stepStatus,
+        date: undefined,
+        comments: undefined
+      });
+    }
+  }
+
+  return fullWorkflow;
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ claimId: string }> }) {

@@ -27,12 +27,14 @@ export interface VisaApplication {
   status: string;
   submittedDate: Date;
   lastUpdatedDate: Date;
+  approvalWorkflow?: VisaApprovalStep[];
+  approvalHistory?: VisaApprovalStep[]; // Keep for backward compatibility
 }
 
 export interface VisaApprovalStep {
-  stepName: string; 
-  approverName?: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
-  date?: Date;
+  role: string; // e.g., 'Requestor', 'Department Focal', 'Line Manager/HOD', 'Visa Clerk'
+  name: string;
+  status: 'Current' | 'Pending' | 'Approved' | 'Rejected' | 'Not Started' | 'Cancelled' | 'Submitted';
+  date?: Date | string;
   comments?: string;
 }

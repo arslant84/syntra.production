@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET() {
   console.log("API_ADMIN_VISA_REPORTS_GET: Fetching visa reports for admin dashboard");
+  
+  // Check if user has permission to view visa reports
+  if (!await hasPermission('view_visa_reports') && !await hasPermission('generate_admin_reports')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
   
   if (!sql) {
     console.error("API_ADMIN_VISA_REPORTS_ERROR: Database client not initialized");

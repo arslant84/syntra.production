@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { Eye, EyeOff, User, Lock } from "lucide-react";
+import './login.css';
 
 export default function LoginPage() {
   const { data: session, status } = useSession();
@@ -12,6 +14,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -36,77 +40,133 @@ export default function LoginPage() {
     }
   };
 
+  const handleMicrosoftSignIn = () => {
+    setLoading(true);
+    signIn('azure-ad');
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-900 via-blue-600 to-green-400">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white/90 backdrop-blur-md p-10 rounded-2xl shadow-2xl w-full max-w-md border border-blue-100"
-      >
-        {/* Logo section */}
-        <div className="flex justify-center mb-6 items-center gap-2">
-          <div className="relative w-10 h-10">
-            <Image 
-              src="/Open.png" 
-              alt="SynTra Logo" 
-              fill
-              className="object-contain w-auto h-auto"
-            />
+    <div className="min-h-screen bg-gradient-to-b from-white to-slate-100 flex items-center justify-center p-4">
+      <div className="relative w-full max-w-sm">
+        {/* Main login card */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
+          {/* Logo section */}
+          <div className="text-center mb-8">
+            <div className="flex justify-center items-center gap-2 mb-2">
+              <div className="relative w-8 h-8">
+                <Image 
+                  src="/Open.png" 
+                  alt="SynTra Logo" 
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-800 tracking-wide">
+                SynTra
+              </h1>
+            </div>
           </div>
-          <div className="text-3xl font-bold text-blue-900">SynTra</div>
+
+          {/* Error message */}
+          {error && (
+            <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-700 text-sm text-center">{error}</p>
+            </div>
+          )}
+
+          {/* Login form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Email field */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <User className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onFocus={() => setFocusedField('email')}
+                onBlur={() => setFocusedField(null)}
+                placeholder="Please enter your account"
+                className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#00b1a9]/20 ${
+                  focusedField === 'email' 
+                    ? 'border-[#00b1a9] bg-[#00b1a9]/10' 
+                    : 'hover:border-gray-300'
+                }`}
+                required
+                autoFocus
+              />
+            </div>
+
+            {/* Password field */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Lock className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setFocusedField('password')}
+                onBlur={() => setFocusedField(null)}
+                placeholder="Please enter your password"
+                className={`w-full pl-10 pr-12 py-3 border border-gray-200 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#00b1a9]/20 ${
+                  focusedField === 'password' 
+                    ? 'border-[#00b1a9] bg-[#00b1a9]/10' 
+                    : 'hover:border-gray-300'
+                }`}
+                required
+                minLength={15}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+
+            {/* Login button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#00b1a9] text-white py-3 px-4 rounded-lg font-semibold text-base transition-all duration-200 hover:bg-[#009c94] focus:outline-none focus:ring-2 focus:ring-[#00b1a9]/20 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg"
+            >
+              {loading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  LOGIN
+                </div>
+              ) : (
+                "LOGIN"
+              )}
+            </button>
+          </form>
+
+          {/* Microsoft sign in option */}
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={handleMicrosoftSignIn}
+              disabled={loading}
+              className="w-full bg-white border border-gray-200 text-gray-700 py-3 px-4 rounded-lg font-semibold text-base transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500/20 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md flex items-center justify-center gap-3"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8.64 9.05L1.73 2.14H8.64V9.05Z" fill="#F25022"/>
+                <path d="M9.36 9.05V2.14H16.27L9.36 9.05Z" fill="#7FBA00"/>
+                <path d="M9.36 9.77L16.27 16.68H9.36V9.77Z" fill="#00A4EF"/>
+                <path d="M8.64 9.77V16.68H1.73L8.64 9.77Z" fill="#FFB900"/>
+              </svg>
+              Sign in with Microsoft
+            </button>
+          </div>
         </div>
-        <h1 className="text-3xl font-bold mb-6 text-center text-blue-900">Sign in</h1>
-        <div className="mb-4">
-          <label className="block mb-1 font-semibold text-blue-800">Email</label>
-          <input
-            type="email"
-            className="w-full border border-blue-200 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            autoFocus
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block mb-1 font-semibold text-blue-800">Password</label>
-          <input
-            type="password"
-            className="w-full border border-blue-200 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            minLength={15}
-            placeholder="At least 15 characters"
-          />
-        </div>
-        {error && (
-          <div className="mb-4 text-red-600 text-sm text-center">{error}</div>
-        )}
-        <button
-          type="submit"
-          className="w-full bg-blue-700 text-white py-2 rounded font-semibold hover:bg-blue-800 transition shadow-md"
-          disabled={loading}
-        >
-          {loading ? "Signing in..." : "Sign in"}
-        </button>
-        
-        <div className="mt-4 text-center">
-          <div className="text-gray-500 text-sm mb-3">or</div>
-          <button
-            type="button"
-            onClick={() => signIn('azure-ad')}
-            className="w-full bg-white border border-gray-300 text-gray-700 py-2 rounded font-semibold hover:bg-gray-50 transition shadow-md flex items-center justify-center gap-2"
-            disabled={loading}
-          >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M8.64 9.05L1.73 2.14H8.64V9.05Z" fill="#F25022"/>
-              <path d="M9.36 9.05V2.14H16.27L9.36 9.05Z" fill="#7FBA00"/>
-              <path d="M9.36 9.77L16.27 16.68H9.36V9.77Z" fill="#00A4EF"/>
-              <path d="M8.64 9.77V16.68H1.73L8.64 9.77Z" fill="#FFB900"/>
-            </svg>
-            Sign in with Microsoft
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   );
-} 
+}

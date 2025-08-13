@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO, parseISO } from 'date-fns';
 import type { VisaApplication, VisaApprovalStep } from '@/types/visa';
+import { hasPermission } from '@/lib/permissions';
 
 const visaUpdateSchema = z.object({
   applicantName: z.string(),
@@ -22,6 +23,11 @@ const visaUpdateSchema = z.object({
 export async function GET(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
   const { visaId } = await params;
   console.log(`API_VISA_VISAID_GET_START (PostgreSQL): Fetching visa application ${visaId}.`);
+  
+  // Check if user has permission to view visa applications (either process or view)
+  if (!await hasPermission('process_visa_applications') && !await hasPermission('view_visa_applications')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
   
   if (!sql) {
     console.error("API_VISA_GET_BY_ID_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -109,7 +115,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // Optional fields
       passportCopy: null,
       supportingDocumentsNotes: '',
-      approvalHistory: fullApprovalHistory
+      approvalWorkflow: fullApprovalHistory,
+      approvalHistory: fullApprovalHistory // Keep for backward compatibility
     };
     
     return NextResponse.json({ visaApplication });
@@ -124,6 +131,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: { visaId: string } }) {
   const { visaId } = params;
   console.log(`API_VISA_VISAID_PUT_START (PostgreSQL): Updating visa application ${visaId}.`);
+
+  // Check if user has permission to process visa applications
+  if (!await hasPermission('process_visa_applications')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
 
   if (!sql) {
     console.error("API_VISA_PUT_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -181,6 +193,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { visaI
   const { visaId } = params;
   console.log(`API_VISA_VISAID_DELETE_START (PostgreSQL): Deleting visa application ${visaId}.`);
 
+  // Check if user has permission to process visa applications
+  if (!await hasPermission('process_visa_applications')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  }
+
   if (!sql) {
     console.error("API_VISA_DELETE_ERROR (PostgreSQL): SQL client is not initialized.");
     return NextResponse.json({ error: 'Database client not initialized. Check server logs.' }, { status: 503 });
@@ -208,15 +225,15 @@ export async function DELETE(request: NextRequest, { params }: { params: { visaI
   }
 }
 
-// Generate full approval workflow including pending steps (similar to Transport/TRF approach)
+// Generate full approval workflow including pending steps (using TSR pattern)
 function generateFullVisaApprovalWorkflow(
   currentStatus: string, 
   completedSteps: any[],
   requestorName?: string
 ): any[] {
-  // Define the expected workflow sequence for Visa
+  // Define the expected workflow sequence for Visa (matching TSR pattern)
   const expectedWorkflow = [
-    { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
+    { role: 'Applicant', name: requestorName || 'System', status: 'Submitted' as const },
     { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
     { role: 'Line Manager/HOD', name: 'TBD', status: 'Pending' as const },
     { role: 'Visa Clerk', name: 'TBD', status: 'Pending' as const }
@@ -235,30 +252,34 @@ function generateFullVisaApprovalWorkflow(
     const completedStep = completedByRole[expectedStep.role];
     
     if (completedStep) {
-      // Use the completed step data - map to expected format for Visa
+      // Use the completed step data
       fullWorkflow.push({
-        stepName: completedStep.stepName || '',
-        approverName: completedStep.approverName || undefined,
-        status: completedStep.status as "Pending" | "Approved" | "Rejected",
+        role: completedStep.stepRole || expectedStep.role,
+        name: completedStep.approverName || completedStep.stepName || expectedStep.name,
+        status: completedStep.status as "Current" | "Pending" | "Approved" | "Rejected" | "Not Started" | "Cancelled" | "Submitted",
         date: completedStep.stepDate ? new Date(completedStep.stepDate) : undefined,
         comments: completedStep.comments || undefined
       });
     } else {
-      // Determine status based on current request status
-      let stepStatus: "Pending" | "Approved" | "Rejected" = 'Pending';
+      // Determine status based on current request status and role
+      let stepStatus: "Current" | "Pending" | "Approved" | "Rejected" | "Not Started" | "Cancelled" | "Submitted" = 'Pending';
       
-      if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
-        stepStatus = 'Rejected'; // Using Rejected as Visa doesn't have Not Started
-      } else if (currentStatus === 'Approved') {
-        // If approved, all pending steps should show as not started unless they were actually completed
-        stepStatus = 'Pending';
+      // Handle the initial applicant step
+      if (expectedStep.role === 'Applicant') {
+        stepStatus = 'Submitted';
       } else if (currentStatus === `Pending ${expectedStep.role}`) {
+        stepStatus = 'Current'; // Current pending step
+      } else if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
+        stepStatus = 'Pending'; // Keep as Pending for not-yet-reached steps
+      } else if (currentStatus === 'Approved') {
+        stepStatus = 'Pending'; // Pending steps that weren't recorded
+      } else {
         stepStatus = 'Pending';
       }
 
       fullWorkflow.push({
-        stepName: expectedStep.role,
-        approverName: expectedStep.name !== 'TBD' ? expectedStep.name : undefined,
+        role: expectedStep.role,
+        name: expectedStep.name !== 'TBD' ? expectedStep.name : 'To be assigned',
         status: stepStatus,
         date: undefined,
         comments: undefined

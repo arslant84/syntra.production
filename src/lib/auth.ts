@@ -1,5 +1,6 @@
 // Authentication module
 import { sql } from "./db";
+import bcrypt from 'bcryptjs';
 
 export interface AuthUser {
   id: string;
@@ -65,8 +66,9 @@ export async function authenticateUser(email: string, password: string): Promise
 
     const user = users[0];
     
-    // In a real app, you would compare hashed passwords
-    if (password !== user.password) {
+    // Compare hashed passwords using bcrypt
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
       return null;
     }
 

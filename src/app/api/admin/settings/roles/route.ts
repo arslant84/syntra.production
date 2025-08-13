@@ -6,7 +6,7 @@ import {
   updateRole, 
   deleteRole 
 } from '@/lib/system-settings-service';
-import { hasPermission } from '@/lib/auth-service';
+import { hasPermission } from '@/lib/permissions';
 import { z } from 'zod';
 
 // Schema for role validation
@@ -19,8 +19,10 @@ const roleSchema = z.object({
 // GET handler to fetch all roles with permissions
 export async function GET() {
   try {
-    // TEMPORARILY DISABLED: Authentication completely removed for testing
-    console.log('Admin Settings Roles: Authentication bypassed for testing');
+    // Check if user has permission to view system settings
+    if (!await hasPermission('view_system_settings')) {
+      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+    }
 
     const roles = await getAllRolesWithPermissions();
     return NextResponse.json(roles);

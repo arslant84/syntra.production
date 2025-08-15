@@ -96,7 +96,12 @@ uploads/visa-documents/
 122
 .idx/
 .postcssrc
+.claude
+.next
 
 # Generated documentation
 DATACONNECT_JAVASCRIPT_SDK.md
 DATACONNECT_REACT_SDK.md
+
+# Markdown files
+*.md

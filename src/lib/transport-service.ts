@@ -211,38 +211,77 @@ export class TransportService {
     }
   }
   
-  // Get transport requests by statuses (for approval queue)
-  static async getTransportRequestsByStatuses(statuses: string[], limit?: number): Promise<TransportRequestSummary[]> {
+  // Get transport requests by statuses (for approval queue) with optional user filtering
+  static async getTransportRequestsByStatuses(statuses: string[], limit?: number, userId?: string): Promise<TransportRequestSummary[]> {
     try {
-      let query = sql`
-        SELECT 
-          tr.id,
-          tr.requestor_name,
-          tr.department,
-          tr.purpose,
-          tr.status,
-          tr.created_at as submitted_at,
-          tr.tsr_reference
-        FROM transport_requests tr
-        WHERE tr.status = ANY(${statuses})
-        ORDER BY tr.created_at DESC
-      `;
-
-      if (limit) {
-        query = sql`
-          SELECT 
-            tr.id,
-            tr.requestor_name,
-            tr.department,
-            tr.purpose,
-            tr.status,
-            tr.created_at as submitted_at,
-            tr.tsr_reference
-          FROM transport_requests tr
-          WHERE tr.status = ANY(${statuses})
-          ORDER BY tr.created_at DESC
-          LIMIT ${limit}
-        `;
+      let query;
+      
+      if (userId) {
+        // Filter by user ID for non-admin users
+        if (limit) {
+          query = sql`
+            SELECT 
+              tr.id,
+              tr.requestor_name,
+              tr.department,
+              tr.purpose,
+              tr.status,
+              tr.created_at as submitted_at,
+              tr.tsr_reference
+            FROM transport_requests tr
+            WHERE tr.status = ANY(${statuses})
+              AND (tr.created_by = ${userId} OR tr.staff_id = ${userId})
+            ORDER BY tr.created_at DESC
+            LIMIT ${limit}
+          `;
+        } else {
+          query = sql`
+            SELECT 
+              tr.id,
+              tr.requestor_name,
+              tr.department,
+              tr.purpose,
+              tr.status,
+              tr.created_at as submitted_at,
+              tr.tsr_reference
+            FROM transport_requests tr
+            WHERE tr.status = ANY(${statuses})
+              AND (tr.created_by = ${userId} OR tr.staff_id = ${userId})
+            ORDER BY tr.created_at DESC
+          `;
+        }
+      } else {
+        // Admin users can see all transport requests
+        if (limit) {
+          query = sql`
+            SELECT 
+              tr.id,
+              tr.requestor_name,
+              tr.department,
+              tr.purpose,
+              tr.status,
+              tr.created_at as submitted_at,
+              tr.tsr_reference
+            FROM transport_requests tr
+            WHERE tr.status = ANY(${statuses})
+            ORDER BY tr.created_at DESC
+            LIMIT ${limit}
+          `;
+        } else {
+          query = sql`
+            SELECT 
+              tr.id,
+              tr.requestor_name,
+              tr.department,
+              tr.purpose,
+              tr.status,
+              tr.created_at as submitted_at,
+              tr.tsr_reference
+            FROM transport_requests tr
+            WHERE tr.status = ANY(${statuses})
+            ORDER BY tr.created_at DESC
+          `;
+        }
       }
 
       const result = await query;
@@ -261,21 +300,41 @@ export class TransportService {
     }
   }
 
-  // Get all transport requests (for admin)
-  static async getAllTransportRequests(): Promise<TransportRequestSummary[]> {
+  // Get all transport requests (with optional user filtering)
+  static async getAllTransportRequests(userId?: string): Promise<TransportRequestSummary[]> {
     try {
-      const result = await sql`
-        SELECT 
-          tr.id,
-          tr.requestor_name,
-          tr.department,
-          tr.purpose,
-          tr.status,
-          tr.created_at as submitted_at,
-          tr.tsr_reference
-        FROM transport_requests tr
-        ORDER BY tr.created_at DESC
-      `;
+      let result;
+      if (userId) {
+        // Filter by user ID for non-admin users
+        result = await sql`
+          SELECT 
+            tr.id,
+            tr.requestor_name,
+            tr.department,
+            tr.purpose,
+            tr.status,
+            tr.created_at as submitted_at,
+            tr.tsr_reference
+          FROM transport_requests tr
+          WHERE tr.created_by = ${userId} OR tr.staff_id = ${userId}
+          ORDER BY tr.created_at DESC
+        `;
+      } else {
+        // Admin users can see all transport requests
+        result = await sql`
+          SELECT 
+            tr.id,
+            tr.requestor_name,
+            tr.department,
+            tr.purpose,
+            tr.status,
+            tr.created_at as submitted_at,
+            tr.tsr_reference
+          FROM transport_requests tr
+          ORDER BY tr.created_at DESC
+        `;
+      }
+      
       return result.map((row: any) => ({
         id: row.id,
         requestorName: row.requestor_name,
@@ -291,22 +350,43 @@ export class TransportService {
     }
   }
 
-  // Get transport requests by date range
-  static async getTransportRequestsByDateRange(fromDate: Date, toDate: Date): Promise<TransportRequestSummary[]> {
+  // Get transport requests by date range (with optional user filtering)
+  static async getTransportRequestsByDateRange(fromDate: Date, toDate: Date, userId?: string): Promise<TransportRequestSummary[]> {
     try {
-      const result = await sql`
-        SELECT 
-          tr.id,
-          tr.requestor_name,
-          tr.department,
-          tr.purpose,
-          tr.status,
-          tr.created_at as submitted_at,
-          tr.tsr_reference
-        FROM transport_requests tr
-        WHERE tr.created_at >= ${fromDate.toISOString()} AND tr.created_at <= ${toDate.toISOString()}
-        ORDER BY tr.created_at DESC
-      `;
+      let result;
+      if (userId) {
+        // Filter by user ID for non-admin users
+        result = await sql`
+          SELECT 
+            tr.id,
+            tr.requestor_name,
+            tr.department,
+            tr.purpose,
+            tr.status,
+            tr.created_at as submitted_at,
+            tr.tsr_reference
+          FROM transport_requests tr
+          WHERE tr.created_at >= ${fromDate.toISOString()} AND tr.created_at <= ${toDate.toISOString()}
+            AND (tr.created_by = ${userId} OR tr.staff_id = ${userId})
+          ORDER BY tr.created_at DESC
+        `;
+      } else {
+        // Admin users can see all transport requests
+        result = await sql`
+          SELECT 
+            tr.id,
+            tr.requestor_name,
+            tr.department,
+            tr.purpose,
+            tr.status,
+            tr.created_at as submitted_at,
+            tr.tsr_reference
+          FROM transport_requests tr
+          WHERE tr.created_at >= ${fromDate.toISOString()} AND tr.created_at <= ${toDate.toISOString()}
+          ORDER BY tr.created_at DESC
+        `;
+      }
+      
       return result.map((row: any) => ({
         id: row.id,
         requestorName: row.requestor_name,

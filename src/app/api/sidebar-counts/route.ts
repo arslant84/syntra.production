@@ -2,13 +2,16 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { requireAuth, createAuthError } from '@/lib/auth-utils';
 import { hasPermission } from '@/lib/permissions';
+import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function(request: NextRequest) {
   try {
-    // Check if user has permission to view sidebar counts
-    if (!await hasPermission('view_sidebar_counts')) {
-      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
-    }
+    const session = (request as any).user;
+    console.log(`API_SIDEBAR_COUNTS: User ${session.role} (${session.email}) accessing sidebar counts`);
+    
+    // Role-based access control
+    const canViewAll = canViewAllData(session);
+    const userIdentifier = getUserIdentifier(session);
   
     // Object to store all counts
     const counts = {
@@ -21,11 +24,23 @@ export async function GET(request: NextRequest) {
 
     // Get total approvals count (sum of TRFs, Claims, Visas, and Accommodation)
     try {
-      // Count pending TRFs
-      const trfQuery = await sql`
-        SELECT COUNT(*) AS count FROM travel_requests
-        WHERE status LIKE 'Pending%' OR status = 'Pending'
-      `;
+      // Count pending TRFs - filter by user if not admin
+      let trfQuery;
+      if (canViewAll) {
+        trfQuery = await sql`
+          SELECT COUNT(*) AS count FROM travel_requests
+          WHERE status LIKE 'Pending%' OR status = 'Pending'
+        `;
+      } else {
+        trfQuery = await sql`
+          SELECT COUNT(*) AS count FROM travel_requests
+          WHERE (status LIKE 'Pending%' OR status = 'Pending')
+            AND (staff_id = ${userIdentifier.staffId} OR 
+                 staff_id = ${userIdentifier.userId} OR
+                 created_by = ${userIdentifier.userId} OR
+                 requestor_name ILIKE ${`%${userIdentifier.email}%`})
+        `;
+      }
       const pendingTRFs = parseInt(trfQuery[0]?.count || '0');
       
       // Count pending claims
@@ -39,10 +54,21 @@ export async function GET(request: NextRequest) {
       `;
       
       if (claimsTableCheck[0]?.exists) {
-        const claimsQuery = await sql`
-          SELECT COUNT(*) AS count FROM expense_claims
-          WHERE status = 'Pending Verification' OR status = 'Pending Approval'
-        `;
+        let claimsQuery;
+        if (canViewAll) {
+          claimsQuery = await sql`
+            SELECT COUNT(*) AS count FROM expense_claims
+            WHERE status = 'Pending Verification' OR status = 'Pending Approval'
+          `;
+        } else {
+          claimsQuery = await sql`
+            SELECT COUNT(*) AS count FROM expense_claims
+            WHERE (status = 'Pending Verification' OR status = 'Pending Approval')
+              AND (staff_no = ${userIdentifier.staffId} OR 
+                   staff_no = ${userIdentifier.userId} OR
+                   staff_name ILIKE ${`%${userIdentifier.email}%`})
+          `;
+        }
         pendingClaims = parseInt(claimsQuery[0]?.count || '0');
       } else {
         // Fallback to older claims table if it exists
@@ -54,33 +80,72 @@ export async function GET(request: NextRequest) {
         `;
         
         if (oldTableCheck[0]?.exists) {
-          const claimsQuery = await sql`
-            SELECT COUNT(*) as count FROM claims 
-            WHERE status = 'Pending Verification' OR status = 'Pending Approval'
-          `;
+          let claimsQuery;
+          if (canViewAll) {
+            claimsQuery = await sql`
+              SELECT COUNT(*) as count FROM claims 
+              WHERE status = 'Pending Verification' OR status = 'Pending Approval'
+            `;
+          } else {
+            claimsQuery = await sql`
+              SELECT COUNT(*) as count FROM claims 
+              WHERE (status = 'Pending Verification' OR status = 'Pending Approval')
+                AND (staff_no = ${userIdentifier.staffId} OR 
+                     staff_no = ${userIdentifier.userId} OR
+                     staff_name ILIKE ${`%${userIdentifier.email}%`})
+            `;
+          }
           pendingClaims = parseInt(claimsQuery[0]?.count || '0');
         }
       }
       
-      // Count pending visa applications
+      // Count pending visa applications - filter by user if not admin
       let pendingVisas = 0;
-      const visaQuery = await sql`
-        SELECT COUNT(*) AS count FROM visa_applications
-        WHERE status LIKE 'Pending%'
-      `;
+      let visaQuery;
+      if (canViewAll) {
+        visaQuery = await sql`
+          SELECT COUNT(*) AS count FROM visa_applications
+          WHERE status LIKE 'Pending%'
+        `;
+      } else {
+        visaQuery = await sql`
+          SELECT COUNT(*) AS count FROM visa_applications
+          WHERE status LIKE 'Pending%'
+            AND (user_id = ${userIdentifier.userId} OR 
+                 staff_id = ${userIdentifier.staffId} OR 
+                 email = ${userIdentifier.email})
+        `;
+      }
       pendingVisas = parseInt(visaQuery[0]?.count || '0');
       
-      // Count pending accommodation requests
+      // Count pending accommodation requests - filter by user if not admin
       let pendingAccommodation = 0;
-      const accommodationQuery = await sql`
-        SELECT COUNT(DISTINCT tr.id) AS count 
-        FROM travel_requests tr
-        INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
-        WHERE tr.status = 'Pending Department Focal' 
-           OR tr.status = 'Pending Line Manager'
-           OR tr.status = 'Pending HOD'
-           OR tr.status = 'Pending Approval'
-      `;
+      let accommodationQuery;
+      if (canViewAll) {
+        accommodationQuery = await sql`
+          SELECT COUNT(DISTINCT tr.id) AS count 
+          FROM travel_requests tr
+          INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
+          WHERE tr.status = 'Pending Department Focal' 
+             OR tr.status = 'Pending Line Manager'
+             OR tr.status = 'Pending HOD'
+             OR tr.status = 'Pending Approval'
+        `;
+      } else {
+        accommodationQuery = await sql`
+          SELECT COUNT(DISTINCT tr.id) AS count 
+          FROM travel_requests tr
+          INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
+          WHERE (tr.status = 'Pending Department Focal' 
+             OR tr.status = 'Pending Line Manager'
+             OR tr.status = 'Pending HOD'
+             OR tr.status = 'Pending Approval')
+            AND (tr.staff_id = ${userIdentifier.staffId} OR 
+                 tr.staff_id = ${userIdentifier.userId} OR
+                 tr.created_by = ${userIdentifier.userId} OR
+                 tr.requestor_name ILIKE ${`%${userIdentifier.email}%`})
+        `;
+      }
       pendingAccommodation = parseInt(accommodationQuery[0]?.count || '0');
       
       // Store individual counts
@@ -101,10 +166,22 @@ export async function GET(request: NextRequest) {
         `;
         
         if (flightsTableCheck[0]?.exists) {
-          const flightsQuery = await sql`
-            SELECT COUNT(*) AS count FROM flight_bookings
-            WHERE status = 'Pending'
-          `;
+          let flightsQuery;
+          if (canViewAll) {
+            flightsQuery = await sql`
+              SELECT COUNT(*) AS count FROM flight_bookings
+              WHERE status = 'Pending'
+            `;
+          } else {
+            // For flight bookings, we'd need to check the relationship to user
+            // This is a placeholder - adjust based on your flight bookings schema
+            flightsQuery = await sql`
+              SELECT COUNT(*) AS count FROM flight_bookings
+              WHERE status = 'Pending'
+                AND (user_id = ${userIdentifier.userId} OR 
+                     staff_id = ${userIdentifier.staffId})
+            `;
+          }
           counts.flights = parseInt(flightsQuery[0]?.count || '0');
         }
       } catch (err) {
@@ -115,14 +192,13 @@ export async function GET(request: NextRequest) {
       console.error('Error calculating approval counts:', err);
     }
 
+    console.log(`API_SIDEBAR_COUNTS: Returning counts for user ${session.role}:`, counts);
     return NextResponse.json(counts);
   } catch (error: any) {
-    // Authentication errors bypassed for testing
-
     console.error('Error in sidebar counts API:', error);
     return NextResponse.json(
       { error: 'Failed to fetch sidebar counts' },
       { status: 500 }
     );
   }
-}
+});

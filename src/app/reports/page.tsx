@@ -208,8 +208,9 @@ export default function ReportsPage() {
       setErrorTrf(null);
       try {
         // Include date range in query if available
-        let url = '/api/trf/status-summary';
+        let url = '/api/trf';
         const params = new URLSearchParams();
+        params.append('summary', 'true');
         params.append('year', year);
         
         if (dateRange?.from && dateRange?.to) {

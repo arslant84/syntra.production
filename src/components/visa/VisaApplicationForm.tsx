@@ -72,10 +72,19 @@ const visaApplicationSchema = z.object({
     .refine((file) => !file || file.size <= MAX_FILE_SIZE, `Max file size is 5MB.`)
     .refine((file) => !file || ACCEPTED_IMAGE_TYPES.includes(file.type), "Only .jpg, .jpeg, .png, .webp and .pdf formats are supported.")
     .optional().nullable(),
+  additionalDocuments: z.any()
+    .refine((files) => {
+      if (!files || files.length === 0) return true; // Optional
+      return Array.from(files).every((file: any) => file instanceof File && file.size <= MAX_FILE_SIZE);
+    }, `Each file must be less than 5MB.`)
+    .refine((files) => {
+      if (!files || files.length === 0) return true; // Optional
+      return Array.from(files).every((file: any) => ACCEPTED_IMAGE_TYPES.includes(file.type));
+    }, "Only .jpg, .jpeg, .png, .webp and .pdf formats are supported.")
+    .optional(),
   tripStartDate: z.date({ required_error: "Trip start date is required." }),
   tripEndDate: z.date({ required_error: "Trip end date is required." }),
   itineraryDetails: z.string().min(10, "Itinerary details must be at least 10 characters."),
-  supportingDocumentsNotes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.travelPurpose === "Business Trip" && !data.destination?.trim()) {
     ctx.addIssue({
@@ -112,10 +121,10 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
         passportNumber: "",
         passportExpiryDate: null,
         passportCopy: null,
+        additionalDocuments: null,
         tripStartDate: null,
         tripEndDate: null,
         itineraryDetails: "",
-        supportingDocumentsNotes: "",
       };
     }
 
@@ -129,10 +138,10 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
       passportNumber: initialData.passportNumber || "",
       passportExpiryDate: initialData.passportExpiryDate ? new Date(initialData.passportExpiryDate) : null,
       passportCopy: null, // File inputs can't be pre-populated for security reasons
+      additionalDocuments: null, // File inputs can't be pre-populated for security reasons
       tripStartDate: initialData.tripStartDate ? new Date(initialData.tripStartDate) : null,
       tripEndDate: initialData.tripEndDate ? new Date(initialData.tripEndDate) : null,
       itineraryDetails: initialData.itineraryDetails || "",
-      supportingDocumentsNotes: initialData.supportingDocumentsNotes || "",
     };
   }, [initialData]);
 
@@ -275,7 +284,29 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
                     </FormItem>
                 )}
             />
-            <FormField control={form.control} name="supportingDocumentsNotes" render={({ field }) => (<FormItem><FormLabel>Other Supporting Documents</FormLabel><FormControl><Textarea placeholder="List other supporting documents (e.g., Invitation Letter, Hotel Booking Confirmation). You will be contacted if physical copies are needed." className="min-h-[100px]" {...field} value={field.value ?? ''} /></FormControl><FormDescription className="text-xs">Actual document upload for these will be handled separately if required by the Visa Clerk.</FormDescription><FormMessage /></FormItem>)} />
+            <FormField
+                control={form.control}
+                name="additionalDocuments"
+                render={({ field: { onChange, value, ...rest } }) => (
+                    <FormItem>
+                        <FormLabel>Additional Supporting Documents (Optional)</FormLabel>
+                        <FormControl>
+                            <Input 
+                                type="file" 
+                                multiple
+                                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                onChange={(e) => onChange(e.target.files)} 
+                                {...rest} 
+                                className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                            />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                            Upload additional documents such as invitation letters, hotel bookings, etc. (Max 5MB per file)
+                        </FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
           </CardContent>
         </Card>
         

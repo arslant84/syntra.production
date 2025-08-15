@@ -13,9 +13,9 @@ interface SummaryCardProps {
   iconColor?: string; // e.g. 'text-green-600'
 }
 
-export default function SummaryCard({ title, value, description, icon: Icon, className, iconBgColor = "bg-primary/10", iconColor = "text-primary" }: SummaryCardProps) {
+const SummaryCard = React.memo(function SummaryCard({ title, value, description, icon: Icon, className, iconBgColor = "bg-primary/10", iconColor = "text-primary" }: SummaryCardProps) {
   return (
-    <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300", className)}>
+    <Card className={cn("shadow-lg hover:bg-accent hover:text-accent-foreground transition-shadow duration-300", className)}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-base font-medium text-foreground/80">{title}</CardTitle>
         {Icon && (
@@ -30,4 +30,6 @@ export default function SummaryCard({ title, value, description, icon: Icon, cla
       </CardContent>
     </Card>
   );
-}
+});
+
+export default SummaryCard;

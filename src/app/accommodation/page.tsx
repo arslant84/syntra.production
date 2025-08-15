@@ -11,14 +11,9 @@ import type { AccommodationRequestDetails } from '@/types/accommodation';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { FilterBar } from '@/components/ui/FilterBar';
+import { StatusBadge } from '@/lib/status-utils';
 
-const getStatusBadgeVariant = (status: string) => {
-  if (status?.toLowerCase().includes('confirmed') || status === 'Approved' || status === 'Completed') return 'default';
-  if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
-  if (status?.toLowerCase().includes('pending') || status === 'Draft') return 'outline';
-  if (["Blocked", "Processing"].includes(status)) return 'secondary';
-  return 'secondary';
-};
+// Removed getStatusBadgeVariant function - now using standardized StatusBadge component
 
 export default function AccommodationRequestsPage() {
   const [accommodationRequests, setAccommodationRequests] = useState<AccommodationRequestDetails[]>([]);
@@ -62,6 +57,7 @@ export default function AccommodationRequestsPage() {
 
   // Collect unique locations for filter dropdown
   const locationOptions = Array.from(new Set(accommodationRequests.map(r => r.location)))
+    .filter(loc => loc && loc.trim() !== '') // Filter out empty or null locations
     .map(loc => ({ value: loc, label: loc }));
 
   return (
@@ -146,9 +142,7 @@ export default function AccommodationRequestsPage() {
                         {format(req.requestedCheckInDate, 'PPP')} - {format(req.requestedCheckOutDate, 'PPP')}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusBadgeVariant(req.status)} className={(req.status === "Confirmed" || req.status === "Approved") ? "bg-green-600 text-white" : ""}>
-                          {req.status}
-                        </Badge>
+                        <StatusBadge status={req.status} showIcon />
                       </TableCell>
                       <TableCell>{format(req.submittedDate, 'PPP')}</TableCell>
                       <TableCell>

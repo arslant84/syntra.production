@@ -12,6 +12,8 @@ import { format, parseISO, isValid } from "date-fns";
 import { FileText, PlusCircle, Eye, Search, ArrowUpDown, X, ListFilter, Loader2, AlertTriangle } from "lucide-react";
 import type { TravelType, TrfStatus } from '@/types/trf';
 import { useDebounce } from "@/hooks/use-debounce";
+import { StatusBadge } from "@/lib/status-utils";
+import { ProtectedComponent, usePermissions } from "@/components/ProtectedComponent";
 
 interface TrfListItem {
   id: string;
@@ -34,6 +36,7 @@ const trfStatusesList: TrfStatus[] = ["Draft", "Pending Department Focal", "Pend
 const travelTypesList: Exclude<TravelType, "">[] = ["Domestic", "Overseas", "Home Leave Passage", "External Parties"];
 
 export default function TSRPage() {
+  const { isAdmin, session } = usePermissions();
   const [trfs, setTrfs] = useState<TrfListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,13 +106,7 @@ export default function TSRPage() {
   }, [debouncedSearchTerm, statusFilter, travelTypeFilter, sortConfig]);
 
 
-  const getStatusBadgeVariant = (status: string) => {
-    if (status?.toLowerCase().includes('approved')) return 'default';
-    if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
-    if (status?.toLowerCase().includes('pending')) return 'outline';
-    if (["Processing Flights", "Processing Accommodation", "Awaiting Visa", "TSR Processed"].includes(status)) return 'default';
-    return 'secondary';
-  };
+  // Removed getStatusBadgeVariant function - now using standardized StatusBadge component
 
   const handleSort = (key: SortConfig['key']) => {
     if (!key) return;
@@ -144,10 +141,29 @@ export default function TSRPage() {
     <div className="space-y-8">
       {/* Header Section */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <FileText className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Travel & Service Requests (TSR)</h1>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-3">
+            <FileText className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold tracking-tight">Travel & Service Requests (TSR)</h1>
+          </div>
+          
+          {/* Role-based messaging */}
+          <div className="ml-11">
+            <ProtectedComponent 
+              permissions={['view_all_trf']}
+              fallback={
+                <p className="text-sm text-muted-foreground">
+                  Viewing your travel requests only
+                </p>
+              }
+            >
+              <p className="text-sm text-muted-foreground">
+                Viewing all travel requests
+              </p>
+            </ProtectedComponent>
+          </div>
         </div>
+        
         <Link href="/trf/new" passHref>
           <Button>
             <PlusCircle className="mr-2 h-5 w-5" /> Create New TSR
@@ -254,9 +270,7 @@ export default function TSRPage() {
                         <TableCell>{trf.travelType}</TableCell>
                         <TableCell className="max-w-xs truncate">{trf.purpose || 'N/A'}</TableCell>
                         <TableCell>
-                          <Badge variant={getStatusBadgeVariant(trf.status)} className={trf.status === "Approved" ? "bg-green-600 text-white" : ""}>
-                            {trf.status}
-                          </Badge>
+                          <StatusBadge status={trf.status} showIcon />
                         </TableCell>
                         <TableCell>
                           {trf.submittedAt && isValid(parseISO(trf.submittedAt)) ? format(parseISO(trf.submittedAt), 'PPP') : 'N/A'}

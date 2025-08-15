@@ -28,8 +28,7 @@
     --muted: 0 0% 90%; /* Adjusted Muted to be a bit darker for better contrast with card, e.g. #E6E6E6 */
     --muted-foreground: 0 0% 40%; /* Adjusted Muted Foreground for better readability, e.g. #666666 */
 
-    --accent: 48 100% 45%; /* Gold #E6B300 */
-    --accent-foreground: 0 0% 0%; /* Black #000000 */
+    
 
     --destructive: 0 100% 50%; /* Red #FF0000 */
     --destructive-foreground: 0 0% 100%; /* White #FFFFFF */
@@ -78,8 +77,7 @@
     --muted: 0 0% 20%; /* Darker muted for dark theme */
     --muted-foreground: 0 0% 65%; /* Lighter muted foreground */
 
-    --accent: 48 100% 45%;
-    --accent-foreground: 0 0% 0%;
+    
 
     --destructive: 0 100% 50%;
     --destructive-foreground: 0 0% 100%;

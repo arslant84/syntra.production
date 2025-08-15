@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Calendar, MapPin, Clock, Users, FileText, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { TransportRequestForm } from '@/types/transport';
+import { StatusBadge } from '@/lib/status-utils';
 
 interface TransportRequestViewProps {
   transportRequest: TransportRequestForm;
@@ -21,46 +22,7 @@ export default function TransportRequestView({
   onEdit, 
   onDelete 
 }: TransportRequestViewProps) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Draft':
-        return 'bg-gray-100 text-gray-800';
-      case 'Pending Department Focal':
-      case 'Pending Line Manager':
-      case 'Pending HOD':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Approved':
-        return 'bg-green-100 text-green-800';
-      case 'Rejected':
-        return 'bg-red-100 text-red-800';
-      case 'Cancelled':
-        return 'bg-gray-100 text-gray-800';
-      case 'Processing':
-        return 'bg-blue-100 text-blue-800';
-      case 'Completed':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'Approved':
-      case 'Completed':
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'Rejected':
-      case 'Cancelled':
-        return <XCircle className="h-4 w-4 text-red-600" />;
-      case 'Pending Department Focal':
-      case 'Pending Line Manager':
-      case 'Pending HOD':
-      case 'Processing':
-        return <AlertCircle className="h-4 w-4 text-yellow-600" />;
-      default:
-        return <AlertCircle className="h-4 w-4 text-gray-600" />;
-    }
-  };
+  // Removed getStatusColor and getStatusIcon functions - now using standardized StatusBadge component
 
   const formatDate = (dateString: string | Date) => {
     if (!dateString) return 'N/A';
@@ -87,12 +49,7 @@ export default function TransportRequestView({
           <p className="text-gray-600 mt-2">ID: {transportRequest.id}</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            {getStatusIcon(transportRequest.status)}
-            <Badge className={getStatusColor(transportRequest.status)}>
-              {transportRequest.status}
-            </Badge>
-          </div>
+          <StatusBadge status={transportRequest.status} showIcon />
           {showActions && (
             <div className="flex gap-2">
               {onEdit && (
@@ -275,15 +232,7 @@ export default function TransportRequestView({
                     <p className="text-sm text-gray-600 mt-1">{step.comments}</p>
                   )}
                 </div>
-                <Badge className={`${
-                  step.status === 'Approved' || step.status === 'Submitted' ? 'bg-green-100 text-green-800' :
-                  step.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                  step.status === 'Current' ? 'bg-blue-100 text-blue-800' :
-                  step.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {step.status}
-                </Badge>
+                <StatusBadge status={step.status} />
               </div>
             ))}
           </div>

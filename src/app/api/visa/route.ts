@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { sql } from '@/lib/db'; // Assuming PostgreSQL setup
 import { formatISO, parseISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
-import { hasPermission } from '@/lib/permissions';
+import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
+import { hasPermission } from '@/lib/session-utils';
 
 const visaApplicationCreateSchema = z.object({
   applicantName: z.string().min(1, "Applicant name is required"),
@@ -29,11 +30,13 @@ const visaApplicationCreateSchema = z.object({
 });
 
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async function(request: NextRequest) {
   console.log("API_VISA_POST_START (PostgreSQL): Creating visa application.");
   
+  const session = (request as any).user;
+  
   // Check if user has permission to create visa applications - using create_trf as requestors should be able to create visa applications
-  if (!await hasPermission('create_trf')) {
+  if (!hasPermission(session, 'create_trf')) {
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
   
@@ -99,15 +102,15 @@ export async function POST(request: NextRequest) {
     console.error("API_VISA_POST_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to create visa application.', details: error.message }, { status: 500 });
   }
-}
+});
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function(request: NextRequest) {
   console.log("API_VISA_GET_START (PostgreSQL): Fetching visa applications.");
   
-  // Check if user has permission to view visa applications (either process or view)
-  if (!await hasPermission('process_visa_applications') && !await hasPermission('view_visa_applications')) {
-    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
-  }
+  const session = (request as any).user;
+  
+  // Role-based access control - authenticated users can access visa applications (they'll see filtered data based on role)
+  console.log(`API_VISA_GET: User ${session.role} (${session.email}) accessing visa data`);
   
   if (!sql) {
     console.error("API_VISA_GET_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -131,12 +134,34 @@ export async function GET(request: NextRequest) {
     
     let apps;
     
+    // Role-based data filtering
+    let userFilter = '';
+    
+    // Data access rules based on role
+    const canViewAll = canViewAllData(session);
+    const canViewVisa = canViewDomainData(session, 'visa');
+    
+    if (canViewAll) {
+      console.log(`API_VISA_GET (PostgreSQL): Admin user ${session.role} can view all visa applications`);
+      // No filtering needed - admin can see everything
+    } else if (canViewVisa) {
+      console.log(`API_VISA_GET (PostgreSQL): Visa admin ${session.role} can view all visa applications in domain`);
+      // Visa domain admins can see all visa applications - no filtering needed
+    } else {
+      // Regular users can only see their own visa applications
+      const userIdentifier = getUserIdentifier(session);
+      console.log(`API_VISA_GET (PostgreSQL): Regular user ${session.role} filtering visa applications for user ${userIdentifier.userId}`);
+      
+      // Filter by user's ID, staff ID, or email
+      userFilter = ` AND (user_id = '${userIdentifier.userId}' OR staff_id = '${userIdentifier.staffId}' OR email = '${userIdentifier.email}')`;
+    }
+    
     if (statusesParam) {
       // Split the comma-separated statuses and filter by them
       const statuses = statusesParam.split(',');
       console.log("API_VISA_GET (PostgreSQL): Filtering by statuses:", statuses);
       
-      apps = await sql`
+      apps = await sql.unsafe(`
         SELECT 
           id, 
           user_id as "userId",
@@ -154,13 +179,13 @@ export async function GET(request: NextRequest) {
           passport_expiry_date as "passportExpiryDate",
           additional_comments as "itineraryDetails"
         FROM visa_applications 
-        WHERE status = ANY(${statuses})
+        WHERE status = ANY(ARRAY[${statuses.map(s => `'${s}'`).join(', ')}])${userFilter}
         ORDER BY submitted_date DESC
         LIMIT ${parseInt(limit)}
-      `;
+      `);
     } else {
       // No status filter, return all visa applications
-      apps = await sql`
+      apps = await sql.unsafe(`
         SELECT 
           id, 
           user_id as "userId",
@@ -178,9 +203,10 @@ export async function GET(request: NextRequest) {
           passport_expiry_date as "passportExpiryDate",
           additional_comments as "itineraryDetails"
         FROM visa_applications 
+        WHERE 1=1${userFilter}
         ORDER BY submitted_date DESC
         LIMIT ${parseInt(limit)}
-      `;
+      `);
     }
     
     console.log(`API_VISA_GET (PostgreSQL): Found ${apps.length} visa applications.`);
@@ -214,4 +240,4 @@ export async function GET(request: NextRequest) {
     console.error("API_VISA_GET_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch visa applications.', details: error.message }, { status: 500 });
   }
-}
+});

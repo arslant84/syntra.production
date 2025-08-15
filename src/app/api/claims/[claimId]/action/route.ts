@@ -64,7 +64,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         WHERE id = ${claimId}
         RETURNING *
     `;
-    // TODO: Log action in an audit/approval_steps table for claims
+    
+    // Log the approval action in claims_approval_steps table (matches TSR pattern)
+    const approverRole = validationResult.data.approverRole || 'System';
+    const approverName = validationResult.data.approverName || 'Admin';
+    
+    // Map action to proper approval status
+    let approvalStatus = "Pending";
+    if (effectiveAction === "verify") approvalStatus = "Verified";
+    else if (effectiveAction === "approve_hod") approvalStatus = "Approved"; 
+    else if (effectiveAction === "approve_finance") approvalStatus = "Approved";
+    else if (effectiveAction === "process_payment") approvalStatus = "Processed";
+    else if (action === "reject") approvalStatus = "Rejected";
+    else if (action === "approve") approvalStatus = "Approved";
+    
+    const approvalComments = comments || 
+      (effectiveAction === "verify" ? "Verified." :
+       effectiveAction === "approve_hod" ? "Approved by HOD." :
+       effectiveAction === "approve_finance" ? "Approved by Finance." :
+       effectiveAction === "process_payment" ? "Payment processed." :
+       action === "reject" ? "Rejected." : 
+       "Approved.");
+    
+    await sql`
+        INSERT INTO claims_approval_steps (claim_id, step_role, step_name, status, step_date, comments)
+        VALUES (${claimId}, ${approverRole}, ${approverName}, ${approvalStatus}, NOW(), ${approvalComments})
+    `;
 
     // Create notifications for claim action
     try {

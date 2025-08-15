@@ -9,6 +9,7 @@ import { format, isValid } from "date-fns";
 import { cn } from "@/lib/utils";
 import { UserCircle, Briefcase, MapPin, CalendarDays, Bed, MessageSquare, CheckCircle2, AlertCircle, Clock, Link as LinkIcon } from "lucide-react";
 import ApprovalWorkflow from "../trf/ApprovalWorkflow";
+import { StatusBadge } from "@/lib/status-utils";
 import Link from 'next/link';
 
 interface AccommodationRequestDetailsViewProps {
@@ -35,15 +36,7 @@ const DetailItem: React.FC<{ label: string; value?: string | number | null | Rea
   );
 };
 
-const getStatusBadgeVariant = (status: AccommodationRequestDetails['status']) => {
-  switch (status) {
-    case 'Confirmed': return 'default';
-    case 'Rejected': return 'destructive';
-    case 'Pending Assignment': return 'outline';
-    case 'Blocked': return 'secondary';
-    default: return 'secondary';
-  }
-};
+// Removed getStatusBadgeVariant function - now using standardized StatusBadge component
 
 export default function AccommodationRequestDetailsView({ requestData }: AccommodationRequestDetailsViewProps) {
   const {
@@ -62,9 +55,7 @@ export default function AccommodationRequestDetailsView({ requestData }: Accommo
             <CardTitle className="text-xl flex items-center gap-2">
               <UserCircle className="w-5 h-5 text-primary" /> Requestor & Trip Information
             </CardTitle>
-            <Badge variant={getStatusBadgeVariant(status)} className={cn(status === "Confirmed" ? "bg-green-600 text-white" : "")}>
-                {status}
-            </Badge>
+            <StatusBadge status={status} showIcon />
           </div>
            <CardDescription>
             Submitted: {formatDateSafe(submittedDate, "Pp")} | Last Updated: {formatDateSafe(lastUpdatedDate, "Pp")}

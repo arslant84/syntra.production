@@ -8,18 +8,21 @@ import type { NavItem } from '@/types';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Menu, Home, FileText, ReceiptText, BarChart2, StickyNote, BedDouble, Truck } from 'lucide-react';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { UserNav } from '@/components/UserNav';
+import { useSession } from 'next-auth/react';
+import { getNavigationPermissions } from '@/lib/client-permissions';
 
-const navItems: NavItem[] = [
-  { label: 'Home', href: '/', icon: Home },
-  { label: 'TSR', href: '/trf', icon: FileText },
-  { label: 'Transport', href: '/transport', icon: Truck },
-  { label: 'Visa Applications', href: '/visa', icon: StickyNote },
-  { label: 'Accommodation', href: '/accommodation', icon: BedDouble },
-  { label: 'Claims', href: '/claims', icon: ReceiptText },
-  { label: 'Reports', href: '/reports', icon: BarChart2 },
-];
+// Icon mapping for dynamic navigation
+const iconMap = {
+  'Home': Home,
+  'FileText': FileText,
+  'ReceiptText': ReceiptText,
+  'BarChart2': BarChart2,
+  'StickyNote': StickyNote,
+  'BedDouble': BedDouble,
+  'Truck': Truck,
+};
 
 interface HeaderProps {
   showDesktopLogo?: boolean;
@@ -27,7 +30,83 @@ interface HeaderProps {
 
 export default function Header({ showDesktopLogo = true }: HeaderProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [navItems, setNavItems] = useState<NavItem[]>([]);
+
+  // Load role-based navigation items from API
+  useEffect(() => {
+    const fetchNavigation = async () => {
+      if (!session?.user) {
+        // Default items for unauthenticated users
+        setNavItems([
+          { label: 'Home', href: '/', icon: Home }
+        ]);
+        return;
+      }
+
+      try {
+        console.log('Header: Fetching role-based navigation...');
+        const response = await fetch('/api/navigation', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch navigation: ${response.status}`);
+        }
+        
+        const navigationData = await response.json();
+        console.log('Header: Received navigation data:', navigationData);
+        
+        // Map API navigation to header navigation
+        const headerNavItems = [
+          { label: 'Home', href: '/', icon: Home }
+        ];
+
+        // Process navigation items from API
+        navigationData.forEach((item: any) => {
+          // Skip dashboard in header since we have Home
+          if (item.label === 'Dashboard') {
+            return;
+          }
+          
+          // Skip admin-only items in header navigation
+          if (item.href?.startsWith('/admin/')) {
+            return;
+          }
+          
+          // Map the main modules with appropriate icons and labels for header
+          if (item.href === '/trf') {
+            headerNavItems.push({ label: 'TSR', href: '/trf', icon: FileText });
+          } else if (item.href === '/transport') {
+            headerNavItems.push({ label: 'Transport', href: '/transport', icon: Truck });
+          } else if (item.href === '/visa') {
+            headerNavItems.push({ label: 'Visa', href: '/visa', icon: StickyNote });
+          } else if (item.href === '/accommodation') {
+            headerNavItems.push({ label: 'Accommodation', href: '/accommodation', icon: BedDouble });
+          } else if (item.href === '/claims') {
+            headerNavItems.push({ label: 'Claims', href: '/claims', icon: ReceiptText });
+          } else if (item.href === '/reports') {
+            headerNavItems.push({ label: 'Reports', href: '/reports', icon: BarChart2 });
+          }
+        });
+        
+        setNavItems(headerNavItems);
+      } catch (error) {
+        console.error('Header: Error fetching navigation:', error);
+        // Fallback to basic navigation for authenticated users
+        setNavItems([
+          { label: 'Home', href: '/', icon: Home },
+          { label: 'TSR', href: '/trf', icon: FileText }
+        ]);
+      }
+    };
+
+    fetchNavigation();
+  }, [session]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/20 bg-white/10 shadow-lg backdrop-blur-lg supports-[backdrop-filter]:bg-white/10">

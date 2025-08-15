@@ -12,15 +12,9 @@ import { format, parseISO } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { FilterBar } from '@/components/ui/FilterBar';
+import { StatusBadge } from '@/lib/status-utils';
 
-// Helper function to determine badge variant based on visa status
-const getStatusBadgeVariant = (status: string) => {
-  if (status?.toLowerCase().includes('approved')) return 'default';
-  if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
-  if (status?.toLowerCase().includes('pending')) return 'outline';
-  if ([  "Processing with Embassy"].includes(status)) return 'default';
-  return 'secondary';
-};
+// Removed getStatusBadgeVariant function - now using standardized StatusBadge component
 
 export default function VisaApplicationsPage() {
   const [visaApplications, setVisaApplications] = useState<VisaApplication[]>([]);
@@ -171,14 +165,14 @@ export default function VisaApplicationsPage() {
                     <TableRow key={app.id}>
                       <TableCell className="font-medium">{app.id}</TableCell>
                       <TableCell>{app.travelPurpose}</TableCell>
-                      <TableCell>{app.destination || 'N/A'}</TableCell>
+                      <TableCell>
+                        {app.travelPurpose === 'Expatriate Relocation' ? 'Home Country' : (app.destination || 'N/A')}
+                      </TableCell>
                       <TableCell>
                         {app.tripStartDate ? format(app.tripStartDate, 'PPP') : 'N/A'} - {app.tripEndDate ? format(app.tripEndDate, 'PPP') : 'N/A'}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusBadgeVariant(app.status as VisaStatus)} className={app.status === "Approved" ? "bg-green-600 text-white" : ""}>
-                          {app.status || "Unknown"}
-                        </Badge>
+                        <StatusBadge status={app.status || "Unknown"} showIcon />
                       </TableCell>
                       <TableCell>{app.submittedDate ? format(app.submittedDate, 'PPP') : 'N/A'}</TableCell>
                       <TableCell>

@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { TransportService } from '@/lib/transport-service';
-import { hasPermission } from '@/lib/permissions';
+import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
+import { hasPermission } from '@/lib/session-utils';
 import { sql } from '@/lib/db';
 import { NotificationService } from '@/lib/notification-service';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = (request as any).user;
 
-    // Check if user has permission to view transport requests
-    if (!await hasPermission('create_transport_requests') && !await hasPermission('manage_transport_requests') && !await hasPermission('view_all_transport')) {
-      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
-    }
+    // Role-based access control - authenticated users can access transport requests (they'll see filtered data based on role)
+    console.log(`API_TRANSPORT_GET: User ${session.role} (${session.email}) accessing transport data`);
 
     const { searchParams } = new URL(request.url);
     const statuses = searchParams.get('statuses');
@@ -28,10 +21,28 @@ export async function GET(request: NextRequest) {
 
     if (summary === 'true') {
       let allTransportRequests;
-      if (fromDate && toDate) {
-        allTransportRequests = await TransportService.getTransportRequestsByDateRange(new Date(fromDate), new Date(toDate));
+      
+      // Role-based data filtering
+      const canViewAll = canViewAllData(session);
+      const canViewTransport = canViewDomainData(session, 'transport');
+      let userId = null;
+      if (!canViewAll && !canViewTransport) {
+        // Regular users can only see their own requests
+        const userIdentifier = getUserIdentifier(session);
+        userId = userIdentifier.userId;
+        console.log(`API_TRANSPORT_GET: Regular user ${session.role} filtering for user ${userId}`);
       } else {
-        allTransportRequests = await TransportService.getAllTransportRequests();
+        console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} can view all transport requests`);
+      }
+      
+      if (fromDate && toDate) {
+        allTransportRequests = await TransportService.getTransportRequestsByDateRange(
+          new Date(fromDate), 
+          new Date(toDate),
+          userId
+        );
+      } else {
+        allTransportRequests = await TransportService.getAllTransportRequests(userId);
       }
 
       const statusByMonth: { [key: string]: { month: string; pending: number; approved: number; rejected: number } } = {};
@@ -58,16 +69,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ statusByMonth: sortedMonths });
     }
     
+    // Role-based data filtering
+    const canViewAll = canViewAllData(session);
+    const canViewTransport = canViewDomainData(session, 'transport');
+    let userId = null;
+    if (!canViewAll && !canViewTransport) {
+      // Regular users can only see their own requests
+      const userIdentifier = getUserIdentifier(session);
+      userId = userIdentifier.userId;
+      console.log(`API_TRANSPORT_GET: Regular user ${session.role} filtering for user ${userId}`);
+    } else {
+      console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} can view all transport requests`);
+    }
+    
     // If statuses are specified, fetch all transport requests with those statuses (for approval queue)
     if (statuses) {
       const statusArray = statuses.split(',').map(s => s.trim());
-      const transportRequests = await TransportService.getTransportRequestsByStatuses(statusArray, limit ? parseInt(limit) : undefined);
+      const transportRequests = await TransportService.getTransportRequestsByStatuses(
+        statusArray, 
+        limit ? parseInt(limit) : undefined,
+        userId
+      );
       return NextResponse.json({ transportRequests });
     }
 
-    // For transport listing page, show all transport requests
-    // In the future, this could be filtered based on user role/permissions
-    const transportRequests = await TransportService.getAllTransportRequests();
+    // For transport listing page, show transport requests based on role
+    const transportRequests = await TransportService.getAllTransportRequests(userId);
     
     return NextResponse.json(transportRequests);
   } catch (error) {
@@ -77,18 +104,16 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async function(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = (request as any).user;
     
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Session is already validated by withAuth middleware
 
     // Check if user has permission to create transport requests
-    if (!await hasPermission('create_transport_requests')) {
+    if (!hasPermission(session, 'create_transport_requests') && !hasPermission(session, 'create_trf')) {
       return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
     }
 
@@ -136,4 +161,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}); 

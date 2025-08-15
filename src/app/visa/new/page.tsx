@@ -14,20 +14,18 @@ export default function NewVisaApplicationPage() {
 
   const handleSubmitVisaApplication = async (data: Omit<VisaApplication, 'id' | 'userId' | 'submittedDate' | 'lastUpdatedDate' | 'status'>) => {
     try {
-      // Map the form data to the API expected format
+      // First, create the visa application
       const apiData = {
         applicantName: 'Test User',
         travelPurpose: data.travelPurpose,
         destination: data.destination || '',
         employeeId: data.employeeId,
-        // nationality field removed since it doesn't exist in database
         visaType: data.travelPurpose === 'Business Trip' ? 'Business Visa' : 'Work Visa',
         tripStartDate: data.tripStartDate ? data.tripStartDate.toISOString() : null,
         tripEndDate: data.tripEndDate ? data.tripEndDate.toISOString() : null,
         passportNumber: data.passportNumber,
         passportExpiryDate: data.passportExpiryDate ? data.passportExpiryDate.toISOString().split('T')[0] : null,
-        itineraryDetails: data.itineraryDetails,
-        supportingDocumentsNotes: data.supportingDocumentsNotes
+        itineraryDetails: data.itineraryDetails
       };
 
       console.log('Sending visa application to API:', apiData);
@@ -48,6 +46,56 @@ export default function NewVisaApplicationPage() {
 
       const result = await response.json();
       console.log('API Response:', result);
+      const visaId = result.requestId || result.visaApplication?.id;
+
+      // Upload documents if provided
+      const documentsToUpload: Array<{file: File, type: string}> = [];
+      
+      // Add passport copy if provided
+      if (data.passportCopy && visaId) {
+        documentsToUpload.push({ file: data.passportCopy, type: 'passport_copy' });
+      }
+      
+      // Add additional documents if provided
+      if (data.additionalDocuments && data.additionalDocuments.length > 0 && visaId) {
+        Array.from(data.additionalDocuments).forEach((file: File) => {
+          documentsToUpload.push({ file, type: 'supporting_document' });
+        });
+      }
+
+      // Upload all documents
+      if (documentsToUpload.length > 0) {
+        console.log(`Uploading ${documentsToUpload.length} documents...`);
+        
+        const uploadPromises = documentsToUpload.map(async ({ file, type }) => {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('documentType', type);
+
+          return fetch(`/api/visa/${visaId}/documents`, {
+            method: 'POST',
+            body: formData,
+          });
+        });
+
+        try {
+          const uploadResults = await Promise.all(uploadPromises);
+          const failedUploads = uploadResults.filter(response => !response.ok);
+          
+          if (failedUploads.length > 0) {
+            console.warn(`${failedUploads.length} document uploads failed, but visa application was created`);
+            toast({
+              title: 'Visa Application Submitted!',
+              description: `Visa application created successfully, but ${failedUploads.length} document(s) failed to upload. You can upload them later.`,
+              variant: 'default',
+            });
+          } else {
+            console.log('All documents uploaded successfully');
+          }
+        } catch (uploadError) {
+          console.warn('Some documents failed to upload:', uploadError);
+        }
+      }
 
       toast({
         title: 'Visa Application Submitted!',
@@ -72,10 +120,10 @@ export default function NewVisaApplicationPage() {
     employeeId: "", // Should be pre-filled from user session ideally
     // nationality field removed since it doesn't exist in database
     passportCopy: null,
+    additionalDocuments: null,
     tripStartDate: null,
     tripEndDate: null,
     itineraryDetails: "",
-    supportingDocumentsNotes: "",
   };
 
   return (

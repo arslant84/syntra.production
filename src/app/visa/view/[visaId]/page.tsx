@@ -24,6 +24,7 @@ export default function ViewVisaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isActionPending, setIsActionPending] = useState(false);
+  const [canManageDocuments, setCanManageDocuments] = useState(false);
   const { toast } = useToast();
 
   const fetchVisaDetails = useCallback(async () => {
@@ -51,9 +52,27 @@ export default function ViewVisaPage() {
     }
   }, [visaId]);
 
+  const checkPermissions = useCallback(async () => {
+    try {
+      // Check if user has permission to manage visa documents
+      const response = await fetch('/api/user/permissions');
+      if (response.ok) {
+        const permissions = await response.json();
+        const canManage = permissions.includes('process_visa_applications') || 
+                         permissions.includes('manage_visa_documents');
+        setCanManageDocuments(canManage);
+      }
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+      // Default to false if permission check fails
+      setCanManageDocuments(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchVisaDetails();
-  }, [fetchVisaDetails]);
+    checkPermissions();
+  }, [fetchVisaDetails, checkPermissions]);
 
   const handleCancelVisa = async () => {
     if (!visaData) return;
@@ -173,7 +192,7 @@ export default function ViewVisaPage() {
         </CardHeader>
       </Card>
       <div className="w-full mt-2">
-        <VisaApplicationView visaData={visaData} />
+        <VisaApplicationView visaData={visaData} canManageDocuments={canManageDocuments} />
       </div>
     </div>
   );

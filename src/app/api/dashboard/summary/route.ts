@@ -190,6 +190,11 @@ export async function GET(request: NextRequest) {
       draftClaims,
       pendingAccommodation: accommodationBookings,
       pendingTransport
+    }, {
+      headers: {
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=60', // 5 min cache, 1 min stale
+        'X-Performance-Optimized': 'true'
+      }
     });
   } catch (error: any) {
     // Authentication errors bypassed for testing

@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { sql } from '@/lib/db'; // Assuming PostgreSQL setup
 import { formatISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
-import { hasPermission } from '@/lib/permissions';
+import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
+import { hasPermission } from '@/lib/session-utils';
 import { NotificationService } from '@/lib/notification-service';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -80,11 +81,13 @@ const expenseClaimCreateSchema = z.object({
 });
 
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async function(request: NextRequest) {
   console.log("API_CLAIMS_POST_START (PostgreSQL): Creating expense claim.");
   
+  const session = (request as any).user;
+  
   // Check if user has permission to create claims
-  if (!await hasPermission('create_claims')) {
+  if (!hasPermission(session, 'create_claims')) {
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
   
@@ -174,6 +177,15 @@ export async function POST(request: NextRequest) {
         }));
         await tx`INSERT INTO expense_claim_fx_rates ${tx(fxToInsert, 'claim_id', 'fx_date', 'type_of_currency', 'selling_rate_tt_od')}`;
       }
+      
+      // Create initial approval step (matches TSR pattern)
+      const requestorNameVal = data.headerDetails.staffName || 'Unknown';
+      console.log("API_CLAIMS_POST (PostgreSQL): Inserting initial approval step for Claim ID:", claimId);
+      await tx`
+        INSERT INTO claims_approval_steps (claim_id, step_role, step_name, status, step_date, comments)
+        VALUES (${claimId}, 'Requestor', ${requestorNameVal}, 'Submitted', NOW(), 'Submitted expense claim.')
+      `;
+      
       return claimId;
     });
     
@@ -219,26 +231,81 @@ export async function POST(request: NextRequest) {
     console.error("API_CLAIMS_POST_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to create expense claim.', details: error.message }, { status: 500 });
   }
-}
+});
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function(request: NextRequest) {
   console.log("API_CLAIMS_GET_START (PostgreSQL): Fetching claims.");
   
-  // Check if user has permission to view claims
-  if (!await hasPermission('create_claims') && !await hasPermission('view_all_claims')) {
-    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
-  }
+  const session = (request as any).user;
+  
+  // Role-based access control - authenticated users can access claims (they'll see filtered data based on role)
+  console.log(`API_CLAIMS_GET: User ${session.role} (${session.email}) accessing claims data`);
   
   if (!sql) {
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
   }
+  
+  // Parse query parameters for filtering
+  const { searchParams } = new URL(request.url);
+  const statusesParam = searchParams.get('statuses');
+  const limit = parseInt(searchParams.get('limit') || '50');
+  
   try {
     console.log("Executing SQL query to fetch claims");
-    const claims = await sql`
-      SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
-      FROM expense_claims 
-      ORDER BY submitted_at DESC
-    `;
+    let query;
+    
+    // Role-based data filtering
+    const whereConditions = [];
+    
+    // Data access rules based on role
+    const canViewAll = canViewAllData(session);
+    const canViewClaims = canViewDomainData(session, 'claims');
+    
+    if (canViewAll) {
+      console.log(`API_CLAIMS_GET (PostgreSQL): Admin user ${session.role} can view all claims`);
+      // No filtering needed - admin can see everything
+    } else if (canViewClaims) {
+      console.log(`API_CLAIMS_GET (PostgreSQL): Domain admin ${session.role} can view all claims in domain`);
+      // Domain admins can see all claims in their domain - no filtering needed for claims
+    } else {
+      // Regular users can only see their own claims
+      const userIdentifier = getUserIdentifier(session);
+      console.log(`API_CLAIMS_GET (PostgreSQL): Regular user ${session.role} filtering claims for user ${userIdentifier.userId}`);
+      
+      // Filter by user's staff number, staff ID, or email
+      whereConditions.push(`(staff_no = '${userIdentifier.staffId}' OR staff_no = '${userIdentifier.userId}' OR staff_name LIKE '%${userIdentifier.email}%')`);
+    }
+    
+    if (statusesParam) {
+      // Split the comma-separated statuses and filter claims
+      const statusesArray = statusesParam.split(',').map(s => s.trim());
+      console.log("Filtering claims by statuses:", statusesArray);
+      
+      const statusCondition = `status = ANY(ARRAY[${statusesArray.map(s => `'${s}'`).join(', ')}])`;
+      whereConditions.push(statusCondition);
+      
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+      
+      query = sql.unsafe(`
+        SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+        FROM expense_claims 
+        ${whereClause}
+        ORDER BY submitted_at DESC
+        LIMIT ${limit}
+      `);
+    } else {
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+      
+      query = sql.unsafe(`
+        SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+        FROM expense_claims 
+        ${whereClause}
+        ORDER BY submitted_at DESC
+        LIMIT ${limit}
+      `);
+    }
+    
+    const claims = await query;
     
     console.log(`Found ${claims.length} claims in database`);
     if (claims.length > 0) {
@@ -256,12 +323,17 @@ export async function GET(request: NextRequest) {
     }));
     
     console.log('Formatted claims for response:', JSON.stringify(formattedClaims, null, 2));
-    console.log('Response structure type:', 'Array of claims directly');
     
-    // Return the formatted claims directly as an array for consistency
-    return NextResponse.json(formattedClaims);
+    // For consistency with the Unified Approval Queue, return both formats
+    if (statusesParam) {
+      // When filtering by status (for Unified Approval Queue), wrap in claims object
+      return NextResponse.json({ claims: formattedClaims });
+    } else {
+      // Default behavior for backward compatibility
+      return NextResponse.json(formattedClaims);
+    }
   } catch (error: any) {
     console.error("API_CLAIMS_GET_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch claims.', details: error.message }, { status: 500 });
   }
-}
+});

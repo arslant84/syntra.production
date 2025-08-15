@@ -15,6 +15,12 @@ export const IS_TEST = NODE_ENV === 'test';
 
 // Function to validate required environment variables
 export function validateEnv() {
+  // Only validate on server side
+  if (typeof window !== 'undefined') {
+    console.warn('Environment validation skipped on client side');
+    return true;
+  }
+
   const requiredEnvVars = [
     { name: 'DATABASE_HOST', value: DATABASE_HOST },
     { name: 'DATABASE_NAME', value: DATABASE_NAME },

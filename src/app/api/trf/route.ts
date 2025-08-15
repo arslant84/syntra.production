@@ -6,8 +6,9 @@ import { formatISO, parseISO, isValid } from 'date-fns';
 import { mapFrontendItineraryToDb } from './itinerary-fix';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 import { TSRAutoGenerationService } from '@/lib/tsr-auto-generation-service';
-import { hasPermission } from '@/lib/permissions';
+import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
 import { NotificationService } from '@/lib/notification-service';
+import { hasPermission } from '@/lib/session-utils';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -161,11 +162,13 @@ const trfSubmissionSchema = z.discriminatedUnion("travelType", [
   baseTrfSchema.extend({ travelType: z.literal("External Parties"), externalPartyRequestorInfo: externalPartyRequestorInfoSchema, externalPartiesTravelDetails: externalPartiesTrfDetailsSchema }),
 ]);
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async function(request: NextRequest) {
   console.log("API_TRF_POST_START (PostgreSQL): Handler entered.");
   
+  const session = (request as any).user;
+  
   // Check if user has permission to create TRF
-  if (!await hasPermission('create_trf')) {
+  if (!hasPermission(session, 'create_trf')) {
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
   
@@ -674,15 +677,16 @@ export async function POST(request: NextRequest) {
   console.error("API_TRF_POST_CRITICAL_ERROR (PostgreSQL): Unhandled exception:", outerError.message, outerError.stack);
   return NextResponse.json({ error: `Critical error processing TRF: ${outerError.message}` }, { status: 500 });
 }
-}
+});
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function(request: NextRequest) {
   console.log("API_TRF_GET_START (PostgreSQL): Fetching TRFs.");
   
-  // Check if user has permission to view TRFs - we'll allow both create_trf (own TRFs) and view_all_trf (all TRFs)
-  if (!await hasPermission('create_trf') && !await hasPermission('view_all_trf')) {
-    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
-  }
+  const session = (request as any).user;
+  
+  // Role-based access control - authenticated users can access TRFs (they'll see filtered data based on role)
+  // This allows all authenticated users to access the endpoint, but data filtering is applied in the query
+  console.log(`API_TRF_GET: User ${session.role} (${session.email}) accessing TRF data`);
   
   if (!sql) {
     console.error("API_TRF_GET_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -699,12 +703,119 @@ export async function GET(request: NextRequest) {
   const sortBy = searchParams.get('sortBy') || 'submitted_at';
   const sortOrder = searchParams.get('sortOrder') || 'desc';
   const statusesToFetch = searchParams.get('statuses')?.split(',').map(s => s.trim()).filter(Boolean);
+  const summary = searchParams.get('summary');
+  const fromDate = searchParams.get('fromDate');
+  const toDate = searchParams.get('toDate');
 
 
   const offset = (page - 1) * limit;
 
+  // Handle summary request for reports
+  if (summary === 'true') {
+    try {
+      console.log("API_TRF_GET: Processing summary request");
+      
+      // Role-based data filtering for summary
+      const canViewAll = canViewAllData(session);
+      const canViewTrf = canViewDomainData(session, 'trf');
+      let userId = null;
+      if (!canViewAll && !canViewTrf) {
+        // Regular users can only see their own requests
+        const userIdentifier = getUserIdentifier(session);
+        userId = userIdentifier.userId;
+        console.log(`API_TRF_GET: Regular user ${session.role} filtering TRFs for user ${userId}`);
+      } else {
+        console.log(`API_TRF_GET: Admin/domain admin ${session.role} can view all TRFs`);
+      }
+
+      let allTrfs;
+      if (fromDate && toDate) {
+        // Fetch TRFs by date range
+        const whereConditions = ['submitted_at >= $1', 'submitted_at <= $2'];
+        const params = [fromDate, toDate];
+        
+        if (userId) {
+          whereConditions.push('user_id = $3');
+          params.push(userId);
+        }
+        
+        allTrfs = await sql.unsafe(`
+          SELECT status, submitted_at 
+          FROM travel_requests 
+          WHERE ${whereConditions.join(' AND ')}
+          ORDER BY submitted_at DESC
+        `, params);
+      } else {
+        // Fetch all TRFs
+        if (userId) {
+          allTrfs = await sql`
+            SELECT status, submitted_at 
+            FROM travel_requests 
+            WHERE user_id = ${userId}
+            ORDER BY submitted_at DESC
+          `;
+        } else {
+          allTrfs = await sql`
+            SELECT status, submitted_at 
+            FROM travel_requests 
+            ORDER BY submitted_at DESC
+          `;
+        }
+      }
+
+      // Group by month and status
+      const statusByMonth: { [key: string]: { month: string; pending: number; approved: number; rejected: number } } = {};
+
+      allTrfs.forEach((trf) => {
+        const month = new Date(trf.submitted_at).toLocaleString('default', { month: 'short' });
+        if (!statusByMonth[month]) {
+          statusByMonth[month] = { month, pending: 0, approved: 0, rejected: 0 };
+        }
+        
+        const status = trf.status?.toLowerCase() || '';
+        if (status.includes('pending') || status.includes('submitted')) {
+          statusByMonth[month].pending++;
+        } else if (status.includes('approved') || status.includes('completed')) {
+          statusByMonth[month].approved++;
+        } else if (status.includes('rejected') || status.includes('denied')) {
+          statusByMonth[month].rejected++;
+        }
+      });
+
+      // Sort months in chronological order
+      const sortedMonths = Object.values(statusByMonth).sort((a, b) => {
+        const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+      });
+
+      console.log(`API_TRF_GET: Returning summary with ${sortedMonths.length} months of data`);
+      return NextResponse.json({ statusByMonth: sortedMonths });
+    } catch (error) {
+      console.error("API_TRF_GET: Error processing summary request:", error);
+      return NextResponse.json({ error: 'Failed to fetch TRF summary data' }, { status: 500 });
+    }
+  }
+
   const whereClauses: any[] = [];
-  console.log(`API_TRF_GET (PostgreSQL): Filters - Search: '${searchTerm}', Status: '${statusFilter}', Type: '${travelTypeFilter}', Exclude Type: '${excludeTravelType}', Statuses: '${statusesToFetch}'`);
+  
+  // Role-based data filtering - Users only see their own TRFs unless they have admin access
+  if (!canViewAllData(session) && !canViewDomainData(session, 'trf')) {
+    const userIdentifier = getUserIdentifier(session);
+    console.log(`API_TRF_GET (PostgreSQL): Filtering TRFs for user ${userIdentifier.userId} with role ${session.role}`);
+    
+    // Regular users (Requestor, Department Focal, etc.) only see their own TRFs
+    // Match by staff_id, user_id in created_by field, or email
+    whereClauses.push(sql`(
+      staff_id = ${userIdentifier.staffId} OR 
+      staff_id = ${userIdentifier.userId} OR
+      created_by = ${userIdentifier.userId} OR
+      requestor_name ILIKE ${`%${userIdentifier.email}%`}
+    )`);
+  } else {
+    console.log(`API_TRF_GET (PostgreSQL): User ${session.role} can view all TRFs`);
+  }
+  
+  console.log(`API_TRF_GET (PostgreSQL): Filters - Search: '${searchTerm}', Status: '${statusFilter}', Type: '${travelTypeFilter}', Exclude Type: '${excludeTravelType}', Statuses: '${statusesToFetch}', Role: '${session.role}'`);
 
   if (searchTerm) {
     whereClauses.push(sql`(
@@ -786,4 +897,4 @@ export async function GET(request: NextRequest) {
     console.error("API_TRF_GET_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch TRFs from database.', details: error.message }, { status: 500 });
   }
-}
+});

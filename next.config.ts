@@ -22,6 +22,7 @@ const nextConfig: NextConfig = {
         buffer: false,
         url: false,
         util: false,
+        perf_hooks: false,
       };
     }
     return config;

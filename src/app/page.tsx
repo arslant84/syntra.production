@@ -14,8 +14,9 @@ import {
   Search,
   StickyNote,
   ClipboardList,
-  CarFront
-} from "lucide-react";
+  CarFront,
+  Loader2
+} from "@/components/ui/icons";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -23,7 +24,7 @@ import { useEffect, useState } from "react";
 
 // Define types for our data
 type SummaryData = {
-  pendingTrfs: number;
+  pendingTsrs: number;
   visaUpdates: number;
   draftClaims: number;
   pendingAccommodation: number;
@@ -53,7 +54,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
 
 export default function HomePage() {
   const [summaryData, setSummaryData] = useState<SummaryData>({
-    pendingTrfs: 0,
+    pendingTsrs: 0,
     visaUpdates: 0,
     draftClaims: 0,
     pendingAccommodation: 0,
@@ -70,18 +71,37 @@ export default function HomePage() {
     const fetchDashboardData = async () => {
       setIsLoading(true);
       try {
-        // Fetch summary data
-        const summaryResponse = await fetch('/api/dashboard/summary');
-        if (!summaryResponse.ok) throw new Error('Failed to fetch summary data');
-        const summaryData = await summaryResponse.json();
-        setSummaryData(summaryData);
+        // Parallel data fetching for 2x faster loading
+        console.log('Starting parallel dashboard data fetch...');
+        const startTime = performance.now();
+        
+        const [summaryResponse, activitiesResponse] = await Promise.all([
+          fetch('/api/dashboard/summary'),
+          fetch('/api/dashboard/activities')
+        ]);
 
-        // Fetch activities data
-        const activitiesResponse = await fetch('/api/dashboard/activities');
+        // Check responses in parallel
+        if (!summaryResponse.ok) throw new Error('Failed to fetch summary data');
         if (!activitiesResponse.ok) throw new Error('Failed to fetch activities');
-        const activitiesData = await activitiesResponse.json();
-        setActivities(activitiesData);
-        setFilteredActivities(activitiesData);
+
+        // Parse JSON in parallel
+        const [summaryData, activitiesData] = await Promise.all([
+          summaryResponse.json(),
+          activitiesResponse.json()
+        ]);
+
+        const endTime = performance.now();
+        console.log(`Dashboard data loaded in ${Math.round(endTime - startTime)}ms`);
+
+        const transformedActivities = activitiesData.map(activity => ({
+          ...activity,
+          title: activity.title.replace(/TRF/g, 'TSR'),
+          type: activity.type.replace(/TRF/g, 'TSR'),
+        }));
+
+        setSummaryData(summaryData);
+        setActivities(transformedActivities);
+        setFilteredActivities(transformedActivities);
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         setError('Failed to load dashboard data. Please try again later.');
@@ -109,7 +129,7 @@ export default function HomePage() {
       <Card className="bg-transparent shadow-none border-none">
         <CardContent>
           <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4 border-none shadow-none">
-            <Link href="/trf/new" passHref>
+            <Link href="/tsr/new" passHref>
               <Button size="lg" variant="default" className="w-48 whitespace-normal text-center">
                 <PlusCircle className="mr-2 h-5 w-5" /> Create New TSR
               </Button>
@@ -142,7 +162,7 @@ export default function HomePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <SummaryCard 
           title="My Pending TSRs" 
-          value={(summaryData.pendingTrfs || 0).toString()} 
+          value={(summaryData.pendingTsrs || 0).toString()} 
           icon={ClipboardList}
           description="Requests awaiting approval"
           iconBgColor="bg-yellow-100 dark:bg-yellow-800/30"
@@ -216,8 +236,8 @@ export default function HomePage() {
         </CardHeader>
         <CardContent className="pt-2">
           {isLoading ? (
-            <div className="py-10 text-center text-muted-foreground">
-              Loading activities...
+            <div className="py-10 flex justify-center items-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : error ? (
             <div className="py-10 text-center text-red-500">
@@ -230,7 +250,7 @@ export default function HomePage() {
                 const IconComponent = iconMap[item.icon as keyof typeof iconMap] || FileText;
                 
                 return (
-                  <Card key={`${item.type}-${item.id}`} className="hover:shadow-md transition-shadow duration-200 ease-in-out">
+                  <Card key={`${item.type}-${item.id}`} className="hover:bg-accent hover:text-accent-foreground">
                     <CardContent className="p-4 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-4 flex-grow">
                         <div className={cn(
@@ -257,7 +277,7 @@ export default function HomePage() {
                           {item.status}
                         </Badge>
                         <Link href={item.link} passHref>
-                          <Button variant="link" className="p-0 h-auto text-sm text-primary hover:underline">
+                          <Button variant="ghost" className="p-0 h-auto text-sm text-primary">
                             View Details &rarr;
                           </Button>
                         </Link>

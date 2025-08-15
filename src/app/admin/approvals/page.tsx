@@ -2,7 +2,18 @@
 
 import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle as AlertTriangleIcon, CheckSquare, Eye, FileText, Home, Loader2, ReceiptText, ThumbsDown, ThumbsUp, Truck } from "lucide-react";
+import { 
+  AlertTriangle as AlertTriangleIcon, 
+  CheckSquare, 
+  Eye, 
+  FileText, 
+  Home, 
+  Loader2, 
+  ReceiptText, 
+  ThumbsDown, 
+  ThumbsUp, 
+  Truck 
+} from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +23,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import type { TravelRequestForm, TrfStatus } from '@/types/trf'; 
+import type { TravelRequestForm, TrfStatus } from '@/types/trf';
+import { getApprovalQueueFilters } from '@/lib/rbac-utils'; 
 
 // Define a common interface for all approvable items
 interface ApprovableItem {
@@ -31,6 +43,7 @@ interface ApprovableItem {
   location?: string;
   department?: string;
   transportType?: string;
+  documentNumber?: string; // For claims and other items that have user-friendly identifiers
 }
 
 // We'll fetch real data from the API instead of using mock data
@@ -46,27 +59,33 @@ export default function AdminApprovalsPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'trf' | 'claim' | 'visa' | 'accommodation' | 'transport'>('all');
 
   const { toast } = useToast();
-  const MOCK_APPROVER_ROLE = "Department Focal"; // This would come from user session in a real app
-  const MOCK_APPROVER_NAME = "Admin Approver"; // This would come from user session
 
   const fetchPendingItems = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
+      // Get role-based approval filters
+      const { roleSpecificStatuses, canApprove, roleContext } = await getApprovalQueueFilters();
+      
+      if (!canApprove || roleSpecificStatuses.length === 0) {
+        console.log(`User role '${roleContext}' has no approval rights or no items to approve`);
+        setPendingItems([]);
+        return;
+      }
+      
+      console.log(`Loading approval items for role: ${roleContext}, statuses: [${roleSpecificStatuses.join(', ')}]`);
+      
       // Create an array to hold all approvable items
       let allPendingItems: ApprovableItem[] = [];
       
-      // 1. Fetch pending TRFs
-      const trfStatusesToFetch = [
-        "Pending Department Focal",
-        "Pending Line Manager",
-        "Pending HOD",
-      ].join(',');
+      // 1. Fetch pending TRFs (filter by role-specific statuses)
+      const trfStatusesToFetch = roleSpecificStatuses.join(',');
       
-      console.log(`AdminApprovalsPage: Fetching TRFs with statuses: ${trfStatusesToFetch}`);
-      const trfResponse = await fetch(`/api/trf?statuses=${encodeURIComponent(trfStatusesToFetch)}&limit=50&excludeTravelType=Accommodation`);
-      
-      if (trfResponse.ok) {
+      if (trfStatusesToFetch) {
+        console.log(`AdminApprovalsPage: Fetching TRFs with statuses: ${trfStatusesToFetch}`);
+        const trfResponse = await fetch(`/api/trf?statuses=${encodeURIComponent(trfStatusesToFetch)}&limit=50&excludeTravelType=Accommodation`);
+        
+        if (trfResponse.ok) {
         const trfData = await trfResponse.json();
         console.log("AdminApprovalsPage: Fetched TRFs data:", trfData);
         
@@ -82,16 +101,19 @@ export default function AdminApprovalsPage() {
           destination: trf.destination || trf.country
         }));
         
-        allPendingItems = [...allPendingItems, ...trfItems];
+          allPendingItems = [...allPendingItems, ...trfItems];
+        }
       }
       
-      // 2. Fetch pending claims
-      const claimStatusesToFetch = ["Pending Verification", "Pending Approval"].join(',');
-      console.log(`AdminApprovalsPage: Fetching Claims with statuses: ${claimStatusesToFetch}`);
+      // 2. Fetch pending claims (filter by role-specific statuses)
+      const claimStatusesToFetch = roleSpecificStatuses.join(',');
       
-      const claimResponse = await fetch(`/api/claims?statuses=${encodeURIComponent(claimStatusesToFetch)}&limit=50`);
-      
-      if (claimResponse.ok) {
+      if (claimStatusesToFetch) {
+        console.log(`AdminApprovalsPage: Fetching Claims with statuses: ${claimStatusesToFetch}`);
+        
+        const claimResponse = await fetch(`/api/claims?statuses=${encodeURIComponent(claimStatusesToFetch)}&limit=50`);
+        
+        if (claimResponse.ok) {
         const claimData = await claimResponse.json();
         console.log("AdminApprovalsPage: Fetched Claims data:", claimData);
         
@@ -103,35 +125,38 @@ export default function AdminApprovalsPage() {
           purpose: claim.purpose,
           status: claim.status,
           submittedAt: claim.submittedDate,
-          amount: claim.amount
+          amount: claim.amount,
+          documentNumber: claim.document_number || claim.documentNumber
         }));
         
-        allPendingItems = [...allPendingItems, ...claimItems];
+          allPendingItems = [...allPendingItems, ...claimItems];
+        }
       }
       
-      // 3. Fetch pending visa applications
-      const visaStatusesToFetch = ["Pending Department Focal", "Pending Line Manager/HOD", "Pending Visa Clerk"].join(',');
-      console.log(`AdminApprovalsPage: Fetching Visa applications with statuses: ${visaStatusesToFetch}`);
-      
-      const visaResponse = await fetch(`/api/visa?statuses=${encodeURIComponent(visaStatusesToFetch)}&limit=50`);
-      
-      if (visaResponse.ok) {
-        const visaData = await visaResponse.json();
-        console.log("AdminApprovalsPage: Fetched Visa applications data:", visaData);
+      // 3. Fetch pending visa applications (filter by role-specific statuses) 
+      if (roleSpecificStatuses.length > 0) {
+        console.log(`AdminApprovalsPage: Fetching Visa applications with statuses: ${roleSpecificStatuses.join(',')}`);
         
-        // Map Visa data to the common ApprovableItem format
-        const visaItems = (visaData.visaApplications || []).map((visa: any) => ({
-          id: visa.id,
-          requestorName: visa.applicantName,
-          itemType: 'Visa' as const,
-          purpose: visa.travelPurpose || 'Visa Application',
-          status: visa.status,
-          submittedAt: visa.submittedDate,
-          visaType: visa.visaType,
-          destination: visa.destination
-        }));
+        const visaResponse = await fetch(`/api/visa?statuses=${encodeURIComponent(roleSpecificStatuses.join(','))}&limit=50`);
         
-        allPendingItems = [...allPendingItems, ...visaItems];
+        if (visaResponse.ok) {
+          const visaData = await visaResponse.json();
+          console.log("AdminApprovalsPage: Fetched Visa applications data:", visaData);
+          
+          // Map Visa data to the common ApprovableItem format
+          const visaItems = (visaData.visaApplications || []).map((visa: any) => ({
+            id: visa.id,
+            requestorName: visa.applicantName,
+            itemType: 'Visa' as const,
+            purpose: visa.travelPurpose || 'Visa Application',
+            status: visa.status,
+            submittedAt: visa.submittedDate,
+            visaType: visa.visaType,
+            destination: visa.destination
+          }));
+          
+          allPendingItems = [...allPendingItems, ...visaItems];
+        }
       }
       
       // 4. Fetch pending accommodation requests
@@ -166,11 +191,9 @@ export default function AdminApprovalsPage() {
           allPendingItems = [...allPendingItems, ...accommodationItems];
         } else {
           console.error("AdminApprovalsPage: Error fetching accommodation requests:", accommodationResponse.status, accommodationResponse.statusText);
-          // Continue with other requests even if accommodation requests fail
         }
       } catch (err: any) {
         console.error("AdminApprovalsPage: Exception fetching accommodation requests:", err);
-        // Continue with other requests even if accommodation requests fail
       }
 
       // 5. Fetch pending transport requests
@@ -203,11 +226,9 @@ export default function AdminApprovalsPage() {
           allPendingItems = [...allPendingItems, ...transportItems];
         } else {
           console.error("AdminApprovalsPage: Error fetching transport requests:", transportResponse.status, transportResponse.statusText);
-          // Continue with other requests even if transport requests fail
         }
       } catch (err: any) {
         console.error("AdminApprovalsPage: Exception fetching transport requests:", err);
-        // Continue with other requests even if transport requests fail
       }
       
       // Sort all items by submission date (newest first)
@@ -242,7 +263,7 @@ export default function AdminApprovalsPage() {
     startActionTransition(async () => {
       try {
         // Determine the correct approver role based on current status and item type
-        let approverRole = MOCK_APPROVER_ROLE;
+        let approverRole = "System";
         
         // Common patterns for most systems
         if (selectedItemForAction.status === 'Pending Department Focal') {
@@ -275,7 +296,7 @@ export default function AdminApprovalsPage() {
           action,
           comments: comments || (action === 'approve' ? "Approved by Admin." : "Rejected by Admin."),
           approverRole: approverRole, // Use dynamic role based on status
-          approverName: MOCK_APPROVER_NAME, // This would come from the logged-in user's session
+          approverName: "System Admin", // This would come from the logged-in user's session
         };
 
         // Determine the API endpoint based on item type
@@ -430,7 +451,7 @@ export default function AdminApprovalsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Pending Approvals</CardTitle>
-          <CardDescription>Items awaiting your verification or approval. (Role: {MOCK_APPROVER_ROLE})</CardDescription>
+          <CardDescription>Items awaiting your verification or approval.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -460,7 +481,9 @@ export default function AdminApprovalsPage() {
                         {item.itemType}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-medium">{item.id}</TableCell>
+                    <TableCell className="font-medium">
+                      {item.itemType === 'Claim' && item.documentNumber ? item.documentNumber : item.id}
+                    </TableCell>
                     <TableCell>{item.requestorName}</TableCell>
                     <TableCell>
                       {item.itemType === 'TSR' && (

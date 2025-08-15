@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { format, isValid, formatISO } from "date-fns";
 import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info, ArrowLeft, Edit, Ban, Printer, Loader2 } from "lucide-react";
 import ApprovalWorkflow from "@/components/trf/ApprovalWorkflow";
+import { StatusBadge } from "@/lib/status-utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -51,19 +52,7 @@ const DetailItem = ({ label, value, fullWidth = false, className = "" }: { label
   );
 };
 
-const getStatusBadge = (status: string) => {
-  switch (status?.toLowerCase()) {
-    case 'approved':
-      return <Badge className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" /> {status}</Badge>;
-    case 'rejected':
-      return <Badge className="bg-red-500"><XCircle className="w-3 h-3 mr-1" /> {status}</Badge>;
-    case 'pending verification':
-    case 'pending approval':
-      return <Badge className="bg-yellow-500"><Clock className="w-3 h-3 mr-1" /> {status}</Badge>;
-    default:
-      return <Badge className="bg-gray-500">{status || 'Unknown'}</Badge>;
-  }
-};
+// Removed old getStatusBadge function - now using standardized StatusBadge component
 
 export default function ClaimViewPage() {
   const params = useParams();
@@ -237,8 +226,8 @@ export default function ClaimViewPage() {
                 <ReceiptText className="w-6 h-6 text-primary print:text-black" />
                 Expense Claim Details
               </CardTitle>
-              <CardDescription className="print:text-sm">
-                Viewing Claim ID: {claim.document_number || claim.documentNumber} - Status: <span className="font-semibold">{claim.status}</span>
+              <CardDescription className="print:text-sm flex items-center gap-2">
+                Viewing Claim ID: {claim.document_number || claim.documentNumber} - Status: <StatusBadge status={claim.status || 'Unknown'} showIcon />
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">

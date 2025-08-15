@@ -3,13 +3,15 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ReceiptText, PlusCircle, FileText, Clock, CheckCircle, XCircle } from "lucide-react";
+import { ReceiptText, PlusCircle, FileText, Clock, CheckCircle, XCircle, Loader2 } from "@/components/ui/icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { FilterBar } from "@/components/ui/FilterBar";
+import { StatusBadge } from "@/lib/status-utils";
+import { ProtectedComponent, usePermissions } from "@/components/ProtectedComponent";
 
 type Claim = {
   id: string;
@@ -23,6 +25,7 @@ type Claim = {
 };
 
 export default function ClaimsPage() {
+  const { isAdmin } = usePermissions();
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,40 +98,35 @@ export default function ClaimsPage() {
     return matchesSearch && matchesStatus && matchesType;
   });
 
-  const getStatusBadge = (status: string) => {
-    let variant: "default" | "destructive" | "outline" | "secondary" = "secondary";
-    let icon = null;
-
-    switch (status.toLowerCase()) {
-      case 'approved':
-        variant = 'default';
-        icon = <CheckCircle className="w-3 h-3 mr-1" />;
-        break;
-      case 'rejected':
-        variant = 'destructive';
-        icon = <XCircle className="w-3 h-3 mr-1" />;
-        break;
-      case 'pending verification':
-      case 'pending approval':
-        variant = 'outline';
-        icon = <Clock className="w-3 h-3 mr-1" />;
-        break;
-      default:
-        variant = 'secondary';
-        icon = <FileText className="w-3 h-3 mr-1" />;
-        break;
-    }
-    return <Badge variant={variant}>{icon} {status}</Badge>;
-  };
+  // Removed local getStatusBadge function - now using standardized StatusBadge component
 
   return (
     <div className="space-y-8">
       {/* Header Section */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ReceiptText className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Expense Claims</h1>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-3">
+            <ReceiptText className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold tracking-tight">Expense Claims</h1>
+          </div>
+          
+          {/* Role-based messaging */}
+          <div className="ml-11">
+            <ProtectedComponent 
+              permissions={['view_all_claims']}
+              fallback={
+                <p className="text-sm text-muted-foreground">
+                  Viewing your expense claims only
+                </p>
+              }
+            >
+              <p className="text-sm text-muted-foreground">
+                Viewing all expense claims
+              </p>
+            </ProtectedComponent>
+          </div>
         </div>
+        
         <Link href="/claims/new" passHref>
           <Button>
             <PlusCircle className="mr-2 h-5 w-5" /> Submit New Claim
@@ -144,8 +142,12 @@ export default function ClaimsPage() {
         statusOptions={[
           { value: "ALL", label: "All Statuses" },
           { value: "Pending Verification", label: "Pending Verification" },
+          { value: "Pending HOD Approval", label: "Pending HOD Approval" },
+          { value: "Pending Finance Approval", label: "Pending Finance Approval" },
           { value: "Approved", label: "Approved" },
+          { value: "Processed", label: "Processed" },
           { value: "Rejected", label: "Rejected" },
+          { value: "Cancelled", label: "Cancelled" },
         ]}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
@@ -171,7 +173,7 @@ export default function ClaimsPage() {
         <CardContent>
           {loading ? (
             <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-64 text-red-500">
@@ -202,7 +204,7 @@ export default function ClaimsPage() {
                       <TableCell className="font-medium">{claim.document_number || claim.documentNumber || claim.id}</TableCell>
                       <TableCell>{claim.purpose}</TableCell>
                       <TableCell>USD {claim.amount.toFixed(2)}</TableCell>
-                      <TableCell>{getStatusBadge(claim.status)}</TableCell>
+                      <TableCell><StatusBadge status={claim.status} showIcon /></TableCell>
                       <TableCell>{claim.submittedDate ? format(new Date(claim.submittedDate), 'dd MMM yyyy') : '-'}</TableCell>
                       <TableCell>
                         <Button variant="outline" size="sm" asChild>

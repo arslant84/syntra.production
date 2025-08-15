@@ -436,6 +436,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           console.log("API_CLAIMS_PUT: No FX rates to insert");
         }
         
+        // Add "Edited" approval step to track the revision (matches TSR pattern)
+        const requestorNameVal = headerDetails.staffName || 'Unknown';
+        console.log("API_CLAIMS_PUT: Clearing non-requestor approval steps and adding 'Edited' step");
+        await tx`DELETE FROM claims_approval_steps WHERE claim_id = ${claimId} AND step_role != 'Requestor'`;
+        await tx`
+          INSERT INTO claims_approval_steps (claim_id, step_role, step_name, status, step_date, comments)
+          VALUES (${claimId}, 'Requestor', ${requestorNameVal}, 'Edited', NOW(), 'Claim Edited and Resubmitted.')
+        `;
+        
         console.log("API_CLAIMS_PUT: Transaction completed successfully");
       } catch (txError) {
         console.error("API_CLAIMS_PUT_TX_ERROR:", txError);

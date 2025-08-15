@@ -18,21 +18,22 @@ import {
   SidebarTrigger
 } from '@/components/ui/sidebar';
 import type { NavItem } from '@/types';
-import { LayoutDashboard, Plane, BedDouble, CheckSquare, Users, Settings, FileText } from 'lucide-react';
+import { LayoutDashboard, Plane, BedDouble, CheckSquare, Users, Settings, FileText, Truck, BarChart2 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { cn } from '@/lib/utils';
 
-// Define the initial navigation items without badges
-const initialNavItems: NavItem[] = [
-  { label: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { label: 'Flights Admin', href: '/admin/flights', icon: Plane },
-  { label: 'Accommodation Admin', href: '/admin/accommodation', icon: BedDouble },
-  { label: 'Visa Admin', href: '/admin/visa', icon: FileText },
-  { label: 'Claims Admin', href: '/admin/claims', icon: FileText },
-  { label: 'Approvals', href: '/admin/approvals', icon: CheckSquare },
-  { label: 'User Management', href: '/admin/users', icon: Users },
-  { label: 'System Settings', href: '/admin/settings', icon: Settings },
-];
+// Icon mapping for dynamic navigation
+const iconMap = {
+  'LayoutDashboard': LayoutDashboard,
+  'Plane': Plane,
+  'BedDouble': BedDouble,
+  'CheckSquare': CheckSquare,
+  'Users': Users,
+  'Settings': Settings,
+  'FileText': FileText,
+  'Truck': Truck,
+  'BarChart2': BarChart2,
+};
 
 // Initial counts for immediate display - will be replaced by API data
 const initialCounts = {
@@ -59,10 +60,47 @@ export default function AppSidebar() {
   
   // Use separate state for counts and navigation items
   const [counts, setCounts] = useState<SidebarCounts>(initialCounts);
+  const [navItems, setNavItems] = useState<NavItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Derive navItems from counts
-  const navItems = initialNavItems.map(item => {
+  // Load role-based navigation items
+  useEffect(() => {
+    const fetchNavigation = async () => {
+      try {
+        console.log('Fetching role-based navigation...');
+        const response = await fetch('/api/navigation', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch navigation: ${response.status}`);
+        }
+        
+        const navigationData = await response.json();
+        console.log('Received navigation data:', navigationData);
+        
+        // Convert icon strings to actual icon components
+        const processedNavItems = navigationData.map((item: any) => ({
+          ...item,
+          icon: iconMap[item.icon as keyof typeof iconMap] || LayoutDashboard
+        }));
+        
+        setNavItems(processedNavItems);
+      } catch (error) {
+        console.error('Error fetching navigation:', error);
+        // Fallback to basic navigation
+        setNavItems([{ label: 'Dashboard', href: '/', icon: LayoutDashboard }]);
+      }
+    };
+
+    fetchNavigation();
+  }, []);
+
+  // Apply badges to navigation items based on counts
+  const navItemsWithBadges = navItems.map(item => {
     if (item.label === 'Approvals') {
       return { ...item, badge: counts.approvals };
     }
@@ -155,7 +193,7 @@ export default function AppSidebar() {
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
-            {navItems.map((item) => (
+            {navItemsWithBadges.map((item) => (
               <SidebarMenuItem key={item.href}>
                 <Link href={item.href} passHref legacyBehavior>
                   <SidebarMenuButton 

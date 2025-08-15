@@ -1,13 +1,22 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { getAccommodationRequests } from '@/lib/accommodation-service';
 import { 
   getServerStaffHouses, 
   getServerStaffGuests, 
   getServerAccommodationBookings
 } from '@/lib/server-db';
+import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
+import { hasPermission } from '@/lib/session-utils';
 
 // API route handler for fetching accommodation data
-export async function GET(request: Request) {
+export const GET = withAuth(async function(request: NextRequest) {
+  console.log("API_ACCOMMODATION_GET_START: Fetching accommodation data.");
+  
+  const session = (request as any).user;
+  
+  // Role-based access control - authenticated users can access accommodation data (they'll see filtered data based on role)
+  console.log(`API_ACCOMMODATION_GET: User ${session.role} (${session.email}) accessing accommodation data`);
+
   try {
     // Parse URL to get query parameters
     const { searchParams } = new URL(request.url);
@@ -41,7 +50,20 @@ export async function GET(request: Request) {
         return NextResponse.json({ bookings });
       
       case 'requests':
-        const userId = searchParams.get('userId');
+        let userId = searchParams.get('userId');
+        
+        // Role-based data filtering for requests
+        const canViewAll = canViewAllData(session);
+        const canViewAccommodation = canViewDomainData(session, 'accommodation');
+        if (!canViewAll && !canViewAccommodation) {
+          // Regular users can only see their own requests
+          const userIdentifier = getUserIdentifier(session);
+          userId = userIdentifier.userId;
+          console.log(`API_ACCOMMODATION_GET: Regular user ${session.role} can only view their own requests (${userId})`);
+        } else {
+          console.log(`API_ACCOMMODATION_GET: Admin/domain admin ${session.role} can view all requests`);
+        }
+        
         const requests = await getAccommodationRequests(userId || undefined);
         return NextResponse.json({ requests });
       
@@ -58,4 +80,4 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});

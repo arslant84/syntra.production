@@ -12,6 +12,7 @@ import { format, parseISO, isValid } from "date-fns";
 import { Truck, PlusCircle, Eye, Search, ArrowUpDown, X, ListFilter, Loader2, AlertTriangle } from "lucide-react";
 import type { TransportRequestStatus } from '@/types/transport';
 import { useDebounce } from "@/hooks/use-debounce";
+import { StatusBadge } from "@/lib/status-utils";
 
 interface TransportListItem {
   id: string;
@@ -121,13 +122,7 @@ export default function TransportRequestsPage() {
     else fetchTransportRequests(1); 
   }, [debouncedSearchTerm, statusFilter, sortConfig]);
 
-  const getStatusBadgeVariant = (status: string) => {
-    if (status?.toLowerCase().includes('approved')) return 'default';
-    if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
-    if (status?.toLowerCase().includes('pending')) return 'outline';
-    if (["Processing", "Completed"].includes(status)) return 'default';
-    return 'secondary';
-  };
+  // Removed getStatusBadgeVariant function - now using standardized StatusBadge component
 
   const handleSort = (key: SortConfig['key']) => {
     if (!key) return;
@@ -259,9 +254,7 @@ export default function TransportRequestsPage() {
                         <TableCell>{request.department || 'N/A'}</TableCell>
                         <TableCell className="max-w-xs truncate">{request.purpose || 'N/A'}</TableCell>
                         <TableCell>
-                          <Badge variant={getStatusBadgeVariant(request.status)} className={request.status === "Approved" ? "bg-green-600 text-white" : ""}>
-                            {request.status}
-                          </Badge>
+                          <StatusBadge status={request.status} showIcon />
                         </TableCell>
                         <TableCell>
                           {request.submittedAt && isValid(parseISO(request.submittedAt)) ? format(parseISO(request.submittedAt), 'PPP') : 'N/A'}

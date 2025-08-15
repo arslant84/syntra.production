@@ -9,11 +9,14 @@ import { format, isValid } from "date-fns";
 import { cn } from "@/lib/utils";
 import { UserCircle, Briefcase, Plane, Paperclip, CalendarDays, Globe, Flag, FileBadge, Link2, Mail, MapPin, FileText, Info, CreditCard } from "lucide-react";
 import ApprovalWorkflow from "../trf/ApprovalWorkflow";
+import VisaDocuments from "./VisaDocuments";
+import { StatusBadge } from "@/lib/status-utils";
 import Link from 'next/link';
 import React from 'react';
 
 interface VisaApplicationViewProps {
   visaData: VisaApplication;
+  canManageDocuments?: boolean;
 }
 
 const formatDateSafe = (date: Date | string | null | undefined, dateFormat = "PPP") => {
@@ -38,7 +41,7 @@ const DetailItem: React.FC<{ label: string; value?: string | number | null | Rea
 
 
 
-export default function VisaApplicationView({ visaData }: VisaApplicationViewProps) {
+export default function VisaApplicationView({ visaData, canManageDocuments = false }: VisaApplicationViewProps) {
   const {
     id, userId, applicantName, travelPurpose, destination, employeeId,
     tripStartDate, tripEndDate, itineraryDetails, status, submittedDate, lastUpdatedDate, 
@@ -46,13 +49,7 @@ export default function VisaApplicationView({ visaData }: VisaApplicationViewPro
     passportNumber, passportExpiryDate, additionalComments, supportingDocumentsNotes
   } = visaData;
 
-  const getStatusBadgeVariant = (currentStatus: VisaApplication['status']) => {
-    switch (currentStatus) {
-      case 'Approved': return 'default';
-      case 'Rejected': return 'destructive';
-      default: return 'outline';
-    }
-  };
+  // Removed getStatusBadgeVariant function - now using standardized StatusBadge component
   
   return (
     <div className="space-y-4 print:space-y-2">
@@ -62,9 +59,7 @@ export default function VisaApplicationView({ visaData }: VisaApplicationViewPro
             <CardTitle className="text-xl flex items-center gap-2 print:text-lg">
               <UserCircle className="w-5 h-5 text-primary print:hidden" /> Applicant Information
             </CardTitle>
-            <Badge variant={getStatusBadgeVariant(status)} className={cn(status === "Approved" ? "bg-green-600 text-white" : "", "print:text-xs")}>
-              {status || "Unknown"}
-            </Badge>
+            <StatusBadge status={status || "Unknown"} showIcon className="print:text-xs" />
           </div>
         </CardHeader>
         <CardContent className="space-y-4 pt-4 print:p-0 print:space-y-2">
@@ -91,7 +86,7 @@ export default function VisaApplicationView({ visaData }: VisaApplicationViewPro
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
               <DetailItem label="Travel Purpose" value={travelPurpose} />
-              <DetailItem label="Destination" value={destination} />
+              <DetailItem label="Destination" value={travelPurpose === 'Expatriate Relocation' ? 'Home Country' : destination} />
               <DetailItem label="Visa Type" value={visaType} />
               <DetailItem label="Trip Start Date" value={formatDateSafe(tripStartDate)} />
               <DetailItem label="Trip End Date" value={formatDateSafe(tripEndDate)} />
@@ -163,6 +158,14 @@ export default function VisaApplicationView({ visaData }: VisaApplicationViewPro
           </section>
         </CardContent>
       </Card>
+
+      {/* Documents Section */}
+      <VisaDocuments 
+        visaId={id} 
+        canUpload={canManageDocuments} 
+        canDelete={canManageDocuments}
+        className="print:break-inside-avoid" 
+      />
 
       {(approvalWorkflow || approvalHistory) && (approvalWorkflow || approvalHistory)!.length > 0 && (
         <Card className="shadow-md print:shadow-none print:border-none print:break-inside-avoid">

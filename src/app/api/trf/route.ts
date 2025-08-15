@@ -6,7 +6,7 @@ import { formatISO, parseISO, isValid } from 'date-fns';
 import { mapFrontendItineraryToDb } from './itinerary-fix';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 import { TSRAutoGenerationService } from '@/lib/tsr-auto-generation-service';
-import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
+import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { NotificationService } from '@/lib/notification-service';
 import { hasPermission } from '@/lib/session-utils';
 
@@ -798,21 +798,50 @@ export const GET = withAuth(async function(request: NextRequest) {
 
   const whereClauses: any[] = [];
   
-  // Role-based data filtering - Users only see their own TRFs unless they have admin access
-  if (!canViewAllData(session) && !canViewDomainData(session, 'trf')) {
+  // Role-based data filtering
+  const canViewAll = canViewAllData(session);
+  const canViewDomain = canViewDomainData(session, 'trf');
+  const canViewApprovals = canViewApprovalData(session, 'trf');
+  
+  if (canViewAll || canViewDomain) {
+    console.log(`API_TRF_GET (PostgreSQL): User ${session.role} can view all TRFs`);
+  } else if (canViewApprovals) {
+    // Users with approval rights (like HOD) see their own TRFs + TRFs pending their approval
+    const userIdentifier = getUserIdentifier(session);
+    console.log(`API_TRF_GET (PostgreSQL): User ${session.role} can view own TRFs + approval queue`);
+    
+    // Get the statuses this role can approve from the status query parameter
+    const statusesToFetch = searchParams.get('statuses')?.split(',').map(s => s.trim()).filter(Boolean);
+    
+    if (statusesToFetch && statusesToFetch.length > 0) {
+      // For approval queue - show all requests with the specified statuses
+      whereClauses.push(sql`status IN ${sql(statusesToFetch)}`);
+    } else {
+      // For regular listing - show only user's own requests
+      const staffIdCondition = userIdentifier.staffId 
+        ? sql`staff_id = ${userIdentifier.staffId} OR` 
+        : sql``;
+      
+      whereClauses.push(sql`(
+        ${staffIdCondition}
+        staff_id = ${userIdentifier.userId} OR
+        requestor_name ILIKE ${`%${userIdentifier.email}%`}
+      )`);
+    }
+  } else {
+    // Regular users only see their own TRFs
     const userIdentifier = getUserIdentifier(session);
     console.log(`API_TRF_GET (PostgreSQL): Filtering TRFs for user ${userIdentifier.userId} with role ${session.role}`);
     
-    // Regular users (Requestor, Department Focal, etc.) only see their own TRFs
-    // Match by staff_id, user_id in created_by field, or email
+    const staffIdCondition = userIdentifier.staffId 
+      ? sql`staff_id = ${userIdentifier.staffId} OR` 
+      : sql``;
+    
     whereClauses.push(sql`(
-      staff_id = ${userIdentifier.staffId} OR 
+      ${staffIdCondition}
       staff_id = ${userIdentifier.userId} OR
-      created_by = ${userIdentifier.userId} OR
       requestor_name ILIKE ${`%${userIdentifier.email}%`}
     )`);
-  } else {
-    console.log(`API_TRF_GET (PostgreSQL): User ${session.role} can view all TRFs`);
   }
   
   console.log(`API_TRF_GET (PostgreSQL): Filters - Search: '${searchTerm}', Status: '${statusFilter}', Type: '${travelTypeFilter}', Exclude Type: '${excludeTravelType}', Statuses: '${statusesToFetch}', Role: '${session.role}'`);

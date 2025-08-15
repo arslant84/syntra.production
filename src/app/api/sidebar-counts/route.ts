@@ -32,14 +32,18 @@ export const GET = withAuth(async function(request: NextRequest) {
           WHERE status LIKE 'Pending%' OR status = 'Pending'
         `;
       } else {
-        trfQuery = await sql`
+        // Handle undefined staffId gracefully
+        const staffIdCondition = userIdentifier.staffId 
+          ? `staff_id = '${userIdentifier.staffId}' OR` 
+          : '';
+        
+        trfQuery = await sql.unsafe(`
           SELECT COUNT(*) AS count FROM travel_requests
           WHERE (status LIKE 'Pending%' OR status = 'Pending')
-            AND (staff_id = ${userIdentifier.staffId} OR 
-                 staff_id = ${userIdentifier.userId} OR
-                 created_by = ${userIdentifier.userId} OR
-                 requestor_name ILIKE ${`%${userIdentifier.email}%`})
-        `;
+            AND (${staffIdCondition}
+                 staff_id = '${userIdentifier.userId}' OR
+                 requestor_name ILIKE '%${userIdentifier.email}%')
+        `);
       }
       const pendingTRFs = parseInt(trfQuery[0]?.count || '0');
       
@@ -61,13 +65,18 @@ export const GET = withAuth(async function(request: NextRequest) {
             WHERE status = 'Pending Verification' OR status = 'Pending Approval'
           `;
         } else {
-          claimsQuery = await sql`
+          // Handle undefined staffId gracefully
+          const staffIdCondition = userIdentifier.staffId 
+            ? `staff_no = '${userIdentifier.staffId}' OR` 
+            : '';
+          
+          claimsQuery = await sql.unsafe(`
             SELECT COUNT(*) AS count FROM expense_claims
             WHERE (status = 'Pending Verification' OR status = 'Pending Approval')
-              AND (staff_no = ${userIdentifier.staffId} OR 
-                   staff_no = ${userIdentifier.userId} OR
-                   staff_name ILIKE ${`%${userIdentifier.email}%`})
-          `;
+              AND (${staffIdCondition}
+                   staff_no = '${userIdentifier.userId}' OR
+                   staff_name ILIKE '%${userIdentifier.email}%')
+          `);
         }
         pendingClaims = parseInt(claimsQuery[0]?.count || '0');
       } else {
@@ -87,13 +96,18 @@ export const GET = withAuth(async function(request: NextRequest) {
               WHERE status = 'Pending Verification' OR status = 'Pending Approval'
             `;
           } else {
-            claimsQuery = await sql`
+            // Handle undefined staffId gracefully
+            const staffIdCondition = userIdentifier.staffId 
+              ? `staff_no = '${userIdentifier.staffId}' OR` 
+              : '';
+            
+            claimsQuery = await sql.unsafe(`
               SELECT COUNT(*) as count FROM claims 
               WHERE (status = 'Pending Verification' OR status = 'Pending Approval')
-                AND (staff_no = ${userIdentifier.staffId} OR 
-                     staff_no = ${userIdentifier.userId} OR
-                     staff_name ILIKE ${`%${userIdentifier.email}%`})
-            `;
+                AND (${staffIdCondition}
+                     staff_no = '${userIdentifier.userId}' OR
+                     staff_name ILIKE '%${userIdentifier.email}%')
+            `);
           }
           pendingClaims = parseInt(claimsQuery[0]?.count || '0');
         }
@@ -108,13 +122,18 @@ export const GET = withAuth(async function(request: NextRequest) {
           WHERE status LIKE 'Pending%'
         `;
       } else {
-        visaQuery = await sql`
+        // Handle undefined staffId gracefully
+        const staffIdCondition = userIdentifier.staffId 
+          ? `staff_id = '${userIdentifier.staffId}' OR` 
+          : '';
+        
+        visaQuery = await sql.unsafe(`
           SELECT COUNT(*) AS count FROM visa_applications
           WHERE status LIKE 'Pending%'
-            AND (user_id = ${userIdentifier.userId} OR 
-                 staff_id = ${userIdentifier.staffId} OR 
-                 email = ${userIdentifier.email})
-        `;
+            AND (user_id = '${userIdentifier.userId}' OR 
+                 ${staffIdCondition}
+                 email = '${userIdentifier.email}')
+        `);
       }
       pendingVisas = parseInt(visaQuery[0]?.count || '0');
       
@@ -132,7 +151,12 @@ export const GET = withAuth(async function(request: NextRequest) {
              OR tr.status = 'Pending Approval'
         `;
       } else {
-        accommodationQuery = await sql`
+        // Handle undefined staffId gracefully
+        const staffIdCondition = userIdentifier.staffId 
+          ? `tr.staff_id = '${userIdentifier.staffId}' OR` 
+          : '';
+        
+        accommodationQuery = await sql.unsafe(`
           SELECT COUNT(DISTINCT tr.id) AS count 
           FROM travel_requests tr
           INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
@@ -140,11 +164,10 @@ export const GET = withAuth(async function(request: NextRequest) {
              OR tr.status = 'Pending Line Manager'
              OR tr.status = 'Pending HOD'
              OR tr.status = 'Pending Approval')
-            AND (tr.staff_id = ${userIdentifier.staffId} OR 
-                 tr.staff_id = ${userIdentifier.userId} OR
-                 tr.created_by = ${userIdentifier.userId} OR
-                 tr.requestor_name ILIKE ${`%${userIdentifier.email}%`})
-        `;
+            AND (${staffIdCondition}
+                 tr.staff_id = '${userIdentifier.userId}' OR
+                 tr.requestor_name ILIKE '%${userIdentifier.email}%')
+        `);
       }
       pendingAccommodation = parseInt(accommodationQuery[0]?.count || '0');
       
@@ -174,13 +197,18 @@ export const GET = withAuth(async function(request: NextRequest) {
             `;
           } else {
             // For flight bookings, we'd need to check the relationship to user
-            // This is a placeholder - adjust based on your flight bookings schema
-            flightsQuery = await sql`
+            // Handle undefined staffId gracefully
+            const staffIdCondition = userIdentifier.staffId 
+              ? `staff_id = '${userIdentifier.staffId}' OR` 
+              : '';
+            
+            flightsQuery = await sql.unsafe(`
               SELECT COUNT(*) AS count FROM flight_bookings
               WHERE status = 'Pending'
-                AND (user_id = ${userIdentifier.userId} OR 
-                     staff_id = ${userIdentifier.staffId})
-            `;
+                AND (user_id = '${userIdentifier.userId}' OR 
+                     ${staffIdCondition}
+                     1=0)
+            `);
           }
           counts.flights = parseInt(flightsQuery[0]?.count || '0');
         }

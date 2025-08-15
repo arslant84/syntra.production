@@ -5,7 +5,7 @@ import {
   getServerStaffGuests, 
   getServerAccommodationBookings
 } from '@/lib/server-db';
-import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
+import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { hasPermission } from '@/lib/session-utils';
 
 // API route handler for fetching accommodation data
@@ -54,17 +54,40 @@ export const GET = withAuth(async function(request: NextRequest) {
         
         // Role-based data filtering for requests
         const canViewAll = canViewAllData(session);
-        const canViewAccommodation = canViewDomainData(session, 'accommodation');
-        if (!canViewAll && !canViewAccommodation) {
+        const canViewDomain = canViewDomainData(session, 'accommodation');
+        const canViewApprovals = canViewApprovalData(session, 'accommodation');
+        
+        if (canViewAll || canViewDomain) {
+          console.log(`API_ACCOMMODATION_GET: Admin/domain admin ${session.role} can view all requests`);
+        } else if (canViewApprovals) {
+          // Users with approval rights see their own requests + requests pending their approval
+          const userIdentifier = getUserIdentifier(session);
+          const statusesParam = searchParams.get('statuses');
+          
+          if (statusesParam) {
+            // For approval queue - don't filter by user, show all requests with specified statuses
+            console.log(`API_ACCOMMODATION_GET: User ${session.role} viewing approval queue with statuses: ${statusesParam}`);
+          } else {
+            // For regular listing - show only user's own requests
+            userId = userIdentifier.userId;
+            console.log(`API_ACCOMMODATION_GET: User ${session.role} viewing own requests (${userId})`);
+          }
+        } else {
           // Regular users can only see their own requests
           const userIdentifier = getUserIdentifier(session);
           userId = userIdentifier.userId;
           console.log(`API_ACCOMMODATION_GET: Regular user ${session.role} can only view their own requests (${userId})`);
-        } else {
-          console.log(`API_ACCOMMODATION_GET: Admin/domain admin ${session.role} can view all requests`);
         }
         
-        const requests = await getAccommodationRequests(userId || undefined);
+        // Parse statuses parameter if provided
+        let statuses: string[] | undefined;
+        const statusesParam = searchParams.get('statuses');
+        if (statusesParam) {
+          statuses = statusesParam.split(',').map(s => s.trim()).filter(Boolean);
+          console.log(`API_ACCOMMODATION_GET: Filtering by statuses: ${statuses.join(', ')}`);
+        }
+        
+        const requests = await getAccommodationRequests(userId || undefined, statuses);
         return NextResponse.json({ requests });
       
       default:

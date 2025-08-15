@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO } from 'date-fns';
+import { withAuth, canViewAllData } from '@/lib/api-protection';
 
 const roleUpdateSchema = z.object({
   name: z.string().min(2, "Role name must be at least 2 characters."),
@@ -10,9 +11,18 @@ const roleUpdateSchema = z.object({
   permissionIds: z.array(z.string().uuid("Invalid permission ID format.")).min(0, "Permissions list can be empty.").optional().default([]),
 });
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+export const GET = withAuth(async function(request: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  const session = (request as any).user;
   const { roleId } = await params;
-  console.log(`API_ROLEID_GET_START (PostgreSQL): Fetching role ${roleId}.`);
+  
+  console.log(`API_ROLEID_GET_START (PostgreSQL): User ${session.role} fetching role ${roleId}.`);
+  
+  // Check if user has admin permissions to view roles
+  if (!canViewAllData(session)) {
+    console.log(`API_ROLEID_GET_UNAUTHORIZED: User ${session.role} cannot view roles`);
+    return NextResponse.json({ error: 'Insufficient permissions to view roles' }, { status: 403 });
+  }
+  
   if (!sql) {
     console.error("API_ROLEID_GET_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
@@ -44,12 +54,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.error(`API_ROLEID_GET_ERROR (PostgreSQL) for role ${roleId}:`, error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch role.', details: error.message }, { status: 500 });
   }
-}
+});
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+export const PUT = withAuth(async function(request: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  const session = (request as any).user;
   const { roleId } = await params;
-  console.log(`API_ROLEID_PUT_START (PostgreSQL): Updating role ${roleId}.`);
-   if (!sql) {
+  
+  console.log(`API_ROLEID_PUT_START (PostgreSQL): User ${session.role} updating role ${roleId}.`);
+  
+  // Check if user has admin permissions to modify roles
+  if (!canViewAllData(session)) {
+    console.log(`API_ROLEID_PUT_UNAUTHORIZED: User ${session.role} cannot modify roles`);
+    return NextResponse.json({ error: 'Insufficient permissions to modify roles' }, { status: 403 });
+  }
+   
+  if (!sql) {
     console.error("API_ROLEID_PUT_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
   }
@@ -116,11 +135,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     return NextResponse.json({ error: 'Failed to update role.', details: error.message }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+export const DELETE = withAuth(async function(request: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  const session = (request as any).user;
   const { roleId } = await params;
-  console.log(`API_ROLEID_DELETE_START (PostgreSQL): Deleting role ${roleId}.`);
+  
+  console.log(`API_ROLEID_DELETE_START (PostgreSQL): User ${session.role} deleting role ${roleId}.`);
+  
+  // Check if user has admin permissions to delete roles
+  if (!canViewAllData(session)) {
+    console.log(`API_ROLEID_DELETE_UNAUTHORIZED: User ${session.role} cannot delete roles`);
+    return NextResponse.json({ error: 'Insufficient permissions to delete roles' }, { status: 403 });
+  }
+  
   if (!sql) {
     console.error("API_ROLEID_DELETE_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
@@ -143,4 +171,4 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     console.error(`API_ROLEID_DELETE_ERROR (PostgreSQL) for role ${roleId}:`, error.message, error.stack);
     return NextResponse.json({ error: 'Failed to delete role.', details: error.message }, { status: 500 });
   }
-}
+});

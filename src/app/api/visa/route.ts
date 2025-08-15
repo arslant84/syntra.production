@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db'; // Assuming PostgreSQL setup
 import { formatISO, parseISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
-import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
+import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { hasPermission } from '@/lib/session-utils';
 
 const visaApplicationCreateSchema = z.object({
@@ -139,21 +139,36 @@ export const GET = withAuth(async function(request: NextRequest) {
     
     // Data access rules based on role
     const canViewAll = canViewAllData(session);
-    const canViewVisa = canViewDomainData(session, 'visa');
+    const canViewDomain = canViewDomainData(session, 'visa');
+    const canViewApprovals = canViewApprovalData(session, 'visa');
     
-    if (canViewAll) {
-      console.log(`API_VISA_GET (PostgreSQL): Admin user ${session.role} can view all visa applications`);
+    if (canViewAll || canViewDomain) {
+      console.log(`API_VISA_GET (PostgreSQL): Admin/domain admin ${session.role} can view all visa applications`);
       // No filtering needed - admin can see everything
-    } else if (canViewVisa) {
-      console.log(`API_VISA_GET (PostgreSQL): Visa admin ${session.role} can view all visa applications in domain`);
-      // Visa domain admins can see all visa applications - no filtering needed
+    } else if (canViewApprovals) {
+      // Users with approval rights see their own requests + requests pending their approval
+      const userIdentifier = getUserIdentifier(session);
+      if (!statusesParam) {
+        // For regular listing - show only user's own requests
+        const staffIdCondition = userIdentifier.staffId 
+          ? `staff_id = '${userIdentifier.staffId}' OR ` 
+          : '';
+        userFilter = ` AND (user_id = '${userIdentifier.userId}' OR ${staffIdCondition}email = '${userIdentifier.email}')`;
+        console.log(`API_VISA_GET (PostgreSQL): User ${session.role} viewing own visa applications`);
+      } else {
+        // For approval queue - show all requests with specified statuses
+        console.log(`API_VISA_GET (PostgreSQL): User ${session.role} viewing approval queue`);
+      }
     } else {
       // Regular users can only see their own visa applications
       const userIdentifier = getUserIdentifier(session);
       console.log(`API_VISA_GET (PostgreSQL): Regular user ${session.role} filtering visa applications for user ${userIdentifier.userId}`);
       
-      // Filter by user's ID, staff ID, or email
-      userFilter = ` AND (user_id = '${userIdentifier.userId}' OR staff_id = '${userIdentifier.staffId}' OR email = '${userIdentifier.email}')`;
+      // Filter by user's ID, staff ID, or email - handle undefined staffId gracefully
+      const staffIdCondition = userIdentifier.staffId 
+        ? `staff_id = '${userIdentifier.staffId}' OR ` 
+        : '';
+      userFilter = ` AND (user_id = '${userIdentifier.userId}' OR ${staffIdCondition}email = '${userIdentifier.email}')`;
     }
     
     if (statusesParam) {

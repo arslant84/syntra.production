@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { cookies, headers } from 'next/headers';
 import { format } from 'date-fns';
 import { sql } from '@/lib/db';
 import { hasPermission } from '@/lib/permissions';
-// For development, we'll use a mock user
+import { withAuth, getUserIdentifier } from '@/lib/api-protection';
 
 // Define types for our data
 type TravelRequest = {
@@ -157,24 +157,31 @@ async function validateAccommodationExists(accommodationId: string): Promise<boo
   }
 }
 
-export async function GET() {
-  console.log('Activities API: Starting request');
-  
-  // Check if user has permission to view dashboard activities
-  if (!await hasPermission('view_dashboard_summary')) {
-    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
-  }
+export const GET = withAuth(async function(request: NextRequest) {
+  console.log('Activities API: Starting user-specific activities request');
   
   try {
-    // For development, use a mock user
-    // In production, you would implement proper authentication
-    const mockUser = {
-      email: 'dev@example.com',
-      name: 'Development User'
-    };
+    const session = (request as any).user;
+    const userIdentifier = getUserIdentifier(session);
     
-    // Use email as staff_id
-    const staffId = mockUser.email;
+    console.log(`Loading activities for user ${session.role} (${userIdentifier.userId})`);
+    
+    // Build user filter conditions for different tables
+    const trfUserFilter = userIdentifier.staffId 
+      ? `(staff_id = '${userIdentifier.staffId}' OR staff_id = '${userIdentifier.userId}' OR requestor_name ILIKE '%${userIdentifier.email}%')` 
+      : `(staff_id = '${userIdentifier.userId}' OR requestor_name ILIKE '%${userIdentifier.email}%')`;
+    
+    const claimsUserFilter = userIdentifier.staffId 
+      ? `(staff_no = '${userIdentifier.staffId}' OR staff_no = '${userIdentifier.userId}' OR staff_name ILIKE '%${userIdentifier.email}%')` 
+      : `(staff_no = '${userIdentifier.userId}' OR staff_name ILIKE '%${userIdentifier.email}%')`;
+    
+    const visaUserFilter = userIdentifier.staffId 
+      ? `(user_id = '${userIdentifier.userId}' OR staff_id = '${userIdentifier.staffId}' OR email = '${userIdentifier.email}')` 
+      : `(user_id = '${userIdentifier.userId}' OR email = '${userIdentifier.email}')`;
+    
+    const transportUserFilter = userIdentifier.staffId 
+      ? `(staff_id = '${userIdentifier.staffId}' OR staff_id = '${userIdentifier.userId}' OR created_by = '${userIdentifier.userId}')` 
+      : `(staff_id = '${userIdentifier.userId}' OR created_by = '${userIdentifier.userId}')`;
 
     // Initialize arrays to store activities
     let trfs: ActivityItem[] = [];
@@ -190,10 +197,10 @@ export async function GET() {
     console.log('Fetching activity data in parallel...');
     
     try {
-      // Execute all queries in parallel for better performance
+      // Execute all user-filtered queries in parallel for better performance
       const [trfQuery, claimsQuery, visaQuery] = await Promise.all([
-        // TRFs query
-        sql`
+        // User's TRFs query
+        sql.unsafe(`
           SELECT 
             id, 
             purpose, 
@@ -202,24 +209,26 @@ export async function GET() {
             updated_at,
             staff_id
           FROM travel_requests 
+          WHERE ${trfUserFilter}
           ORDER BY updated_at DESC
           LIMIT 20
-        `,
-        // Claims query (with table existence check)
-        sql`
+        `),
+        // User's Claims query (with table existence check)
+        sql.unsafe(`
           SELECT 
             id, 
             purpose_of_claim as purpose, 
             status, 
             created_at, 
             updated_at,
-            staff_id
+            staff_no as staff_id
           FROM expense_claims 
+          WHERE ${claimsUserFilter}
           ORDER BY updated_at DESC
           LIMIT 10
-        `.catch(() => []), // Return empty array if table doesn't exist
-        // Visas query
-        sql`
+        `).catch(() => []), // Return empty array if table doesn't exist
+        // User's Visas query
+        sql.unsafe(`
           SELECT 
             id, 
             travel_purpose as purpose, 
@@ -228,9 +237,10 @@ export async function GET() {
             updated_at,
             user_id as staff_id
           FROM visa_applications 
+          WHERE ${visaUserFilter}
           ORDER BY updated_at DESC
           LIMIT 10
-        `.catch(() => []) // Return empty array if table doesn't exist
+        `).catch(() => []) // Return empty array if table doesn't exist
       ]);
 
       trfData = trfQuery || [];
@@ -323,8 +333,8 @@ export async function GET() {
     try {
       console.log('Fetching recent accommodation requests...');
       
-      // Get travel requests that have accommodation details
-      const accommodationQuery = await sql`
+      // Get user's travel requests that have accommodation details
+      const accommodationQuery = await sql.unsafe(`
         SELECT DISTINCT ON (tr.id)
           tr.id, 
           tr.purpose, 
@@ -334,9 +344,10 @@ export async function GET() {
           tr.staff_id
         FROM travel_requests tr
         INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
+        WHERE ${trfUserFilter}
         ORDER BY tr.id, tr.updated_at DESC
         LIMIT 10
-      `;
+      `);
       
       // Validate each accommodation request exists before adding to activities
       for (const accommodation of accommodationQuery || []) {
@@ -396,15 +407,15 @@ export async function GET() {
     
     // Return the top 10 most recent activities
     const result = allActivities.slice(0, 10);
-    console.log(`Returning ${result.length} validated activities`);
+    console.log(`Returning ${result.length} user-specific activities for ${userIdentifier.userId}`);
     return NextResponse.json(result, {
       headers: {
-        'Cache-Control': 'public, max-age=180, stale-while-revalidate=30', // 3 min cache, 30s stale
-        'X-Performance-Optimized': 'true'
+        'Cache-Control': 'private, max-age=60', // Shorter cache for user-specific data
+        'X-User-Filtered': 'true'
       }
     });
   } catch (error) {
     console.error('Error in activities API:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-}
+});

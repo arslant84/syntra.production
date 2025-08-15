@@ -152,17 +152,37 @@ export function canViewDomainData(session: any, domain: string): boolean {
   
   switch (domain) {
     case 'trf':
-      return ['System Administrator', 'Admin', 'HOD'].includes(role);
+      return ['System Administrator', 'Admin'].includes(role);
     case 'claims':
-      return ['System Administrator', 'Admin', 'Finance Clerk', 'HOD'].includes(role);
+      return ['System Administrator', 'Admin', 'Finance Clerk'].includes(role);
     case 'visa':
       return ['System Administrator', 'Admin', 'Visa Clerk'].includes(role);
     case 'transport':
       return ['System Administrator', 'Admin', 'Transport Admin'].includes(role);
     case 'accommodation':
-      return ['System Administrator', 'Admin', 'Accomodation Admin'].includes(role);
+      return ['System Administrator', 'Admin', 'Accommodation Admin'].includes(role);
     default:
       return canViewAllData(session);
+  }
+}
+
+/**
+ * Check if user can view requests pending their approval (for approval roles like HOD)
+ */
+export function canViewApprovalData(session: any, domain: string): boolean {
+  const role = session.role;
+  
+  switch (domain) {
+    case 'trf':
+    case 'accommodation':
+    case 'transport':
+      return ['HOD', 'Department Focal', 'Line Manager'].includes(role);
+    case 'claims':
+      return ['HOD', 'Department Focal', 'Line Manager', 'Finance Clerk'].includes(role);
+    case 'visa':
+      return ['Visa Clerk'].includes(role);
+    default:
+      return false;
   }
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TransportService } from '@/lib/transport-service';
-import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
+import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { hasPermission } from '@/lib/session-utils';
 import { sql } from '@/lib/db';
 import { NotificationService } from '@/lib/notification-service';
@@ -71,15 +71,28 @@ export const GET = withAuth(async function(request: NextRequest) {
     
     // Role-based data filtering
     const canViewAll = canViewAllData(session);
-    const canViewTransport = canViewDomainData(session, 'transport');
+    const canViewDomain = canViewDomainData(session, 'transport');
+    const canViewApprovals = canViewApprovalData(session, 'transport');
     let userId = null;
-    if (!canViewAll && !canViewTransport) {
+    
+    if (canViewAll || canViewDomain) {
+      console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} can view all transport requests`);
+    } else if (canViewApprovals) {
+      // Users with approval rights see their own requests + requests pending their approval
+      const userIdentifier = getUserIdentifier(session);
+      if (!statuses) {
+        // For regular listing - show only user's own requests
+        userId = userIdentifier.userId;
+        console.log(`API_TRANSPORT_GET: User ${session.role} viewing own requests (${userId})`);
+      } else {
+        // For approval queue - show all requests with specified statuses
+        console.log(`API_TRANSPORT_GET: User ${session.role} viewing approval queue with statuses: ${statuses}`);
+      }
+    } else {
       // Regular users can only see their own requests
       const userIdentifier = getUserIdentifier(session);
       userId = userIdentifier.userId;
       console.log(`API_TRANSPORT_GET: Regular user ${session.role} filtering for user ${userId}`);
-    } else {
-      console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} can view all transport requests`);
     }
     
     // If statuses are specified, fetch all transport requests with those statuses (for approval queue)

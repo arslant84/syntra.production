@@ -5,6 +5,7 @@ import { sql } from '@/lib/db';
 import { formatISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 import { requireAuth, createAuthError } from '@/lib/auth-utils';
+import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 
 const accommodationRequestSchema = z.object({
   trfId: z.string().optional().nullable(), // Can be optional if not directly tied to a TRF
@@ -120,103 +121,139 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function(request: NextRequest) {
   try {
-    // SECURITY: Require authentication
-    const user = await requireAuth();
-    console.log(`API_ACCOM_REQ_GET_START: User ${user.email} fetching accommodation requests.`);
+    const session = (request as any).user;
+    console.log(`API_ACCOM_REQ_GET_START: User ${session.role} (${session.email}) fetching accommodation requests.`);
 
     if (!sql) {
       return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
     }
   
-  // Parse query parameters
-  const url = new URL(request.url);
-  const statusesParam = url.searchParams.get('statuses');
-  const limit = parseInt(url.searchParams.get('limit') || '50', 10);
-  
-  console.log(`API_ACCOM_REQ_GET (PostgreSQL): Filtering by statuses: ${statusesParam || 'None'}, limit: ${limit}`);
-  
-  try {
-    // Parse status filter if provided
-    const statuses = statusesParam ? statusesParam.split(',').map(s => s.trim()) : [];
+    // Parse query parameters
+    const url = new URL(request.url);
+    const statusesParam = url.searchParams.get('statuses');
+    const limit = parseInt(url.searchParams.get('limit') || '50', 10);
     
-    // Execute the query with conditional WHERE clause
-    let requests;
+    console.log(`API_ACCOM_REQ_GET (PostgreSQL): Filtering by statuses: ${statusesParam || 'None'}, limit: ${limit}`);
     
-    // For simplicity, we'll create separate queries for with/without status filters
-    if (statuses.length > 0) {
-      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Using statuses filter with values: ${JSON.stringify(statuses)}`);
-      
-      // Use proper parameterized query for security - NO SQL injection risk
-      requests = await sql`
-        SELECT DISTINCT ON (tr.id)
-          tr.id,
-          NULL as "trfId",
-          tr.requestor_name as "requestorName",
-          tr.staff_id as "requestorId",
-          'Male' as "requestorGender", 
-          tr.department,
-          tad.location,
-          tad.check_in_date as "requestedCheckInDate",
-          tad.check_out_date as "requestedCheckOutDate",
-          tad.accommodation_type as "requestedRoomType",
-          tr.status,
-          NULL as "assignedRoomName",
-          NULL as "assignedStaffHouseName",
-          tr.submitted_at as "submittedDate",
-          tr.updated_at as "lastUpdatedDate",
-          tr.additional_comments as "specialRequests",
-          tad.check_in_time as "flightArrivalTime",
-          tad.check_out_time as "flightDepartureTime"
-        FROM 
-          travel_requests tr
-        INNER JOIN 
-          trf_accommodation_details tad ON tad.trf_id = tr.id
-        WHERE tr.status = ANY(${statuses}) 
-          AND tr.id IS NOT NULL
-        ORDER BY 
-          tr.id, tr.submitted_at DESC
-        LIMIT ${limit}
-      `;
-      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Found ${requests.length} requests with status filtering`);
+    // Role-based data filtering
+    const canViewAll = canViewAllData(session);
+    const canViewDomain = canViewDomainData(session, 'accommodation');
+    const canViewApprovals = canViewApprovalData(session, 'accommodation');
+    
+    // Build WHERE conditions based on user role
+    let userFilterCondition = '';
+    
+    if (canViewAll || canViewDomain) {
+      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Admin/domain admin ${session.role} can view all accommodation requests`);
+      // No user filtering needed
+    } else if (canViewApprovals) {
+      // Users with approval rights see their own requests + requests pending their approval
+      const userIdentifier = getUserIdentifier(session);
+      if (!statusesParam) {
+        // For regular listing - show only user's own requests
+        const staffIdCondition = userIdentifier.staffId 
+          ? `tr.staff_id = '${userIdentifier.staffId}' OR ` 
+          : '';
+        userFilterCondition = ` AND (${staffIdCondition}tr.staff_id = '${userIdentifier.userId}' OR tr.requestor_name ILIKE '%${userIdentifier.email}%')`;
+        console.log(`API_ACCOM_REQ_GET (PostgreSQL): User ${session.role} viewing own accommodation requests`);
+      } else {
+        // For approval queue - show all requests with specified statuses
+        console.log(`API_ACCOM_REQ_GET (PostgreSQL): User ${session.role} viewing approval queue`);
+      }
     } else {
-      // When not filtering by status - get travel requests that have accommodation details
-      requests = await sql`
-        SELECT DISTINCT ON (tr.id)
-          tr.id,
-          CASE 
-            WHEN tr.travel_type = 'Accommodation' THEN NULL 
-            ELSE tr.id 
-          END as "trfId",
-          tr.requestor_name as "requestorName",
-          tr.staff_id as "requestorId",
-          'Male' as "requestorGender", 
-          tr.department,
-          tad.location,
-          tad.check_in_date as "requestedCheckInDate",
-          tad.check_out_date as "requestedCheckOutDate",
-          tad.accommodation_type as "requestedRoomType",
-          tr.status,
-          NULL as "assignedRoomName",
-          NULL as "assignedStaffHouseName",
-          tr.submitted_at as "submittedDate",
-          tr.updated_at as "lastUpdatedDate",
-          tr.additional_comments as "specialRequests",
-          tad.check_in_time as "flightArrivalTime",
-          tad.check_out_time as "flightDepartureTime"
-        FROM 
-          travel_requests tr
-        INNER JOIN 
-          trf_accommodation_details tad ON tad.trf_id = tr.id
-        WHERE 
-          tr.id IS NOT NULL
-        ORDER BY 
-          tr.id, tr.submitted_at DESC
-        LIMIT ${limit}
-      `;
-      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Found ${requests.length} travel requests with accommodation details`);
+      // Regular users can only see their own accommodation requests
+      const userIdentifier = getUserIdentifier(session);
+      const staffIdCondition = userIdentifier.staffId 
+        ? `tr.staff_id = '${userIdentifier.staffId}' OR ` 
+        : '';
+      userFilterCondition = ` AND (${staffIdCondition}tr.staff_id = '${userIdentifier.userId}' OR tr.requestor_name ILIKE '%${userIdentifier.email}%')`;
+      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Regular user ${session.role} filtering accommodation requests for user ${userIdentifier.userId}`);
     }
+    
+    try {
+      // Parse status filter if provided
+      const statuses = statusesParam ? statusesParam.split(',').map(s => s.trim()) : [];
+      
+      // Execute the query with conditional WHERE clause
+      let requests;
+    
+      // Build dynamic queries with user filtering
+      if (statuses.length > 0) {
+        console.log(`API_ACCOM_REQ_GET (PostgreSQL): Using statuses filter with values: ${JSON.stringify(statuses)}`);
+        
+        // Use sql.unsafe for dynamic WHERE clause construction
+        requests = await sql.unsafe(`
+          SELECT DISTINCT ON (tr.id)
+            tr.id,
+            NULL as "trfId",
+            tr.requestor_name as "requestorName",
+            tr.staff_id as "requestorId",
+            'Male' as "requestorGender", 
+            tr.department,
+            tad.location,
+            tad.check_in_date as "requestedCheckInDate",
+            tad.check_out_date as "requestedCheckOutDate",
+            tad.accommodation_type as "requestedRoomType",
+            tr.status,
+            NULL as "assignedRoomName",
+            NULL as "assignedStaffHouseName",
+            tr.submitted_at as "submittedDate",
+            tr.updated_at as "lastUpdatedDate",
+            tr.additional_comments as "specialRequests",
+            tad.check_in_time as "flightArrivalTime",
+            tad.check_out_time as "flightDepartureTime"
+          FROM 
+            travel_requests tr
+          INNER JOIN 
+            trf_accommodation_details tad ON tad.trf_id = tr.id
+          WHERE tr.status IN (${statuses.map(s => `'${s}'`).join(', ')})
+            AND tr.id IS NOT NULL
+            ${userFilterCondition}
+          ORDER BY 
+            tr.id, tr.submitted_at DESC
+          LIMIT ${limit}
+        `);
+        console.log(`API_ACCOM_REQ_GET (PostgreSQL): Found ${requests.length} requests with status filtering`);
+      } else {
+        // When not filtering by status - get travel requests that have accommodation details
+        requests = await sql.unsafe(`
+          SELECT DISTINCT ON (tr.id)
+            tr.id,
+            CASE 
+              WHEN tr.travel_type = 'Accommodation' THEN NULL 
+              ELSE tr.id 
+            END as "trfId",
+            tr.requestor_name as "requestorName",
+            tr.staff_id as "requestorId",
+            'Male' as "requestorGender", 
+            tr.department,
+            tad.location,
+            tad.check_in_date as "requestedCheckInDate",
+            tad.check_out_date as "requestedCheckOutDate",
+            tad.accommodation_type as "requestedRoomType",
+            tr.status,
+            NULL as "assignedRoomName",
+            NULL as "assignedStaffHouseName",
+            tr.submitted_at as "submittedDate",
+            tr.updated_at as "lastUpdatedDate",
+            tr.additional_comments as "specialRequests",
+            tad.check_in_time as "flightArrivalTime",
+            tad.check_out_time as "flightDepartureTime"
+          FROM 
+            travel_requests tr
+          INNER JOIN 
+            trf_accommodation_details tad ON tad.trf_id = tr.id
+          WHERE 
+            tr.id IS NOT NULL
+            ${userFilterCondition}
+          ORDER BY 
+            tr.id, tr.submitted_at DESC
+          LIMIT ${limit}
+        `);
+        console.log(`API_ACCOM_REQ_GET (PostgreSQL): Found ${requests.length} travel requests with accommodation details`);
+      }
     
     console.log(`API_ACCOM_REQ_GET (PostgreSQL): Total unique requests found: ${requests.length}`);
     
@@ -227,25 +264,13 @@ export async function GET(request: NextRequest) {
         submittedDate: req.submittedDate ? formatISO(new Date(req.submittedDate)) : null,
         lastUpdatedDate: req.lastUpdatedDate ? formatISO(new Date(req.lastUpdatedDate)) : null,
     }));
-    return NextResponse.json({ accommodationRequests: formattedRequests });
-  } catch (error: any) {
-    // Handle authentication errors
-    if (error.message === 'UNAUTHORIZED') {
-      const authError = createAuthError('UNAUTHORIZED');
-      return NextResponse.json({ error: authError.message }, { status: authError.status });
+      return NextResponse.json({ accommodationRequests: formattedRequests });
+    } catch (error: any) {
+      console.error("API_ACCOM_REQ_GET_ERROR (PostgreSQL):", error.message, error.stack);
+      return NextResponse.json({ error: 'Failed to fetch accommodation requests.' }, { status: 500 });
     }
-    
+  } catch (error: any) {
     console.error("API_ACCOM_REQ_GET_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch accommodation requests.' }, { status: 500 });
   }
-  } catch (error: any) {
-    // Handle authentication errors
-    if (error.message === 'UNAUTHORIZED') {
-      const authError = createAuthError('UNAUTHORIZED');
-      return NextResponse.json({ error: authError.message }, { status: authError.status });
-    }
-    
-    console.error("API_ACCOM_REQ_GET_ERROR (PostgreSQL):", error.message, error.stack);
-    return NextResponse.json({ error: 'Failed to fetch accommodation requests.' }, { status: 500 });
-  }
-}
+});

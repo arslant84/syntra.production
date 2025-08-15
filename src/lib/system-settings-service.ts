@@ -106,12 +106,9 @@ export async function getRoleById(roleId: string): Promise<RoleWithPermissions |
  */
 export async function createRole(roleData: RoleFormValues): Promise<RoleWithPermissions> {
   try {
-    // Start a transaction
-    await sql`BEGIN`;
-
-    try {
+    const result = await sql.begin(async tx => {
       // Create the role
-      const roleResult = await sql`
+      const roleResult = await tx`
         INSERT INTO roles (name, description)
         VALUES (${roleData.name}, ${roleData.description || null})
         RETURNING id, name, description, created_at, updated_at
@@ -122,29 +119,23 @@ export async function createRole(roleData: RoleFormValues): Promise<RoleWithPerm
 
       // Add permissions to the role
       if (roleData.permissionIds && roleData.permissionIds.length > 0) {
-        for (const permissionId of roleData.permissionIds) {
-          await sql`
-            INSERT INTO role_permissions (role_id, permission_id)
-            VALUES (${roleId}, ${permissionId})
-          `;
-        }
+        const permissionsToInsert = roleData.permissionIds.map(permissionId => ({
+          role_id: roleId,
+          permission_id: permissionId
+        }));
+        await tx`INSERT INTO role_permissions ${tx(permissionsToInsert, 'role_id', 'permission_id')}`;
       }
 
-      // Commit the transaction
-      await sql`COMMIT`;
+      return roleId;
+    });
 
-      // Fetch the complete role with permissions
-      const roleWithPermissions = await getRoleById(roleId);
-      if (!roleWithPermissions) {
-        throw new Error('Failed to retrieve created role');
-      }
-
-      return roleWithPermissions;
-    } catch (error) {
-      // Rollback the transaction on error
-      await sql`ROLLBACK`;
-      throw error;
+    // Fetch the complete role with permissions
+    const roleWithPermissions = await getRoleById(result);
+    if (!roleWithPermissions) {
+      throw new Error('Failed to retrieve created role');
     }
+
+    return roleWithPermissions;
   } catch (error) {
     console.error('Error creating role:', error);
     throw new Error('Failed to create role');
@@ -156,12 +147,9 @@ export async function createRole(roleData: RoleFormValues): Promise<RoleWithPerm
  */
 export async function updateRole(roleId: string, roleData: RoleFormValues): Promise<RoleWithPermissions> {
   try {
-    // Start a transaction
-    await sql`BEGIN`;
-
-    try {
+    await sql.begin(async tx => {
       // Update the role
-      await sql`
+      await tx`
         UPDATE roles
         SET name = ${roleData.name}, 
             description = ${roleData.description || null}
@@ -169,36 +157,28 @@ export async function updateRole(roleId: string, roleData: RoleFormValues): Prom
       `;
 
       // Delete existing role-permission mappings
-      await sql`
+      await tx`
         DELETE FROM role_permissions
         WHERE role_id = ${roleId}
       `;
 
       // Add new role-permission mappings
       if (roleData.permissionIds && roleData.permissionIds.length > 0) {
-        for (const permissionId of roleData.permissionIds) {
-          await sql`
-            INSERT INTO role_permissions (role_id, permission_id)
-            VALUES (${roleId}, ${permissionId})
-          `;
-        }
+        const permissionsToInsert = roleData.permissionIds.map(permissionId => ({
+          role_id: roleId,
+          permission_id: permissionId
+        }));
+        await tx`INSERT INTO role_permissions ${tx(permissionsToInsert, 'role_id', 'permission_id')}`;
       }
+    });
 
-      // Commit the transaction
-      await sql`COMMIT`;
-
-      // Fetch the updated role with permissions
-      const updatedRole = await getRoleById(roleId);
-      if (!updatedRole) {
-        throw new Error('Failed to retrieve updated role');
-      }
-
-      return updatedRole;
-    } catch (error) {
-      // Rollback the transaction on error
-      await sql`ROLLBACK`;
-      throw error;
+    // Fetch the updated role with permissions
+    const updatedRole = await getRoleById(roleId);
+    if (!updatedRole) {
+      throw new Error('Failed to retrieve updated role');
     }
+
+    return updatedRole;
   } catch (error) {
     console.error(`Error updating role ${roleId}:`, error);
     throw new Error(`Failed to update role ${roleId}`);
@@ -221,31 +201,21 @@ export async function deleteRole(roleId: string): Promise<boolean> {
       throw new Error('Cannot delete role: it is assigned to one or more users');
     }
 
-    // Start a transaction
-    await sql`BEGIN`;
-
-    try {
+    await sql.begin(async tx => {
       // Delete role-permission mappings
-      await sql`
+      await tx`
         DELETE FROM role_permissions
         WHERE role_id = ${roleId}
       `;
 
       // Delete the role
-      await sql`
+      await tx`
         DELETE FROM roles
         WHERE id = ${roleId}
       `;
-
-      // Commit the transaction
-      await sql`COMMIT`;
+    });
       
-      return true;
-    } catch (error) {
-      // Rollback the transaction on error
-      await sql`ROLLBACK`;
-      throw error;
-    }
+    return true;
   } catch (error) {
     console.error(`Error deleting role ${roleId}:`, error);
     throw error;
@@ -354,12 +324,9 @@ export async function createWorkflowStep(
   stepData: WorkflowStepFormValues
 ): Promise<WorkflowStep> {
   try {
-    // Start a transaction
-    await sql`BEGIN`;
-
-    try {
+    const newStep = await sql.begin(async tx => {
       // Get the highest order for this module
-      const orderResult = await sql`
+      const orderResult = await tx`
         SELECT COALESCE(MAX("order"), 0) as max_order
         FROM workflow_steps
         WHERE module_id = ${moduleId}
@@ -368,7 +335,7 @@ export async function createWorkflowStep(
       const nextOrder = parseInt(orderResult[0].max_order) + 1;
       
       // Create the workflow step
-      const stepResult = await sql`
+      const stepResult = await tx`
         INSERT INTO workflow_steps (
           name, approver_role_id, escalation_role_id, escalation_hours, "order", module_id
         )
@@ -383,40 +350,33 @@ export async function createWorkflowStep(
         RETURNING id, name, approver_role_id, escalation_role_id, escalation_hours, "order", module_id
       `;
 
-      // Commit the transaction
-      await sql`COMMIT`;
-
-      const newStep = stepResult[0];
+      return stepResult[0];
+    });
       
-      // Get role names
-      const approverRoleResult = await sql`
-        SELECT name FROM roles WHERE id = ${newStep.approver_role_id}
+    // Get role names
+    const approverRoleResult = await sql`
+      SELECT name FROM roles WHERE id = ${newStep.approver_role_id}
+    `;
+    
+    let escalationRole = null;
+    if (newStep.escalation_role_id) {
+      const escalationRoleResult = await sql`
+        SELECT name FROM roles WHERE id = ${newStep.escalation_role_id}
       `;
-      
-      let escalationRole = null;
-      if (newStep.escalation_role_id) {
-        const escalationRoleResult = await sql`
-          SELECT name FROM roles WHERE id = ${newStep.escalation_role_id}
-        `;
-        escalationRole = escalationRoleResult[0]?.name;
-      }
-
-      return {
-        id: newStep.id,
-        name: newStep.name,
-        approverRoleId: newStep.approver_role_id,
-        approverRole: approverRoleResult[0]?.name,
-        escalationRoleId: newStep.escalation_role_id,
-        escalationRole,
-        escalationHours: newStep.escalation_hours,
-        order: newStep.order,
-        moduleId: newStep.module_id
-      };
-    } catch (error) {
-      // Rollback the transaction on error
-      await sql`ROLLBACK`;
-      throw error;
+      escalationRole = escalationRoleResult[0]?.name;
     }
+
+    return {
+      id: newStep.id,
+      name: newStep.name,
+      approverRoleId: newStep.approver_role_id,
+      approverRole: approverRoleResult[0]?.name,
+      escalationRoleId: newStep.escalation_role_id,
+      escalationRole,
+      escalationHours: newStep.escalation_hours,
+      order: newStep.order,
+      moduleId: newStep.module_id
+    };
   } catch (error) {
     console.error('Error creating workflow step:', error);
     throw new Error('Failed to create workflow step');
@@ -431,12 +391,9 @@ export async function updateWorkflowStep(
   stepData: WorkflowStepFormValues
 ): Promise<WorkflowStep> {
   try {
-    // Start a transaction
-    await sql`BEGIN`;
-
-    try {
+    const updatedStep = await sql.begin(async tx => {
       // Update the workflow step
-      const stepResult = await sql`
+      const stepResult = await tx`
         UPDATE workflow_steps
         SET name = ${stepData.name},
             approver_role_id = ${stepData.approverRoleId},
@@ -447,40 +404,33 @@ export async function updateWorkflowStep(
         RETURNING id, name, approver_role_id, escalation_role_id, escalation_hours, "order", module_id
       `;
 
-      // Commit the transaction
-      await sql`COMMIT`;
-
-      const updatedStep = stepResult[0];
+      return stepResult[0];
+    });
       
-      // Get role names
-      const approverRoleResult = await sql`
-        SELECT name FROM roles WHERE id = ${updatedStep.approver_role_id}
+    // Get role names
+    const approverRoleResult = await sql`
+      SELECT name FROM roles WHERE id = ${updatedStep.approver_role_id}
+    `;
+    
+    let escalationRole = null;
+    if (updatedStep.escalation_role_id) {
+      const escalationRoleResult = await sql`
+        SELECT name FROM roles WHERE id = ${updatedStep.escalation_role_id}
       `;
-      
-      let escalationRole = null;
-      if (updatedStep.escalation_role_id) {
-        const escalationRoleResult = await sql`
-          SELECT name FROM roles WHERE id = ${updatedStep.escalation_role_id}
-        `;
-        escalationRole = escalationRoleResult[0]?.name;
-      }
-
-      return {
-        id: updatedStep.id,
-        name: updatedStep.name,
-        approverRoleId: updatedStep.approver_role_id,
-        approverRole: approverRoleResult[0]?.name,
-        escalationRoleId: updatedStep.escalation_role_id,
-        escalationRole,
-        escalationHours: updatedStep.escalation_hours,
-        order: updatedStep.order,
-        moduleId: updatedStep.module_id
-      };
-    } catch (error) {
-      // Rollback the transaction on error
-      await sql`ROLLBACK`;
-      throw error;
+      escalationRole = escalationRoleResult[0]?.name;
     }
+
+    return {
+      id: updatedStep.id,
+      name: updatedStep.name,
+      approverRoleId: updatedStep.approver_role_id,
+      approverRole: approverRoleResult[0]?.name,
+      escalationRoleId: updatedStep.escalation_role_id,
+      escalationRole,
+      escalationHours: updatedStep.escalation_hours,
+      order: updatedStep.order,
+      moduleId: updatedStep.module_id
+    };
   } catch (error) {
     console.error(`Error updating workflow step ${stepId}:`, error);
     throw new Error(`Failed to update workflow step ${stepId}`);
@@ -492,12 +442,9 @@ export async function updateWorkflowStep(
  */
 export async function deleteWorkflowStep(stepId: string): Promise<boolean> {
   try {
-    // Start a transaction
-    await sql`BEGIN`;
-
-    try {
+    await sql.begin(async tx => {
       // Get the step to be deleted
-      const stepResult = await sql`
+      const stepResult = await tx`
         SELECT module_id, "order"
         FROM workflow_steps
         WHERE id = ${stepId}
@@ -510,28 +457,21 @@ export async function deleteWorkflowStep(stepId: string): Promise<boolean> {
       const { module_id, order } = stepResult[0];
       
       // Delete the step
-      await sql`
+      await tx`
         DELETE FROM workflow_steps
         WHERE id = ${stepId}
       `;
       
       // Reorder remaining steps
-      await sql`
+      await tx`
         UPDATE workflow_steps
         SET "order" = "order" - 1
         WHERE module_id = ${module_id}
         AND "order" > ${order}
       `;
-
-      // Commit the transaction
-      await sql`COMMIT`;
+    });
       
-      return true;
-    } catch (error) {
-      // Rollback the transaction on error
-      await sql`ROLLBACK`;
-      throw error;
-    }
+    return true;
   } catch (error) {
     console.error(`Error deleting workflow step ${stepId}:`, error);
     throw new Error(`Failed to delete workflow step ${stepId}`);

@@ -34,75 +34,55 @@ interface AccommodationApprovalStep {
  * @param userId Optional user ID to filter requests by user
  * @returns Array of accommodation request details
  */
-export async function getAccommodationRequests(userId?: string): Promise<AccommodationRequestDetails[]> {
+export async function getAccommodationRequests(userId?: string, statuses?: string[]): Promise<AccommodationRequestDetails[]> {
   try {
-    // Build the query based on whether a userId is provided
-    const query = userId
-      ? sql`
-          SELECT DISTINCT ON (tr.id)
-            tr.id,
-            CASE 
-              WHEN tr.travel_type = 'Accommodation' THEN NULL 
-              ELSE tr.id 
-            END as "trfId",
-            tr.requestor_name as "requestorName",
-            tr.staff_id as "requestorId",
-            'Male' as "requestorGender", -- Default value as it's not in the schema
-            tr.department,
-            tad.location,
-            tad.check_in_date as "requestedCheckInDate",
-            tad.check_out_date as "requestedCheckOutDate",
-            tad.accommodation_type as "requestedRoomType",
-            tr.status,
-            NULL as "assignedRoomName",
-            NULL as "assignedStaffHouseName",
-            tr.submitted_at as "submittedDate",
-            tr.updated_at as "lastUpdatedDate",
-            tr.additional_comments as "specialRequests",
-            tad.check_in_time as "flightArrivalTime",
-            tad.check_out_time as "flightDepartureTime"
-          FROM 
-            travel_requests tr
-          INNER JOIN 
-            trf_accommodation_details tad ON tad.trf_id = tr.id
-          WHERE 
-            tr.staff_id = ${userId}
-            AND tr.id IS NOT NULL
-          ORDER BY 
-            tr.id, tr.submitted_at DESC
-        `
-      : sql`
-          SELECT DISTINCT ON (tr.id)
-            tr.id,
-            CASE 
-              WHEN tr.travel_type = 'Accommodation' THEN NULL 
-              ELSE tr.id 
-            END as "trfId",
-            tr.requestor_name as "requestorName",
-            tr.staff_id as "requestorId",
-            'Male' as "requestorGender", -- Default value as it's not in the schema
-            tr.department,
-            tad.location,
-            tad.check_in_date as "requestedCheckInDate",
-            tad.check_out_date as "requestedCheckOutDate",
-            tad.accommodation_type as "requestedRoomType",
-            tr.status,
-            NULL as "assignedRoomName",
-            NULL as "assignedStaffHouseName",
-            tr.submitted_at as "submittedDate",
-            tr.updated_at as "lastUpdatedDate",
-            tr.additional_comments as "specialRequests",
-            tad.check_in_time as "flightArrivalTime",
-            tad.check_out_time as "flightDepartureTime"
-          FROM 
-            travel_requests tr
-          INNER JOIN 
-            trf_accommodation_details tad ON tad.trf_id = tr.id
-          WHERE 
-            tr.id IS NOT NULL
-          ORDER BY 
-            tr.id, tr.submitted_at DESC
-        `;
+    // Build the WHERE conditions
+    const whereConditions = ['tr.id IS NOT NULL'];
+    
+    if (userId) {
+      whereConditions.push(`tr.staff_id = '${userId}'`);
+    }
+    
+    if (statuses && statuses.length > 0) {
+      const statusCondition = `tr.status IN (${statuses.map(s => `'${s}'`).join(', ')})`;
+      whereConditions.push(statusCondition);
+    }
+    
+    const whereClause = whereConditions.join(' AND ');
+    
+    // Build the complete query
+    const query = sql.unsafe(`
+      SELECT DISTINCT ON (tr.id)
+        tr.id,
+        CASE 
+          WHEN tr.travel_type = 'Accommodation' THEN NULL 
+          ELSE tr.id 
+        END as "trfId",
+        tr.requestor_name as "requestorName",
+        tr.staff_id as "requestorId",
+        'Male' as "requestorGender",
+        tr.department,
+        tad.location,
+        tad.check_in_date as "requestedCheckInDate",
+        tad.check_out_date as "requestedCheckOutDate",
+        tad.accommodation_type as "requestedRoomType",
+        tr.status,
+        NULL as "assignedRoomName",
+        NULL as "assignedStaffHouseName",
+        tr.submitted_at as "submittedDate",
+        tr.updated_at as "lastUpdatedDate",
+        tr.additional_comments as "specialRequests",
+        tad.check_in_time as "flightArrivalTime",
+        tad.check_out_time as "flightDepartureTime"
+      FROM 
+        travel_requests tr
+      INNER JOIN 
+        trf_accommodation_details tad ON tad.trf_id = tr.id
+      WHERE 
+        ${whereClause}
+      ORDER BY 
+        tr.id, tr.submitted_at DESC
+    `);
 
     const results = await query;
     

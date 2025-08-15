@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db'; // Assuming PostgreSQL setup
 import { formatISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
-import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
+import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { hasPermission } from '@/lib/session-utils';
 import { NotificationService } from '@/lib/notification-service';
 
@@ -259,21 +259,36 @@ export const GET = withAuth(async function(request: NextRequest) {
     
     // Data access rules based on role
     const canViewAll = canViewAllData(session);
-    const canViewClaims = canViewDomainData(session, 'claims');
+    const canViewDomain = canViewDomainData(session, 'claims');
+    const canViewApprovals = canViewApprovalData(session, 'claims');
     
-    if (canViewAll) {
-      console.log(`API_CLAIMS_GET (PostgreSQL): Admin user ${session.role} can view all claims`);
+    if (canViewAll || canViewDomain) {
+      console.log(`API_CLAIMS_GET (PostgreSQL): Admin/domain admin ${session.role} can view all claims`);
       // No filtering needed - admin can see everything
-    } else if (canViewClaims) {
-      console.log(`API_CLAIMS_GET (PostgreSQL): Domain admin ${session.role} can view all claims in domain`);
-      // Domain admins can see all claims in their domain - no filtering needed for claims
+    } else if (canViewApprovals) {
+      // Users with approval rights see their own requests + requests pending their approval
+      const userIdentifier = getUserIdentifier(session);
+      if (!statusesParam) {
+        // For regular listing - show only user's own requests
+        const staffIdCondition = userIdentifier.staffId 
+          ? `staff_no = '${userIdentifier.staffId}' OR ` 
+          : '';
+        whereConditions.push(`(${staffIdCondition}staff_no = '${userIdentifier.userId}' OR staff_name LIKE '%${userIdentifier.email}%')`);
+        console.log(`API_CLAIMS_GET (PostgreSQL): User ${session.role} viewing own claims`);
+      } else {
+        // For approval queue - show all requests with specified statuses
+        console.log(`API_CLAIMS_GET (PostgreSQL): User ${session.role} viewing approval queue`);
+      }
     } else {
       // Regular users can only see their own claims
       const userIdentifier = getUserIdentifier(session);
       console.log(`API_CLAIMS_GET (PostgreSQL): Regular user ${session.role} filtering claims for user ${userIdentifier.userId}`);
       
-      // Filter by user's staff number, staff ID, or email
-      whereConditions.push(`(staff_no = '${userIdentifier.staffId}' OR staff_no = '${userIdentifier.userId}' OR staff_name LIKE '%${userIdentifier.email}%')`);
+      // Filter by user's staff number, staff ID, or email - handle undefined staffId gracefully
+      const staffIdCondition = userIdentifier.staffId 
+        ? `staff_no = '${userIdentifier.staffId}' OR ` 
+        : '';
+      whereConditions.push(`(${staffIdCondition}staff_no = '${userIdentifier.userId}' OR staff_name LIKE '%${userIdentifier.email}%')`);
     }
     
     if (statusesParam) {

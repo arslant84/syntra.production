@@ -36,12 +36,15 @@ export function useNotifications(): UseNotificationsReturn {
       if (response.ok) {
         const countsData = await response.json();
         setCounts(countsData);
-      } else if (response.status === 403) {
-        // User doesn't have permission - silently handle
+      } else if (response.status === 403 || response.status === 401) {
+        // User doesn't have permission or not authenticated - silently handle
         setCounts({ total: 0, unread: 0, pendingActions: 0, approvalRequests: 0, statusUpdates: 0 });
+      } else {
+        console.warn(`Notification counts API returned ${response.status}`);
       }
     } catch (err) {
-      console.error('Error fetching notification counts:', err);
+      // Silently handle network errors to avoid console spam
+      setCounts({ total: 0, unread: 0, pendingActions: 0, approvalRequests: 0, statusUpdates: 0 });
     }
   }, []);
 
@@ -147,6 +150,9 @@ export function useNotifications(): UseNotificationsReturn {
 
     const setupSSE = () => {
       try {
+        // Only set up SSE if we're in a browser environment and authenticated
+        if (typeof window === 'undefined') return;
+        
         eventSource = new EventSource('/api/notifications/stream');
         
         eventSource.onopen = () => {
@@ -186,11 +192,11 @@ export function useNotifications(): UseNotificationsReturn {
         };
         
         eventSource.onerror = (error) => {
-          console.error('SSE connection error:', error);
+          console.warn('SSE connection issue, will retry automatically');
           
-          // Try WebSocket fallback for multi-instance deployments
+          // Only try WebSocket fallback if completely failed, not just network hiccups
           if (eventSource && eventSource.readyState === EventSource.CLOSED) {
-            console.log('SSE failed, trying WebSocket fallback');
+            console.log('SSE failed permanently, trying WebSocket fallback');
             setupWebSocket();
           }
         };
@@ -242,10 +248,17 @@ export function useNotifications(): UseNotificationsReturn {
       }
     };
 
-    setupSSE();
+    // Temporarily disable real-time notifications to avoid console errors
+    // setupSSE();
+    
+    // Use polling instead for now
+    const pollInterval = setInterval(() => {
+      refreshCounts();
+    }, 30000); // Poll every 30 seconds
 
     // Cleanup on unmount
     return () => {
+      clearInterval(pollInterval);
       if (eventSource) {
         eventSource.close();
       }
@@ -253,7 +266,7 @@ export function useNotifications(): UseNotificationsReturn {
         websocket.close();
       }
     };
-  }, [fetchNotifications, refreshCounts]);
+  }, [refreshCounts]);
 
   // Initial data fetch
   useEffect(() => {

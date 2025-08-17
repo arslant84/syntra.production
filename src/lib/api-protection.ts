@@ -155,7 +155,7 @@ export function canViewDomainData(session: any, domain: string): boolean {
     case 'trf':
       return hasPermission(session, 'view_all_trf');
     case 'claims':
-      return hasAnyPermission(session, ['view_all_claims', 'process_claims']);
+      return hasPermission(session, 'view_all_claims');
     case 'visa':
       return hasPermission(session, 'process_visa_applications');
     case 'transport':

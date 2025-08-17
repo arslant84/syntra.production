@@ -132,7 +132,7 @@ export const POST = withAuth(async function(request: NextRequest) {
     }
 
     const body = await request.json();
-    const userId = session.user.id || session.user.email;
+    const userId = session.id || session.email;
     const requestData = { ...body, userId };
     
     const transportRequest = await TransportService.createTransportRequest(requestData);

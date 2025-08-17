@@ -85,7 +85,8 @@ export const GET = withAuth(async function(request: NextRequest) {
         userId = userIdentifier.userId;
         console.log(`API_TRANSPORT_GET: User ${session.role} viewing own requests (${userId})`);
       } else {
-        // For approval queue - show all requests with specified statuses
+        // For approval queue - show all requests with specified statuses (userId stays null to show all matching requests)
+        userId = null;
         console.log(`API_TRANSPORT_GET: User ${session.role} viewing approval queue with statuses: ${statuses}`);
       }
     } else {

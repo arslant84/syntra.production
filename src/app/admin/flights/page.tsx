@@ -17,6 +17,8 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { useSessionPermissions } from '@/hooks/use-session-permissions';
+import { shouldShowRequest } from '@/lib/client-rbac-utils';
 
 interface AdminTrfListItemForFlights {
   id: string;
@@ -47,6 +49,8 @@ export default function FlightsAdminPage() {
   const [trfsForFlights, setTrfsForFlights] = useState<AdminTrfListItemForFlights[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const { role, userId, isLoading: sessionLoading } = useSessionPermissions();
   const [selectedTrf, setSelectedTrf] = useState<AdminTrfListItemForFlights | null>(null);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const { toast } = useToast();
@@ -65,6 +69,10 @@ export default function FlightsAdminPage() {
   const [flightNotes, setFlightNotes] = useState("");
 
   const fetchTrfsAwaitingFlights = useCallback(async () => {
+    if (sessionLoading || !role) {
+      return; // Don't fetch while session is loading or role is not available
+    }
+    
     setIsLoading(true);
     setError(null);
     try {
@@ -76,7 +84,12 @@ export default function FlightsAdminPage() {
       }
       const data = await response.json();
       
-      setTrfsForFlights(data.trfs.map((trf: any) => {
+      // Apply role-based filtering for personal vs admin view using client-side logic
+      const filteredTrfs = (data.trfs || []).filter(trf =>
+        shouldShowRequest(role, { ...trf, itemType: 'trf' }, userId)
+      );
+      
+      setTrfsForFlights(filteredTrfs.map((trf: any) => {
         let destinationSummary = 'N/A';
         let requestedDate = trf.submittedAt; // Fallback
         if (trf.domesticTravelDetails?.itinerary?.length) {
@@ -103,7 +116,7 @@ export default function FlightsAdminPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [role, userId, sessionLoading]);
 
   useEffect(() => {
     fetchTrfsAwaitingFlights();

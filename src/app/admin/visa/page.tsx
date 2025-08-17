@@ -11,6 +11,8 @@ import { StickyNote, Search, Filter, Upload, CheckCircle, XCircle, Clock, Eye, B
 import type { VisaApplication, VisaStatus } from '@/types/visa';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { useSessionPermissions } from '@/hooks/use-session-permissions';
+import { shouldShowRequest } from '@/lib/client-rbac-utils';
 
 type VisaReportData = {
   summary: {
@@ -34,9 +36,15 @@ export default function VisaAdminPage() {
   const [filteredApplications, setFilteredApplications] = useState<VisaApplication[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  const { role, userId, isLoading: sessionLoading } = useSessionPermissions();
 
   useEffect(() => {
     const fetchVisaReports = async () => {
+      if (sessionLoading || !role) {
+        return; // Don't fetch while session is loading or role is not available
+      }
+      
       try {
         setLoading(true);
         const response = await fetch('/api/admin/visa-reports');
@@ -44,8 +52,17 @@ export default function VisaAdminPage() {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
-        setReportData(data);
-        setFilteredApplications(data.recentApplications);
+        
+        // Apply role-based filtering for personal vs admin view using client-side logic
+        const filteredApplications = (data.recentApplications || []).filter(application =>
+          shouldShowRequest(role, { ...application, itemType: 'visa' }, userId)
+        );
+        
+        setReportData({
+          ...data,
+          recentApplications: filteredApplications
+        });
+        setFilteredApplications(filteredApplications);
       } catch (err) {
         console.error('Failed to fetch visa reports:', err);
         setError('Failed to load visa reports. Please try again later.');
@@ -55,7 +72,7 @@ export default function VisaAdminPage() {
     };
 
     fetchVisaReports();
-  }, []);
+  }, [role, userId, sessionLoading]);
 
   useEffect(() => {
     if (!reportData) return;

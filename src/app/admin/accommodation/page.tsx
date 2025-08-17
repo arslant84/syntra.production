@@ -24,6 +24,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import LocationManagement from "@/components/accommodation/LocationManagement";
 import RoomManagement from "@/components/accommodation/RoomManagement";
+import { useSessionPermissions } from '@/hooks/use-session-permissions';
+import { shouldShowRequest } from '@/lib/client-rbac-utils';
 
 
 // Group consecutive blocked bookings for the same room into date ranges
@@ -210,10 +212,15 @@ export default function AccommodationAdminPage() {
   const [selectedStaffHouseForBooking, setSelectedStaffHouseForBooking] = useState<string>("");
   const [selectedRoomForBooking, setSelectedRoomForBooking] = useState<string>("");
   const { toast } = useToast();
+  const { role, userId, isLoading: sessionLoading } = useSessionPermissions();
   const router = useRouter();
 
 
   const fetchTrfsAwaitingAccommodation = useCallback(async () => {
+    if (sessionLoading || !role) {
+      return; // Don't fetch while session is loading or role is not available
+    }
+    
     setIsLoading(true);
     setError(null);
     try {
@@ -227,8 +234,13 @@ export default function AccommodationAdminPage() {
       
       const data = await response.json();
       
+      // Apply role-based filtering for personal vs admin view using client-side logic
+      const filteredTrfs = (data.trfs || []).filter(trf =>
+        shouldShowRequest(role, { ...trf, itemType: 'accommodation' }, userId)
+      );
+      
       // Transform the TRF data to match our admin interface needs
-      const adminTrfs: AdminTrfForAccommodation[] = data.trfs.map((trf: any) => {
+      const adminTrfs: AdminTrfForAccommodation[] = filteredTrfs.map((trf: any) => {
         // Extract accommodation details if available
         const accommodationDetails = trf.accommodationDetails || {};
         
@@ -260,7 +272,7 @@ export default function AccommodationAdminPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, role, userId, sessionLoading]);
 
   // Separate function to fetch pending accommodation TRFs
   const fetchPendingTRFs = async () => {
@@ -270,8 +282,13 @@ export default function AccommodationAdminPage() {
       if (!pendingRequestsResponse.ok) throw new Error('Failed to fetch pending accommodation requests');
       const pendingRequestsData = await pendingRequestsResponse.json();
       
+      // Apply role-based filtering for personal vs admin view using client-side logic
+      const filteredRequests = (pendingRequestsData.requests || []).filter(req =>
+        shouldShowRequest(role, { ...req, itemType: 'accommodation' }, userId)
+      );
+      
       // Transform the accommodation requests to match the expected AdminTrfForAccommodation interface
-      const transformedRequests = (pendingRequestsData.requests || []).map((req: any) => ({
+      const transformedRequests = filteredRequests.map((req: any) => ({
         id: req.id,
         accommodationId: req.accommodationId,
         requestorName: req.requestorName,

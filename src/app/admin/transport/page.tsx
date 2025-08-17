@@ -12,6 +12,8 @@ import { format, parseISO, isValid } from "date-fns";
 import { Truck, Eye, Search, ArrowUpDown, X, ListFilter, Loader2, AlertTriangle, Settings, CheckCircle, XCircle, Clock } from "lucide-react";
 import type { TransportRequestStatus } from '@/types/transport';
 import { useDebounce } from "@/hooks/use-debounce";
+import { useSessionPermissions } from '@/hooks/use-session-permissions';
+import { canViewAllRequests, shouldShowRequest } from '@/lib/client-rbac-utils';
 
 interface TransportListItem {
   id: string;
@@ -37,6 +39,8 @@ export default function AdminTransportRequestsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  const { role, userId, isLoading: sessionLoading } = useSessionPermissions();
+  
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRequests, setTotalRequests] = useState(0);
@@ -48,6 +52,10 @@ export default function AdminTransportRequestsPage() {
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'submittedAt', direction: 'descending' });
 
   const fetchTransportRequests = useCallback(async (page = 1) => {
+    if (sessionLoading || !role) {
+      return; // Don't fetch while session is loading or role is not available
+    }
+    
     setIsLoading(true);
     setError(null);
     const params = new URLSearchParams({
@@ -79,13 +87,21 @@ export default function AdminTransportRequestsPage() {
       // Handle both paginated and non-paginated responses
       if (Array.isArray(data)) {
         // Non-paginated response (current format)
-        setTransportRequests(data);
-        setTotalRequests(data.length);
+        // Apply role-based filtering for personal vs admin view using client-side logic
+        const filteredRequests = data.filter(request => 
+          shouldShowRequest(role, { ...request, itemType: 'transport' }, userId)
+        );
+        setTransportRequests(filteredRequests);
+        setTotalRequests(filteredRequests.length);
         setTotalPages(1);
         setCurrentPage(1);
       } else {
         // Paginated response (future format)
-        setTransportRequests(data.transportRequests || []);
+        // Apply role-based filtering for personal vs admin view using client-side logic
+        const filteredRequests = (data.transportRequests || []).filter(request =>
+          shouldShowRequest(role, { ...request, itemType: 'transport' }, userId)
+        );
+        setTransportRequests(filteredRequests);
         setTotalRequests(data.totalCount || 0);
         setTotalPages(data.totalPages || 1);
         setCurrentPage(data.currentPage || 1);
@@ -99,7 +115,7 @@ export default function AdminTransportRequestsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedSearchTerm, statusFilter, sortConfig, limit]);
+  }, [debouncedSearchTerm, statusFilter, sortConfig, limit, role, userId, sessionLoading]);
 
   useEffect(() => {
     fetchTransportRequests(currentPage);

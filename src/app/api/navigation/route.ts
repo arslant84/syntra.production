@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([]);
     }
 
-    const permissions = getNavigationPermissions(session.role);
+    const permissions = getNavigationPermissions(session);
     const items = [];
 
     // Dashboard - Everyone gets this

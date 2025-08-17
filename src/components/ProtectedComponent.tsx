@@ -156,7 +156,7 @@ export function SpecificAdminOnly({
 }) {
   const roleMapping = {
     flights: ['Ticketing Admin', 'System Administrator', 'Admin'],
-    accommodation: ['Accomodation Admin', 'System Administrator', 'Admin'],
+    accommodation: ['Accommodation Admin', 'System Administrator', 'Admin'],
     visa: ['Visa Clerk', 'System Administrator', 'Admin'],
     claims: ['Finance Clerk', 'System Administrator', 'Admin'],
     transport: ['Transport Admin', 'System Administrator', 'Admin']

@@ -25,6 +25,9 @@ try {
     password: DATABASE_PASSWORD,
     ssl: isLocalhost ? false : { rejectUnauthorized: false }, // Disable SSL for localhost
     connect_timeout: 10, // 10 seconds
+    max: 10, // Maximum number of connections in the pool
+    idle_timeout: 20, // Close connections after 20 seconds of inactivity
+    max_lifetime: 60 * 30, // Close connections after 30 minutes
     // connection: {
     //   search_path: 'my_schema', // Example if using a specific schema
     // },

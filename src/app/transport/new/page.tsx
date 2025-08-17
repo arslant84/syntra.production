@@ -117,9 +117,18 @@ export default function NewTransportRequestPage() {
     setLoading(true);
 
     try {
-      const userId = session?.user?.id;
+      const userId = session?.user?.id || session?.user?.email;
       if (!userId) {
         throw new Error('User not authenticated');
+      }
+
+      // Basic validation
+      if (!formData.purpose?.trim()) {
+        throw new Error('Purpose is required');
+      }
+
+      if (!formData.transportDetails || formData.transportDetails.length === 0) {
+        throw new Error('At least one transport detail is required');
       }
 
       const requestPayload = { 
@@ -140,12 +149,6 @@ export default function NewTransportRequestPage() {
           status: response.status,
           statusText: response.statusText,
           body: errorData
-        });
-        // Refined error toast
-        toast({
-          title: "Error Submitting Transport Request",
-          description: `Failed to create transport request: ${response.status} ${response.statusText}. Details: ${errorData}`,
-          variant: "destructive",
         });
         throw new Error(`Failed to create transport request: ${response.status} - ${errorData}`);
       }

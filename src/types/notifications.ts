@@ -58,3 +58,33 @@ export interface SSENotificationEvent {
   message?: string;
   timestamp: string;
 }
+
+// Notification template types
+export interface NotificationTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  subject: string;
+  body: string;
+  type: 'email' | 'sms' | 'in_app';
+  eventType: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface NotificationEventType {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface NotificationTemplateFormValues {
+  name: string;
+  description?: string;
+  subject: string;
+  body: string;
+  type: 'email' | 'sms' | 'in_app';
+  eventType: string;
+}

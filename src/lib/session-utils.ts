@@ -138,10 +138,10 @@ export function hasAnyRole(session: UserSession | null, roles: string[]): boolea
 }
 
 /**
- * Get navigation permissions based on user role (server-side)
- * Based on role matrix from USER_MANAGEMENT_RBAC_ANALYSIS.md
+ * Get navigation permissions based on user session and database permissions
+ * Now uses database permissions instead of hardcoded role logic
  */
-export function getNavigationPermissions(role: string): {
+export function getNavigationPermissions(session: UserSession): {
   canViewAdminMenus: boolean;
   canViewApprovals: boolean;
   canViewReports: boolean;
@@ -153,78 +153,36 @@ export function getNavigationPermissions(role: string): {
   canViewClaimsAdmin: boolean;
   canViewTransportAdmin: boolean;
 } {
-  // Role-based access according to analysis documents
-  const result = {
-    canViewAdminMenus: false,
-    canViewApprovals: false,
-    canViewReports: false,
-    canViewUserManagement: false,
-    canViewSystemSettings: false,
-    canViewFlightsAdmin: false,
-    canViewAccommodationAdmin: false,
-    canViewVisaAdmin: false,
-    canViewClaimsAdmin: false,
-    canViewTransportAdmin: false,
-  };
-
-  switch (role) {
-    case 'Requestor':
-      // Requestors should only see basic request forms and their own reports
-      result.canViewReports = true; // Per analysis document
-      break;
-      
-    case 'Department Focal':
-    case 'Line Manager':
-      // Approver roles see approvals only
-      result.canViewApprovals = true;
-      break;
-      
-    case 'HOD':
-      // HOD sees approvals and reports
-      result.canViewApprovals = true;
-      result.canViewReports = true;
-      break;
-      
-    case 'Ticketing Admin':
-      // Specialist admin - only their specific area
-      result.canViewFlightsAdmin = true;
-      break;
-      
-    case 'Accomodation Admin':
-      // Specialist admin - only their specific area
-      result.canViewAccommodationAdmin = true;
-      break;
-      
-    case 'Visa Clerk':
-      // Specialist admin - only their specific area
-      result.canViewVisaAdmin = true;
-      break;
-      
-    case 'Finance Clerk':
-      // Specialist admin - only their specific area
-      result.canViewClaimsAdmin = true;
-      break;
-      
-    case 'Transport Admin':
-      // Specialist admin - only their specific area
-      result.canViewTransportAdmin = true;
-      break;
-      
-    case 'System Administrator':
-    case 'Admin':
-      // Full admin access to everything
-      result.canViewAdminMenus = true;
-      result.canViewApprovals = true;
-      result.canViewReports = true;
-      result.canViewUserManagement = true;
-      result.canViewSystemSettings = true;
-      result.canViewFlightsAdmin = true;
-      result.canViewAccommodationAdmin = true;
-      result.canViewVisaAdmin = true;
-      result.canViewClaimsAdmin = true;
-      result.canViewTransportAdmin = true;
-      break;
+  if (!session) {
+    return {
+      canViewAdminMenus: false,
+      canViewApprovals: false,
+      canViewReports: false,
+      canViewUserManagement: false,
+      canViewSystemSettings: false,
+      canViewFlightsAdmin: false,
+      canViewAccommodationAdmin: false,
+      canViewVisaAdmin: false,
+      canViewClaimsAdmin: false,
+      canViewTransportAdmin: false,
+    };
   }
 
-  return result;
+  // Use database permissions instead of hardcoded role checks
+  return {
+    canViewAdminMenus: hasPermission(session, 'view_system_settings') || hasPermission(session, 'manage_users'),
+    canViewApprovals: hasAnyPermission(session, [
+      'approve_trf_focal', 'approve_trf_manager', 'approve_trf_hod',
+      'approve_claims_focal', 'approve_claims_manager', 'approve_claims_hod',
+      'approve_transport_requests', 'approve_accommodation_requests', 'approve_visa_requests'
+    ]),
+    canViewReports: hasAnyPermission(session, ['generate_admin_reports', 'view_visa_reports', 'export_data']),
+    canViewUserManagement: hasPermission(session, 'manage_users'),
+    canViewSystemSettings: hasPermission(session, 'view_system_settings'),
+    canViewFlightsAdmin: hasPermission(session, 'process_flights'),
+    canViewAccommodationAdmin: hasPermission(session, 'manage_accommodation_bookings'),
+    canViewVisaAdmin: hasPermission(session, 'process_visa_applications'),
+    canViewClaimsAdmin: hasPermission(session, 'process_claims'),
+    canViewTransportAdmin: hasPermission(session, 'manage_transport_requests'),
+  };
 }

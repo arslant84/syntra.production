@@ -1,4 +1,5 @@
-import { getServerSession } from "./auth";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 /**
  * Check if the current user has the specified permission
@@ -6,19 +7,31 @@ import { getServerSession } from "./auth";
  * @returns Boolean indicating if the user has the permission
  */
 export async function hasPermission(permissionName: string): Promise<boolean> {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
+  
+  console.log(`[PERMISSION CHECK] Permission: ${permissionName}`);
+  console.log(`[PERMISSION CHECK] Session exists: ${!!session}`);
+  console.log(`[PERMISSION CHECK] User exists: ${!!session?.user}`);
+  console.log(`[PERMISSION CHECK] User role: ${session?.user?.role}`);
+  console.log(`[PERMISSION CHECK] User permissions: ${JSON.stringify(session?.user?.permissions)}`);
   
   if (!session || !session.user) {
+    console.log(`[PERMISSION CHECK] DENIED: No session or user`);
     return false;
   }
   
-  // Admin role has all permissions
-  if (session.user.role === 'admin') {
+  // Admin roles have all permissions
+  if (session.user.role === 'System Administrator' || session.user.role === 'Admin') {
+    console.log(`[PERMISSION CHECK] GRANTED: Admin role (${session.user.role})`);
     return true;
   }
   
   // Check if the user has the specific permission
-  return session.user.permissions?.includes(permissionName) || false;
+  const hasPermissionInList = session.user.permissions?.includes(permissionName) || false;
+  console.log(`[PERMISSION CHECK] Permission in list: ${hasPermissionInList}`);
+  console.log(`[PERMISSION CHECK] Result: ${hasPermissionInList ? 'GRANTED' : 'DENIED'}`);
+  
+  return hasPermissionInList;
 }
 
 /**
@@ -27,14 +40,14 @@ export async function hasPermission(permissionName: string): Promise<boolean> {
  * @returns Boolean indicating if the user has any of the permissions
  */
 export async function hasAnyPermission(permissionNames: string[]): Promise<boolean> {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   
   if (!session || !session.user) {
     return false;
   }
   
-  // Admin role has all permissions
-  if (session.user.role === 'admin') {
+  // Admin roles have all permissions
+  if (session.user.role === 'System Administrator' || session.user.role === 'Admin') {
     return true;
   }
   
@@ -50,14 +63,14 @@ export async function hasAnyPermission(permissionNames: string[]): Promise<boole
  * @returns Boolean indicating if the user has all of the permissions
  */
 export async function hasAllPermissions(permissionNames: string[]): Promise<boolean> {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   
   if (!session || !session.user) {
     return false;
   }
   
-  // Admin role has all permissions
-  if (session.user.role === 'admin') {
+  // Admin roles have all permissions
+  if (session.user.role === 'System Administrator' || session.user.role === 'Admin') {
     return true;
   }
   
@@ -72,7 +85,7 @@ export async function hasAllPermissions(permissionNames: string[]): Promise<bool
  * @returns The user ID or null if not authenticated
  */
 export async function getCurrentUserId(): Promise<string | null> {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   return session?.user?.id || null;
 }
 
@@ -81,6 +94,6 @@ export async function getCurrentUserId(): Promise<string | null> {
  * @returns The user role or null if not authenticated
  */
 export async function getCurrentUserRole(): Promise<string | null> {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   return session?.user?.role || null;
 }

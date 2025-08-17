@@ -24,7 +24,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import type { TravelRequestForm, TrfStatus } from '@/types/trf';
-import { getApprovalQueueFilters } from '@/lib/rbac-utils'; 
+import { getApprovalQueueFilters } from '@/lib/client-rbac-utils';
+import { useSessionPermissions } from '@/hooks/use-session-permissions'; 
 
 // Define a common interface for all approvable items
 interface ApprovableItem {
@@ -59,13 +60,18 @@ export default function AdminApprovalsPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'trf' | 'claim' | 'visa' | 'accommodation' | 'transport'>('all');
 
   const { toast } = useToast();
+  const { user, role, isLoading: sessionLoading, isAuthenticated } = useSessionPermissions();
 
   const fetchPendingItems = useCallback(async () => {
+    if (sessionLoading || !role) {
+      return; // Don't fetch while session is loading or role is not available
+    }
+    
     setIsLoading(true);
     setError(null);
     try {
-      // Get role-based approval filters
-      const { roleSpecificStatuses, canApprove, roleContext } = await getApprovalQueueFilters();
+      // Get role-based approval filters using client-side role
+      const { roleSpecificStatuses, canApprove, roleContext } = getApprovalQueueFilters(role);
       
       if (!canApprove || roleSpecificStatuses.length === 0) {
         console.log(`User role '${roleContext}' has no approval rights or no items to approve`);
@@ -161,7 +167,7 @@ export default function AdminApprovalsPage() {
       
       // 4. Fetch pending accommodation requests
       try {
-        const accommodationStatusesToFetch = ["Pending Department Focal", "Pending Line Manager", "Pending HOD"].join(',');
+        const accommodationStatusesToFetch = roleSpecificStatuses.join(',');
         console.log(`AdminApprovalsPage: Fetching Accommodation requests with statuses: ${accommodationStatusesToFetch}`);
         
         const accommodationResponse = await fetch(`/api/accommodation/requests?statuses=${encodeURIComponent(accommodationStatusesToFetch)}&limit=50`);
@@ -198,7 +204,7 @@ export default function AdminApprovalsPage() {
 
       // 5. Fetch pending transport requests
       try {
-        const transportStatusesToFetch = ["Pending Department Focal", "Pending Line Manager", "Pending HOD"].join(',');
+        const transportStatusesToFetch = roleSpecificStatuses.join(',');
         console.log(`AdminApprovalsPage: Fetching Transport requests with statuses: ${transportStatusesToFetch}`);
         
         const transportResponse = await fetch(`/api/transport?statuses=${encodeURIComponent(transportStatusesToFetch)}&limit=50`);
@@ -248,7 +254,7 @@ export default function AdminApprovalsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [role, sessionLoading]);
 
   useEffect(() => {
     fetchPendingItems();

@@ -146,21 +146,22 @@ export function canViewAllData(session: any): boolean {
 
 /**
  * Check if user can view all requests in their domain (for specialist admins)
+ * Now uses database permissions instead of hardcoded role checks
  */
 export function canViewDomainData(session: any, domain: string): boolean {
-  const role = session.role;
+  if (!session) return false;
   
   switch (domain) {
     case 'trf':
-      return ['System Administrator', 'Admin'].includes(role);
+      return hasPermission(session, 'view_all_trf');
     case 'claims':
-      return ['System Administrator', 'Admin', 'Finance Clerk'].includes(role);
+      return hasAnyPermission(session, ['view_all_claims', 'process_claims']);
     case 'visa':
-      return ['System Administrator', 'Admin', 'Visa Clerk'].includes(role);
+      return hasPermission(session, 'process_visa_applications');
     case 'transport':
-      return ['System Administrator', 'Admin', 'Transport Admin'].includes(role);
+      return hasAnyPermission(session, ['view_all_transport', 'manage_transport_requests']);
     case 'accommodation':
-      return ['System Administrator', 'Admin', 'Accommodation Admin'].includes(role);
+      return hasPermission(session, 'manage_accommodation_bookings');
     default:
       return canViewAllData(session);
   }
@@ -168,19 +169,22 @@ export function canViewDomainData(session: any, domain: string): boolean {
 
 /**
  * Check if user can view requests pending their approval (for approval roles like HOD)
+ * Now uses database permissions instead of hardcoded role checks
  */
 export function canViewApprovalData(session: any, domain: string): boolean {
-  const role = session.role;
+  if (!session) return false;
   
   switch (domain) {
     case 'trf':
+      return hasAnyPermission(session, ['approve_trf_focal', 'approve_trf_manager', 'approve_trf_hod']);
     case 'accommodation':
+      return hasPermission(session, 'approve_accommodation_requests');
     case 'transport':
-      return ['HOD', 'Department Focal', 'Line Manager'].includes(role);
+      return hasPermission(session, 'approve_transport_requests');
     case 'claims':
-      return ['HOD', 'Department Focal', 'Line Manager', 'Finance Clerk'].includes(role);
+      return hasAnyPermission(session, ['approve_claims_focal', 'approve_claims_manager', 'approve_claims_hod', 'process_claims']);
     case 'visa':
-      return ['Visa Clerk'].includes(role);
+      return hasPermission(session, 'process_visa_applications');
     default:
       return false;
   }

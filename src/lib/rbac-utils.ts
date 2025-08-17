@@ -15,7 +15,7 @@ export interface UserSession {
 
 // Role definitions based on requirements
 export const ROLES = {
-  ACCOMMODATION_ADMIN: 'Accomodation Admin',
+  ACCOMMODATION_ADMIN: 'Accommodation Admin',
   TICKETING_ADMIN: 'Ticketing Admin', 
   TRANSPORT_ADMIN: 'Transport Admin',
   VISA_CLERK: 'Visa Clerk',
@@ -46,7 +46,7 @@ export const ADMIN_ROLES = [
 
 // Define role-specific sidebar access based on requirements
 export const ROLE_SIDEBAR_ACCESS = {
-  [ROLES.ACCOMMODATION_ADMIN]: ['Accomodation admin'],
+  [ROLES.ACCOMMODATION_ADMIN]: ['Accommodation Admin'],
   [ROLES.TICKETING_ADMIN]: ['Flights admin'],
   [ROLES.TRANSPORT_ADMIN]: ['Transport admin'], 
   [ROLES.VISA_CLERK]: ['Visa admin'],
@@ -92,11 +92,13 @@ export async function getApprovalQueueFilters(): Promise<{
   // Define what statuses each role should see in their approval queue
   const statusFilters: Record<string, string[]> = {
     [ROLES.DEPARTMENT_FOCAL]: [
-      'Pending Department Focal'
+      'Pending Department Focal',
+      'Pending Focal Approval'
     ],
     [ROLES.LINE_MANAGER]: [
       'Pending Line Manager',
-      'Pending Line Manager/HOD'
+      'Pending Line Manager/HOD',
+      'Pending Line Approval'
     ],
     [ROLES.HOD]: [
       'Pending HOD',
@@ -111,7 +113,9 @@ export async function getApprovalQueueFilters(): Promise<{
     ],
     [ROLES.ADMIN]: [
       'Pending Department Focal',
-      'Pending Line Manager', 
+      'Pending Focal Approval',
+      'Pending Line Manager',
+      'Pending Line Approval', 
       'Pending Line Manager/HOD',
       'Pending HOD',
       'Pending HOD Approval',
@@ -121,7 +125,9 @@ export async function getApprovalQueueFilters(): Promise<{
     ],
     [ROLES.SYSTEM_ADMINISTRATOR]: [
       'Pending Department Focal',
+      'Pending Focal Approval',
       'Pending Line Manager',
+      'Pending Line Approval',
       'Pending Line Manager/HOD', 
       'Pending HOD',
       'Pending HOD Approval',

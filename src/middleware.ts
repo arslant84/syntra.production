@@ -23,12 +23,12 @@ const ROLE_ACCESS_RULES = {
   // Reports access
   reportsAccess: ['/reports'],
   
-  // Role definitions
+  // Role definitions - Updated to match database roles exactly
   roles: {
     admin: ['System Administrator', 'Admin'],
     approver: ['Department Focal', 'Line Manager', 'HOD', 'System Administrator', 'Admin'],
-    flightsAdmin: ['Ticketing Admin', 'System Administrator', 'Admin'],
-    accommodationAdmin: ['Accomodation Admin', 'System Administrator', 'Admin'],
+    flightsAdmin: ['Ticketing Admin', 'Flight Admin', 'System Administrator', 'Admin'],
+    accommodationAdmin: ['Accommodation Admin', 'System Administrator', 'Admin'],
     visaAdmin: ['Visa Clerk', 'System Administrator', 'Admin'],
     claimsAdmin: ['Finance Clerk', 'System Administrator', 'Admin'],
     transportAdmin: ['Transport Admin', 'System Administrator', 'Admin'],
@@ -104,7 +104,7 @@ export async function middleware(request: NextRequest) {
 
     // Check if token is expired
     const currentTime = Math.floor(Date.now() / 1000);
-    if (token.exp && currentTime > token.exp) {
+    if (token.exp && typeof token.exp === 'number' && currentTime > token.exp) {
       console.log(`Middleware: Token expired for path ${pathname}, redirecting to login`);
       return NextResponse.redirect(new URL('/login', request.url));
     }

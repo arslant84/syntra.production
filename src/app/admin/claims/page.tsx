@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { useSessionPermissions } from '@/hooks/use-session-permissions';
+import { shouldShowRequest } from '@/lib/client-rbac-utils';
 
 type Claim = {
   id: string;
@@ -31,9 +33,15 @@ export default function AdminClaimsPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  
+  const { role, userId, isLoading: sessionLoading } = useSessionPermissions();
 
   useEffect(() => {
     const fetchClaims = async () => {
+      if (sessionLoading || !role) {
+        return; // Don't fetch while session is loading or role is not available
+      }
+      
       try {
         setLoading(true);
         console.log('Fetching claims from API for admin...');
@@ -50,7 +58,11 @@ export default function AdminClaimsPage() {
         const claimsData = Array.isArray(data) ? data : data.claims;
         
         if (claimsData && Array.isArray(claimsData)) {
-          setClaims(claimsData);
+          // Apply role-based filtering for personal vs admin view using client-side logic
+          const filteredClaims = claimsData.filter(claim =>
+            shouldShowRequest(role, { ...claim, itemType: 'claim' }, userId)
+          );
+          setClaims(filteredClaims);
         } else {
           console.warn('No valid claims data found');
           setClaims([]);
@@ -64,7 +76,7 @@ export default function AdminClaimsPage() {
     };
 
     fetchClaims();
-  }, []);
+  }, [role, userId, sessionLoading]);
 
   // Filter claims based on status and search query
   const filteredClaims = claims.filter(claim => {

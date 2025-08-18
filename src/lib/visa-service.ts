@@ -267,7 +267,14 @@ export async function getAllVisaApplications(filters?: {
         }
         
         const applications = await query;
-        return applications as VisaApplication[];
+        return applications.map((app: any) => ({
+            ...app,
+            tripStartDate: app.tripStartDate ? new Date(app.tripStartDate) : null,
+            tripEndDate: app.tripEndDate ? new Date(app.tripEndDate) : null,
+            passportExpiryDate: app.passportExpiryDate ? new Date(app.passportExpiryDate) : null,
+            submittedDate: new Date(app.submittedDate),
+            lastUpdatedDate: new Date(app.lastUpdatedDate)
+        })) as VisaApplication[];
     } catch (error) {
         console.error('Error fetching visa applications:', error);
         throw new Error('Failed to fetch visa applications');

@@ -2,9 +2,27 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db'; // Use the working database connection
 import { format, subMonths, addMonths, parseISO, isWithinInterval } from 'date-fns';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { canViewAllData, canViewDomainData } from '@/lib/api-protection';
 
 export async function GET(request: Request) {
   try {
+    // Check authentication and authorization
+    const session = await getServerSession(authOptions);
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Only allow users who can view accommodation data
+    const canViewAll = canViewAllData(session);
+    const canViewDomain = canViewDomainData(session, 'accommodation');
+    
+    if (!canViewAll && !canViewDomain) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     console.log('API_ACCOMMODATION_SUMMARY: Fetching accommodation summary data');
     
     // Get query parameters

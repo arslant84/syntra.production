@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { z } from 'zod';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { hasPermission } from '../../../../../lib/permissions';
 
 // Schema for creating/updating accommodation locations
@@ -17,8 +19,14 @@ const locationSchema = z.object({
 // GET handler to fetch all accommodation locations
 export async function GET(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Check if user has permission
-    if (!await hasPermission('manage_accommodation_locations')) {
+    if (!hasPermission(session, 'manage_accommodation_locations')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -82,8 +90,14 @@ export async function GET(request: Request) {
 // POST handler to create a new accommodation location
 export async function POST(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Check if user has permission
-    if (!await hasPermission('manage_accommodation_bookings')) {
+    if (!hasPermission(session, 'manage_accommodation_bookings')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -142,8 +156,14 @@ export async function POST(request: Request) {
 // PUT handler to update an existing accommodation location
 export async function PUT(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Check if user has permission
-    if (!await hasPermission('manage_accommodation_bookings')) {
+    if (!hasPermission(session, 'manage_accommodation_bookings')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -219,8 +239,14 @@ export async function PUT(request: Request) {
 // DELETE handler to remove an accommodation location
 export async function DELETE(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Check if user has permission
-    if (!await hasPermission('manage_accommodation_bookings')) {
+    if (!hasPermission(session, 'manage_accommodation_bookings')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

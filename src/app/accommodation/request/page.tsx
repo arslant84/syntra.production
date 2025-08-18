@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -38,6 +38,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { type LocationType, type GuestGender } from '@/types/accommodation';
 import { useToast } from "@/hooks/use-toast"; // Correctly placed import
+import { useUserDetails } from '@/hooks/use-user-details';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +75,7 @@ export default function AccommodationRequestPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { userDetails, loading: userDetailsLoading } = useUserDetails();
 
   // Initialize form with default values
   const form = useForm<FormValues>({
@@ -93,6 +95,15 @@ export default function AccommodationRequestPage() {
       trfId: "",
     },
   });
+
+  // Auto-populate form with user details when available
+  useEffect(() => {
+    if (userDetails && !userDetailsLoading) {
+      form.setValue('requestorName', userDetails.requestorName || '');
+      form.setValue('requestorId', userDetails.staffId || '');
+      form.setValue('department', userDetails.department || '');
+    }
+  }, [userDetails, userDetailsLoading, form]);
 
   // Handle form submission
   async function onSubmit(values: FormValues) {

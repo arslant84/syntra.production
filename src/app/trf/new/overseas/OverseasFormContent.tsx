@@ -9,6 +9,7 @@ import ApprovalSubmissionForm from '@/components/trf/ApprovalSubmissionForm';
 import type { RequestorInformation, OverseasTravelSpecificDetails, ApprovalSubmissionData, TravelRequestForm, ApprovalStep } from '@/types/trf';
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useUserDetails } from '@/hooks/use-user-details';
 import { Button } from '@/components/ui/button';
 import { Globe, Loader2, AlertTriangle } from 'lucide-react';
 import { formatISO, parseISO, isValid } from 'date-fns';
@@ -75,6 +76,7 @@ export default function OverseasFormContent() {
   const router = useRouter(); 
   const searchParams = useSearchParams(); 
   const { toast } = useToast();
+  const { userDetails, loading: userDetailsLoading } = useUserDetails();
   
   const editId = searchParams.get('editId'); 
   const isEditMode = !!editId;
@@ -149,6 +151,25 @@ export default function OverseasFormContent() {
       setInitialApprovalDataForForm(initialApprovalData);
     }
   }, [editId, isEditMode, toast]);
+
+  // Auto-populate user details for new TRF forms
+  useEffect(() => {
+    if (!isEditMode && userDetails && !userDetailsLoading) {
+      const populatedRequestorData: RequestorInformation = {
+        requestorName: userDetails.requestorName || "",
+        staffId: userDetails.staffId || "",
+        department: userDetails.department || "",
+        position: userDetails.position || "",
+        costCenter: "",
+        telEmail: "",
+        email: "",
+      };
+      
+      setRequestorInfo(populatedRequestorData);
+      setInitialRequestorInfoForForm(populatedRequestorData);
+      setApprovalWorkflow(createInitialApprovalWorkflow(populatedRequestorData.requestorName));
+    }
+  }, [isEditMode, userDetails, userDetailsLoading]);
 
   const handleNextStep = () => setCurrentStep(prev => Math.min(prev + 1, STEPS.length));
   const handlePrevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));

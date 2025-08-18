@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session?.user?.id) {
+    if (!session?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -28,23 +28,23 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'mark_read':
         if (notificationId) {
-          await NotificationService.markAsRead(notificationId, session.user.id);
+          await NotificationService.markAsRead(notificationId, session.id);
         } else if (notificationIds && Array.isArray(notificationIds)) {
-          await NotificationService.markMultipleAsRead(notificationIds, session.user.id);
+          await NotificationService.markMultipleAsRead(notificationIds, session.id);
         } else {
           return NextResponse.json({ error: 'notificationId or notificationIds required for mark_read' }, { status: 400 });
         }
         break;
 
       case 'mark_all_read':
-        await NotificationService.markAllAsRead(session.user.id);
+        await NotificationService.markAllAsRead(session.id);
         break;
 
       case 'dismiss':
         if (!notificationId) {
           return NextResponse.json({ error: 'notificationId required for dismiss' }, { status: 400 });
         }
-        await NotificationService.dismissNotification(notificationId, session.user.id);
+        await NotificationService.dismissNotification(notificationId, session.id);
         break;
 
       default:

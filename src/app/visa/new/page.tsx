@@ -1,22 +1,25 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import VisaApplicationForm from "@/components/visa/VisaApplicationForm";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { VisaApplication } from "@/types/visa";
 import { StickyNote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { useUserDetails } from '@/hooks/use-user-details';
 
 export default function NewVisaApplicationPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const { userDetails, loading: userDetailsLoading } = useUserDetails();
+  const [initialVisaData, setInitialVisaData] = useState<Partial<VisaApplication>>(null);
 
   const handleSubmitVisaApplication = async (data: Omit<VisaApplication, 'id' | 'userId' | 'submittedDate' | 'lastUpdatedDate' | 'status'>) => {
     try {
       // First, create the visa application
       const apiData = {
-        applicantName: 'Test User',
+        applicantName: userDetails?.requestorName || 'Unknown User',
         travelPurpose: data.travelPurpose,
         destination: data.destination || '',
         employeeId: data.employeeId,
@@ -114,17 +117,22 @@ export default function NewVisaApplicationPage() {
     }
   };
 
-  const initialVisaData: Partial<VisaApplication> = {
-    travelPurpose: "",
-    destination: undefined,
-    employeeId: "", // Should be pre-filled from user session ideally
-    // nationality field removed since it doesn't exist in database
-    passportCopy: null,
-    additionalDocuments: null,
-    tripStartDate: null,
-    tripEndDate: null,
-    itineraryDetails: "",
-  };
+  // Initialize visa data with user details when available
+  useEffect(() => {
+    if (userDetails && !userDetailsLoading) {
+      const newInitialData: Partial<VisaApplication> = {
+        travelPurpose: "",
+        destination: undefined,
+        employeeId: userDetails.staffId || "",
+        passportCopy: null,
+        additionalDocuments: null,
+        tripStartDate: null,
+        tripEndDate: null,
+        itineraryDetails: "",
+      };
+      setInitialVisaData(newInitialData);
+    }
+  }, [userDetails, userDetailsLoading]);
 
   return (
     <div className="w-full px-2 md:px-6 py-8 space-y-8">
@@ -143,10 +151,16 @@ export default function NewVisaApplicationPage() {
           </div>
         </CardHeader>
       </Card>
-      <VisaApplicationForm
-        initialData={initialVisaData}
-        onSubmit={handleSubmitVisaApplication}
-      />
+      {initialVisaData ? (
+        <VisaApplicationForm
+          initialData={initialVisaData}
+          onSubmit={handleSubmitVisaApplication}
+        />
+      ) : (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-muted-foreground">Loading user details...</div>
+        </div>
+      )}
     </div>
   );
 }

@@ -40,7 +40,15 @@ export async function getAccommodationRequests(userId?: string, statuses?: strin
     const whereConditions = ['tr.id IS NOT NULL'];
     
     if (userId) {
-      whereConditions.push(`tr.staff_id = '${userId}'`);
+      // Check if userId looks like a UUID (user.id) or staff number (staff_id)
+      const isUUID = userId.includes('-');
+      if (isUUID) {
+        // Query by user UUID - need to join with users table
+        whereConditions.push(`tr.staff_id IN (SELECT staff_id FROM users WHERE id = '${userId}')`);
+      } else {
+        // Query by staff_id directly
+        whereConditions.push(`tr.staff_id = '${userId}'`);
+      }
     }
     
     if (statuses && statuses.length > 0) {

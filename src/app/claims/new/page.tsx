@@ -1,16 +1,19 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ExpenseClaimForm from "@/components/claims/ExpenseClaimForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ExpenseClaim } from "@/types/claims";
 import { ReceiptText } from "lucide-react"; // Using a more relevant icon
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { useUserDetails } from '@/hooks/use-user-details';
 
 export default function NewClaimPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const { userDetails, loading: userDetailsLoading } = useUserDetails();
+  const [initialClaimData, setInitialClaimData] = useState<Partial<ExpenseClaim>>(null);
 
   const handleSubmitClaim = async (data: ExpenseClaim) => {
     console.log("Expense Claim Submitted - Starting submission process");
@@ -57,51 +60,56 @@ export default function NewClaimPage() {
     }
   };
 
-  // Initial empty data for the form
-  const initialClaimData: Partial<ExpenseClaim> = {
-    headerDetails: {
-      documentType: "",
-      documentNumber: "",
-      claimForMonthOf: null,
-      staffName: "", // Should be pre-filled ideally from user session
-      staffNo: "",   // Should be pre-filled ideally
-      gred: "",
-      staffType: "",
-      executiveStatus: "",
-      departmentCode: "",
-      deptCostCenterCode: "",
-      location: "",
-      telExt: "",
-      startTimeFromHome: "",
-      timeOfArrivalAtHome: "",
-    },
-    bankDetails: {
-      bankName: "",
-      accountNumber: "",
-      purposeOfClaim: "",
-    },
-    medicalClaimDetails: {
-      isMedicalClaim: false,
-      applicableMedicalType: "",
-      isForFamily: false,
-      familyMemberSpouse: false,
-      familyMemberChildren: false,
-      familyMemberOther: "",
-    },
-    expenseItems: [],
-    informationOnForeignExchangeRate: [],
-    financialSummary: {
-      totalAdvanceClaimAmount: "",
-      lessAdvanceTaken: "",
-      lessCorporateCreditCardPayment: "",
-      balanceClaimRepayment: "", // This will be calculated
-      chequeReceiptNo: "",
-    },
-    declaration: {
-      iDeclare: false,
-      date: new Date(), // Default to today
-    },
-  };
+  // Initialize claim data with user details when available
+  useEffect(() => {
+    if (userDetails && !userDetailsLoading) {
+      const newInitialData: Partial<ExpenseClaim> = {
+        headerDetails: {
+          documentType: "",
+          documentNumber: "",
+          claimForMonthOf: null,
+          staffName: userDetails.requestorName || "",
+          staffNo: userDetails.staffId || "",
+          gred: "",
+          staffType: "",
+          executiveStatus: "",
+          departmentCode: userDetails.department || "",
+          deptCostCenterCode: "",
+          location: "",
+          telExt: "",
+          startTimeFromHome: "",
+          timeOfArrivalAtHome: "",
+        },
+        bankDetails: {
+          bankName: "",
+          accountNumber: "",
+          purposeOfClaim: "",
+        },
+        medicalClaimDetails: {
+          isMedicalClaim: false,
+          applicableMedicalType: "",
+          isForFamily: false,
+          familyMemberSpouse: false,
+          familyMemberChildren: false,
+          familyMemberOther: "",
+        },
+        expenseItems: [],
+        informationOnForeignExchangeRate: [],
+        financialSummary: {
+          totalAdvanceClaimAmount: "",
+          lessAdvanceTaken: "",
+          lessCorporateCreditCardPayment: "",
+          balanceClaimRepayment: "",
+          chequeReceiptNo: "",
+        },
+        declaration: {
+          iDeclare: false,
+          date: new Date(),
+        },
+      };
+      setInitialClaimData(newInitialData);
+    }
+  }, [userDetails, userDetailsLoading]);
 
   return (
     <div className="w-full px-2 md:px-6 py-8 space-y-8">
@@ -120,11 +128,17 @@ export default function NewClaimPage() {
           </div>
         </CardHeader>
         <CardContent className="py-8 px-4 md:px-8">
-          <ExpenseClaimForm
-            initialData={initialClaimData as ExpenseClaim}
-            onSubmit={handleSubmitClaim}
-            submitButtonText="Submit Claim"
-          />
+          {initialClaimData ? (
+            <ExpenseClaimForm
+              initialData={initialClaimData as ExpenseClaim}
+              onSubmit={handleSubmitClaim}
+              submitButtonText="Submit Claim"
+            />
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-muted-foreground">Loading user details...</div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

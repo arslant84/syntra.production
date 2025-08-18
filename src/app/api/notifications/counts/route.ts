@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session?.user?.id) {
+    if (!session?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
     }
 
-    const counts = await NotificationService.getNotificationCounts(session.user.id);
+    const counts = await NotificationService.getNotificationCounts(session.id);
     
     return NextResponse.json(counts);
   } catch (error) {

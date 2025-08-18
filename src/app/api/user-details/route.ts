@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     
     console.log('User details API - Session:', session);
     
-    if (!session?.user?.email) {
+    if (!session?.email) {
       console.log('User details API - No session or email');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
     }
 
-    console.log('User details API - Looking for user with email:', session.user.email);
+    console.log('User details API - Looking for user with email:', session.email);
 
     // Get user details from database
     const users = await sql`
@@ -29,14 +29,14 @@ export async function GET(request: NextRequest) {
         users.role_id, roles.name AS role_name
       FROM users
       LEFT JOIN roles ON users.role_id = roles.id
-      WHERE users.email = ${session.user.email}
+      WHERE users.email = ${session.email}
       LIMIT 1
     `;
 
     console.log('User details API - Users found:', users);
 
     if (users.length === 0) {
-      console.log('User details API - No user found with email:', session.user.email);
+      console.log('User details API - No user found with email:', session.email);
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 

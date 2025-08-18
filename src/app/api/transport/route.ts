@@ -32,7 +32,8 @@ export const GET = withAuth(async function(request: NextRequest) {
         userId = userIdentifier.userId;
         console.log(`API_TRANSPORT_GET: Regular user ${session.role} filtering for user ${userId}`);
       } else {
-        console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} can view all transport requests`);
+        // Admins can see all data for summary reports
+        console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} can view all transport requests for summary`);
       }
       
       if (fromDate && toDate) {
@@ -76,7 +77,15 @@ export const GET = withAuth(async function(request: NextRequest) {
     let userId = null;
     
     if (canViewAll || canViewDomain) {
-      console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} can view all transport requests`);
+      // Even domain admins should see only their own requests on personal transport page
+      // Only show all requests when viewing approval queues (when statuses param is provided)
+      if (!statuses) {
+        const userIdentifier = getUserIdentifier(session);
+        userId = userIdentifier.userId;
+        console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} viewing own requests only (${userId})`);
+      } else {
+        console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} can view all transport requests for approval queue`);
+      }
     } else if (canViewApprovals) {
       // Users with approval rights see their own requests + requests pending their approval
       const userIdentifier = getUserIdentifier(session);
@@ -152,7 +161,7 @@ export const POST = withAuth(async function(request: NextRequest) {
       for (const approver of transportApprovers) {
         await NotificationService.createApprovalRequest({
           approverId: approver.id,
-          requestorName: session.user.name || 'User',
+          requestorName: session.name || 'User',
           entityType: 'transport',
           entityId: transportRequest.id,
           entityTitle: `Transport Request`

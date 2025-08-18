@@ -58,7 +58,12 @@ export const GET = withAuth(async function(request: NextRequest) {
         const canViewApprovals = canViewApprovalData(session, 'accommodation');
         
         if (canViewAll || canViewDomain) {
-          console.log(`API_ACCOMMODATION_GET: Admin/domain admin ${session.role} can view all requests`);
+          // Even admins should respect explicit userId filtering (for personal request pages)
+          if (!userId) {
+            console.log(`API_ACCOMMODATION_GET: Admin/domain admin ${session.role} can view all requests`);
+          } else {
+            console.log(`API_ACCOMMODATION_GET: Admin/domain admin ${session.role} filtering by userId: ${userId}`);
+          }
         } else if (canViewApprovals) {
           // Users with approval rights see their own requests + requests pending their approval
           const userIdentifier = getUserIdentifier(session);

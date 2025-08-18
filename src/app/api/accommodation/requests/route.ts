@@ -147,16 +147,32 @@ export const GET = withAuth(async function(request: NextRequest) {
     
     if (canViewAll || canViewDomain) {
       console.log(`API_ACCOM_REQ_GET (PostgreSQL): Admin/domain admin ${session.role} can view all accommodation requests`);
-      // No user filtering needed
+      // For personal accommodation request pages, even admins should only see their own requests
+      // Apply user filtering for admins when on personal request page (not approval queue)
+      if (!statusesParam) {
+        const userIdentifier = getUserIdentifier(session);
+        // Check if userId looks like a UUID (user.id) or staff number (staff_id)
+        const isUUID = userIdentifier.userId.includes('-');
+        if (isUUID) {
+          // Query by user UUID - need to join with users table
+          userFilterCondition = ` AND tr.staff_id IN (SELECT staff_id FROM users WHERE id = '${userIdentifier.userId}')`;
+        } else {
+          // Query by staff_id directly
+          userFilterCondition = ` AND tr.staff_id = '${userIdentifier.userId}'`;
+        }
+        console.log(`API_ACCOM_REQ_GET (PostgreSQL): Admin ${session.role} viewing own accommodation requests only`);
+      }
     } else if (canViewApprovals) {
       // Users with approval rights see their own requests + requests pending their approval
       const userIdentifier = getUserIdentifier(session);
       if (!statusesParam) {
         // For regular listing - show only user's own requests
-        const staffIdCondition = userIdentifier.staffId 
-          ? `tr.staff_id = '${userIdentifier.staffId}' OR ` 
-          : '';
-        userFilterCondition = ` AND (${staffIdCondition}tr.staff_id = '${userIdentifier.userId}' OR tr.requestor_name ILIKE '%${userIdentifier.email}%')`;
+        const isUUID = userIdentifier.userId.includes('-');
+        if (isUUID) {
+          userFilterCondition = ` AND tr.staff_id IN (SELECT staff_id FROM users WHERE id = '${userIdentifier.userId}')`;
+        } else {
+          userFilterCondition = ` AND tr.staff_id = '${userIdentifier.userId}'`;
+        }
         console.log(`API_ACCOM_REQ_GET (PostgreSQL): User ${session.role} viewing own accommodation requests`);
       } else {
         // For approval queue - show all requests with specified statuses
@@ -165,10 +181,12 @@ export const GET = withAuth(async function(request: NextRequest) {
     } else {
       // Regular users can only see their own accommodation requests
       const userIdentifier = getUserIdentifier(session);
-      const staffIdCondition = userIdentifier.staffId 
-        ? `tr.staff_id = '${userIdentifier.staffId}' OR ` 
-        : '';
-      userFilterCondition = ` AND (${staffIdCondition}tr.staff_id = '${userIdentifier.userId}' OR tr.requestor_name ILIKE '%${userIdentifier.email}%')`;
+      const isUUID = userIdentifier.userId.includes('-');
+      if (isUUID) {
+        userFilterCondition = ` AND tr.staff_id IN (SELECT staff_id FROM users WHERE id = '${userIdentifier.userId}')`;
+      } else {
+        userFilterCondition = ` AND tr.staff_id = '${userIdentifier.userId}'`;
+      }
       console.log(`API_ACCOM_REQ_GET (PostgreSQL): Regular user ${session.role} filtering accommodation requests for user ${userIdentifier.userId}`);
     }
     

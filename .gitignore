@@ -70,9 +70,6 @@ logs
 # Fix reports and analysis documents (covered by *.md pattern)
 
 # Generated files
-dataconnect-generated/
-dataconnect-generated/js/
-dataconnect-generated/js/default-connector/
 
 # Uploaded documents
 uploads/
@@ -82,8 +79,6 @@ uploads/visa-documents/
 .vscode-extensions
 
 # Miscellaneous files
-122
-.idx/
 .postcssrc
 .claude
 .next

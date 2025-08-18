@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session?.email) {
+    if (!session?.user?.email) {
       return new Response('Unauthorized', { status: 401 });
     }
 
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       return new Response('Forbidden', { status: 403 });
     }
 
-    const userId = session.id || session.email;
+    const userId = session.user.id || session.user.email;
     
     // Check if the request is a WebSocket upgrade
     const upgrade = request.headers.get('upgrade');

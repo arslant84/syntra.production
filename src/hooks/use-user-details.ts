@@ -21,7 +21,13 @@ export function useUserDetails() {
         const response = await fetch('/api/user-details');
         
         if (!response.ok) {
-          throw new Error('Failed to fetch user details');
+          const errorText = await response.text();
+          console.error('User details API error:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText
+          });
+          throw new Error(`Failed to fetch user details: ${response.status} ${response.statusText}. ${errorText}`);
         }
         
         const data = await response.json();

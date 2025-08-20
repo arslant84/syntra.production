@@ -155,7 +155,7 @@ export default function ClaimViewPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto py-8 px-4 text-center">
+      <div className="space-y-8">
         <Card className="max-w-lg mx-auto shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center justify-center gap-2 text-destructive">
@@ -175,7 +175,7 @@ export default function ClaimViewPage() {
 
   if (!claim) {
     return (
-      <div className="container mx-auto py-8 px-4 text-center">
+      <div className="space-y-8">
         <Card className="max-w-lg mx-auto shadow-lg">
           <CardHeader>
             <CardTitle>Claim Not Found</CardTitle>
@@ -217,7 +217,7 @@ export default function ClaimViewPage() {
   };
 
   return (
-    <div className="container mx-auto py-8 px-4 space-y-8 print:py-0 print:px-0 print:space-y-4">
+    <div className="space-y-8 print:py-0 print:px-0 print:space-y-4">
       <Card className="shadow-xl print:shadow-none print:border-none">
         <CardHeader className="bg-muted/30 print:bg-transparent print:p-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:flex-row print:items-start">

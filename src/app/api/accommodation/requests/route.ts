@@ -6,6 +6,8 @@ import { formatISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 import { requireAuth, createAuthError } from '@/lib/auth-utils';
 import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
+import { NotificationService } from '@/lib/notification-service';
+import { generateUniversalUserFilter, shouldBypassUserFilter } from '@/lib/universal-user-matching';
 
 const accommodationRequestSchema = z.object({
   trfId: z.string().optional().nullable(), // Can be optional if not directly tied to a TRF
@@ -103,7 +105,49 @@ export async function POST(request: NextRequest) {
       submittedDate: newTravelRequest.submitted_at
     };
     console.log("API_ACCOM_REQ_POST (PostgreSQL): Accommodation request created:", newRequest.id);
-    // TODO: Notification
+    
+    // Send notification to Department Focals in the requestor's department
+    try {
+      // First get the requestor's department from their user record
+      let requestorDepartment = 'Unknown';
+      if (data.requestorId) {
+        const requestorInfo = await sql`
+          SELECT department FROM users WHERE staff_id = ${data.requestorId} OR email = ${data.requestorId} LIMIT 1
+        `;
+        if (requestorInfo.length > 0) {
+          requestorDepartment = requestorInfo[0].department || 'Unknown';
+        }
+      }
+
+      // Find Department Focals with accommodation approval permission in the same department
+      const departmentFocals = await sql`
+        SELECT u.id, u.name 
+        FROM users u
+        INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+        INNER JOIN permissions p ON rp.permission_id = p.id
+        WHERE p.name = 'approve_trf_focal'
+          AND u.department = ${requestorDepartment}
+          AND u.status = 'Active'
+      `;
+
+      for (const focal of departmentFocals) {
+        await NotificationService.createApprovalRequest({
+          approverId: focal.id,
+          requestorName: data.requestorName,
+          entityType: 'accommodation',
+          entityId: accomRequestId,
+          entityTitle: `Accommodation Request at ${data.location}`
+        });
+      }
+      
+      if (departmentFocals.length > 0) {
+        console.log(`Created approval notifications for accommodation ${accomRequestId} to ${departmentFocals.length} department focals`);
+      }
+    } catch (notificationError) {
+      console.error('Error sending notifications for new accommodation request:', notificationError);
+      // Don't fail the main operation due to notification errors
+    }
+    
     return NextResponse.json({ 
       message: 'Accommodation request submitted successfully!', 
       accommodationRequest: newRequest,
@@ -137,57 +181,41 @@ export const GET = withAuth(async function(request: NextRequest) {
     
     console.log(`API_ACCOM_REQ_GET (PostgreSQL): Filtering by statuses: ${statusesParam || 'None'}, limit: ${limit}`);
     
-    // Role-based data filtering
-    const canViewAll = canViewAllData(session);
-    const canViewDomain = canViewDomainData(session, 'accommodation');
-    const canViewApprovals = canViewApprovalData(session, 'accommodation');
-    
-    // Build WHERE conditions based on user role
+    // Universal user filtering system
     let userFilterCondition = '';
     
-    if (canViewAll || canViewDomain) {
-      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Admin/domain admin ${session.role} can view all accommodation requests`);
-      // For personal accommodation request pages, even admins should only see their own requests
-      // Apply user filtering for admins when on personal request page (not approval queue)
-      if (!statusesParam) {
-        const userIdentifier = getUserIdentifier(session);
-        // Check if userId looks like a UUID (user.id) or staff number (staff_id)
-        const isUUID = userIdentifier.userId.includes('-');
-        if (isUUID) {
-          // Query by user UUID - need to join with users table
-          userFilterCondition = ` AND tr.staff_id IN (SELECT staff_id FROM users WHERE id = '${userIdentifier.userId}')`;
-        } else {
-          // Query by staff_id directly
-          userFilterCondition = ` AND tr.staff_id = '${userIdentifier.userId}'`;
-        }
-        console.log(`API_ACCOM_REQ_GET (PostgreSQL): Admin ${session.role} viewing own accommodation requests only`);
-      }
-    } else if (canViewApprovals) {
-      // Users with approval rights see their own requests + requests pending their approval
-      const userIdentifier = getUserIdentifier(session);
-      if (!statusesParam) {
-        // For regular listing - show only user's own requests
-        const isUUID = userIdentifier.userId.includes('-');
-        if (isUUID) {
-          userFilterCondition = ` AND tr.staff_id IN (SELECT staff_id FROM users WHERE id = '${userIdentifier.userId}')`;
-        } else {
-          userFilterCondition = ` AND tr.staff_id = '${userIdentifier.userId}'`;
-        }
-        console.log(`API_ACCOM_REQ_GET (PostgreSQL): User ${session.role} viewing own accommodation requests`);
-      } else {
-        // For approval queue - show all requests with specified statuses
-        console.log(`API_ACCOM_REQ_GET (PostgreSQL): User ${session.role} viewing approval queue`);
-      }
+    if (shouldBypassUserFilter(session, statusesParam)) {
+      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Admin ${session.role} viewing approval queue - no user filter`);
+      // Admins viewing approval queue see all requests
+      userFilterCondition = '';
     } else {
-      // Regular users can only see their own accommodation requests
+      // Use simplified, safe user filtering for accommodation
       const userIdentifier = getUserIdentifier(session);
-      const isUUID = userIdentifier.userId.includes('-');
-      if (isUUID) {
-        userFilterCondition = ` AND tr.staff_id IN (SELECT staff_id FROM users WHERE id = '${userIdentifier.userId}')`;
-      } else {
-        userFilterCondition = ` AND tr.staff_id = '${userIdentifier.userId}'`;
+      console.log(`API_ACCOM_REQ_GET (PostgreSQL): User ${session.role} viewing own accommodation requests`);
+      console.log(`API_ACCOM_REQ_GET (PostgreSQL): User data - staffId: ${userIdentifier.staffId}, name: ${session.name}`);
+      
+      // Build safe user filter conditions
+      const userConditions = [];
+      if (userIdentifier.staffId) {
+        userConditions.push(`tr.staff_id = '${userIdentifier.staffId}'`);
       }
-      console.log(`API_ACCOM_REQ_GET (PostgreSQL): Regular user ${session.role} filtering accommodation requests for user ${userIdentifier.userId}`);
+      if (userIdentifier.userId && userIdentifier.userId.includes('-')) {
+        userConditions.push(`tr.staff_id IN (SELECT staff_id FROM users WHERE id = '${userIdentifier.userId}')`);
+      } else if (userIdentifier.userId) {
+        userConditions.push(`tr.staff_id = '${userIdentifier.userId}'`);
+      }
+      if (session.name) {
+        userConditions.push(`tr.requestor_name = '${session.name.replace(/'/g, "''")}'`); // Escape single quotes
+      }
+      if (userIdentifier.email) {
+        userConditions.push(`tr.requestor_name ILIKE '%${userIdentifier.email.replace(/'/g, "''")}%'`);
+      }
+      
+      if (userConditions.length > 0) {
+        userFilterCondition = ` AND (${userConditions.join(' OR ')})`;
+      } else {
+        userFilterCondition = ` AND tr.staff_id = 'NO_MATCH'`; // Fallback
+      }
     }
     
     try {

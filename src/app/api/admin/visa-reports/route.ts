@@ -5,8 +5,8 @@ import { hasPermission } from '@/lib/permissions';
 export async function GET() {
   console.log("API_ADMIN_VISA_REPORTS_GET: Fetching visa reports for admin dashboard");
   
-  // Check if user has permission to view visa reports
-  if (!await hasPermission('view_visa_reports') && !await hasPermission('generate_admin_reports')) {
+  // Check if user has permission to process visa applications (visa admin access)
+  if (!await hasPermission('process_visa_applications') && !await hasPermission('generate_admin_reports')) {
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
   

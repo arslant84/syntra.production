@@ -211,10 +211,10 @@ function generateFullClaimApprovalWorkflow(
   completedSteps: any[],
   requestorName?: string
 ): any[] {
-  // Define the expected workflow sequence for Claims
+  // Define the expected workflow sequence for Claims (unified with other request types)
   const expectedWorkflow = [
     { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
-    { role: 'Verifier', name: 'TBD', status: 'Pending' as const },
+    { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
     { role: 'HOD', name: 'TBD', status: 'Pending' as const },
     { role: 'Finance', name: 'TBD', status: 'Pending' as const }
   ];
@@ -247,8 +247,10 @@ function generateFullClaimApprovalWorkflow(
       // Handle the initial requestor step
       if (expectedStep.role === 'Requestor') {
         stepStatus = 'Submitted';
-      } else if (currentStatus === 'Pending Verification' && expectedStep.role === 'Verifier') {
+      } else if (currentStatus === 'Pending Department Focal' && expectedStep.role === 'Department Focal') {
         stepStatus = 'Current';
+      } else if (currentStatus === 'Pending Verification' && expectedStep.role === 'Department Focal') {
+        stepStatus = 'Current'; // Legacy support for existing claims
       } else if (currentStatus === 'Pending HOD Approval' && expectedStep.role === 'HOD') {
         stepStatus = 'Current';
       } else if (currentStatus === 'Pending Finance Approval' && expectedStep.role === 'Finance') {

@@ -9,6 +9,7 @@ import { TSRAutoGenerationService } from '@/lib/tsr-auto-generation-service';
 import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { NotificationService } from '@/lib/notification-service';
 import { hasPermission } from '@/lib/session-utils';
+import { generateUniversalUserFilterSQL, shouldBypassUserFilter } from '@/lib/universal-user-matching';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -715,17 +716,19 @@ export const GET = withAuth(async function(request: NextRequest) {
     try {
       console.log("API_TRF_GET: Processing summary request");
       
-      // Role-based data filtering for summary
+      // Universal filtering for summary - only system admins see all data
       const canViewAll = canViewAllData(session);
       const canViewTrf = canViewDomainData(session, 'trf');
       let userId = null;
-      if (!canViewAll && !canViewTrf) {
-        // Regular users can only see their own requests
+      
+      if (canViewAll || canViewTrf) {
+        console.log(`API_TRF_GET: Admin ${session.role} can view all TRFs for summary`);
+      } else {
+        // All other users see only their own requests - use universal matching
         const userIdentifier = getUserIdentifier(session);
         userId = userIdentifier.userId;
-        console.log(`API_TRF_GET: Regular user ${session.role} filtering TRFs for user ${userId}`);
-      } else {
-        console.log(`API_TRF_GET: Admin/domain admin ${session.role} can view all TRFs`);
+        console.log(`API_TRF_GET: User ${session.role} viewing own TRFs summary with universal filtering`);
+        // Note: The summary endpoints will need to be updated to use universal filtering too
       }
 
       let allTrfs;
@@ -735,8 +738,10 @@ export const GET = withAuth(async function(request: NextRequest) {
         const params = [fromDate, toDate];
         
         if (userId) {
-          whereConditions.push('user_id = $3');
+          // Use comprehensive user filtering for summary
+          whereConditions.push('(staff_id = $3 OR requestor_name ILIKE $4)');
           params.push(userId);
+          params.push(`%${session.name || ''}%`);
         }
         
         allTrfs = await sql.unsafe(`
@@ -748,10 +753,11 @@ export const GET = withAuth(async function(request: NextRequest) {
       } else {
         // Fetch all TRFs
         if (userId) {
+          // Use comprehensive user filtering for non-date-range summary
           allTrfs = await sql`
             SELECT status, submitted_at 
             FROM travel_requests 
-            WHERE user_id = ${userId}
+            WHERE (staff_id = ${userId} OR requestor_name ILIKE ${`%${session.name || ''}%`})
             ORDER BY submitted_at DESC
           `;
         } else {
@@ -798,50 +804,28 @@ export const GET = withAuth(async function(request: NextRequest) {
 
   const whereClauses: any[] = [];
   
-  // Role-based data filtering
-  const canViewAll = canViewAllData(session);
-  const canViewDomain = canViewDomainData(session, 'trf');
-  const canViewApprovals = canViewApprovalData(session, 'trf');
-  
-  if (canViewAll || canViewDomain) {
-    console.log(`API_TRF_GET (PostgreSQL): User ${session.role} can view all TRFs`);
-  } else if (canViewApprovals) {
-    // Users with approval rights (like HOD) see their own TRFs + TRFs pending their approval
-    const userIdentifier = getUserIdentifier(session);
-    console.log(`API_TRF_GET (PostgreSQL): User ${session.role} can view own TRFs + approval queue`);
-    
-    // Get the statuses this role can approve from the status query parameter
-    const statusesToFetch = searchParams.get('statuses')?.split(',').map(s => s.trim()).filter(Boolean);
-    
+  // Universal user filtering system  
+  if (shouldBypassUserFilter(session, statusesToFetch ? statusesToFetch.join(',') : null)) {
+    console.log(`API_TRF_GET (PostgreSQL): Admin ${session.role} viewing approval queue - no user filter`);
+    // Admins viewing approval queue see all requests with specified statuses
     if (statusesToFetch && statusesToFetch.length > 0) {
-      // For approval queue - show all requests with the specified statuses
       whereClauses.push(sql`status IN ${sql(statusesToFetch)}`);
-    } else {
-      // For regular listing - show only user's own requests
-      const staffIdCondition = userIdentifier.staffId 
-        ? sql`staff_id = ${userIdentifier.staffId} OR` 
-        : sql``;
-      
-      whereClauses.push(sql`(
-        ${staffIdCondition}
-        staff_id = ${userIdentifier.userId} OR
-        requestor_name ILIKE ${`%${userIdentifier.email}%`}
-      )`);
     }
   } else {
-    // Regular users only see their own TRFs
-    const userIdentifier = getUserIdentifier(session);
-    console.log(`API_TRF_GET (PostgreSQL): Filtering TRFs for user ${userIdentifier.userId} with role ${session.role}`);
+    // Use universal user filtering - works for ALL users regardless of role
+    console.log(`API_TRF_GET (PostgreSQL): User ${session.role} viewing own TRFs with universal filtering`);
+    const userFilter = generateUniversalUserFilterSQL(session, sql, '', {
+      staffIdField: 'staff_id',
+      nameField: 'requestor_name', 
+      emailField: 'email',
+      userIdField: null  // TRF table doesn't have user_id column
+    });
+    whereClauses.push(userFilter);
     
-    const staffIdCondition = userIdentifier.staffId 
-      ? sql`staff_id = ${userIdentifier.staffId} OR` 
-      : sql``;
-    
-    whereClauses.push(sql`(
-      ${staffIdCondition}
-      staff_id = ${userIdentifier.userId} OR
-      requestor_name ILIKE ${`%${userIdentifier.email}%`}
-    )`);
+    // If there are status filters for personal pages, apply them too
+    if (statusesToFetch && statusesToFetch.length > 0) {
+      whereClauses.push(sql`status IN ${sql(statusesToFetch)}`);
+    }
   }
   
   console.log(`API_TRF_GET (PostgreSQL): Filters - Search: '${searchTerm}', Status: '${statusFilter}', Type: '${travelTypeFilter}', Exclude Type: '${excludeTravelType}', Statuses: '${statusesToFetch}', Role: '${session.role}'`);

@@ -1,3 +1,5 @@
+import nodemailer from 'nodemailer';
+
 interface EmailOptions {
   to: string;
   subject: string;
@@ -6,6 +8,20 @@ interface EmailOptions {
 }
 
 class EmailService {
+  private transporter: nodemailer.Transporter;
+
+  constructor() {
+    this.transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.EMAIL_PORT || '587'),
+      secure: process.env.EMAIL_USE_SSL === 'true', // true for 465, false for other ports
+      auth: {
+        user: process.env.EMAIL_HOST_USER,
+        pass: process.env.EMAIL_HOST_PASSWORD,
+      },
+    });
+  }
+
   async sendEmail(options: EmailOptions): Promise<void> {
     console.log('---- Sending Email ----');
     console.log(`To: ${options.to}`);
@@ -17,29 +33,21 @@ class EmailService {
     console.log(options.body);
     console.log('-----------------------');
 
-    // In a real application, you would use a service like Nodemailer, SendGrid, or AWS SES
-    // For example, using Nodemailer:
-    /*
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: process.env.SMTP_SECURE,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    try {
+      const mailOptions = {
+        from: process.env.DEFAULT_FROM_EMAIL || 'VMS System <noreplyvmspctsb@gmail.com>',
+        to: options.to,
+        cc: options.cc,
+        subject: options.subject,
+        html: options.body,
+      };
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: options.to,
-      cc: options.cc,
-      subject: options.subject,
-      html: options.body,
-    });
-    */
-
-    return Promise.resolve();
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log('Email sent successfully:', result.messageId);
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      throw error;
+    }
   }
 }
 

@@ -7,6 +7,8 @@ import { generateRequestId } from '@/utils/requestIdGenerator';
 import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { hasPermission } from '@/lib/session-utils';
 import { NotificationService } from '@/lib/notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
+import { generateUniversalUserFilter, generateUniversalUserFilterSQL, shouldBypassUserFilter } from '@/lib/universal-user-matching';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -135,7 +137,7 @@ export const POST = withAuth(async function(request: NextRequest) {
           ${medicalClaimDetails.familyMemberOther || null}, ${financialSummary.totalAdvanceClaimAmount === null ? null : Number(financialSummary.totalAdvanceClaimAmount)},
           ${financialSummary.lessAdvanceTaken === null ? null : Number(financialSummary.lessAdvanceTaken)}, ${financialSummary.lessCorporateCreditCardPayment === null ? null : Number(financialSummary.lessCorporateCreditCardPayment)},
           ${financialSummary.balanceClaimRepayment === null ? null : Number(financialSummary.balanceClaimRepayment)}, ${financialSummary.chequeReceiptNo || null},
-          ${declaration.iDeclare}, ${formatISO(declaration.date, {representation: 'date'})}, 'Pending Verification', NOW(), NOW(), NOW()
+          ${declaration.iDeclare}, ${formatISO(declaration.date, {representation: 'date'})}, 'Pending Department Focal', NOW(), NOW(), NOW()
         ) RETURNING id
       `;
 
@@ -192,33 +194,22 @@ export const POST = withAuth(async function(request: NextRequest) {
     console.log("API_CLAIMS_POST (PostgreSQL): Expense claim created successfully:", newClaim);
     console.log("API_CLAIMS_POST (PostgreSQL): Generated claim ID:", claimRequestId);
     
-    // Create notification for department focal approval
+    // Send comprehensive workflow notifications using new unified service
     try {
-      // Find the department focal who needs to approve this claim
-      const departmentFocals = await sql`
-        SELECT u.id, u.name 
-        FROM users u
-        INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-        INNER JOIN permissions p ON rp.permission_id = p.id
-        WHERE p.name = 'approve_claims_focal'
-          AND u.department = ${data.headerDetails.departmentCode}
-          AND u.status = 'Active'
-      `;
-
-      if (departmentFocals.length > 0) {
-        for (const focal of departmentFocals) {
-          await NotificationService.createApprovalRequest({
-            approverId: focal.id,
-            requestorName: data.headerDetails.staffName,
-            entityType: 'claim',
-            entityId: claimRequestId,
-            entityTitle: `${data.headerDetails.documentType} - ${data.bankDetails.purposeOfClaim}`
-          });
-        }
-        console.log(`Created approval notifications for claim ${claimRequestId}`);
-      }
+      await UnifiedNotificationService.notifySubmission({
+        entityType: 'claims',
+        entityId: claimRequestId,
+        requestorId: session.id,
+        requestorName: data.headerDetails.staffName,
+        requestorEmail: session.email,
+        department: data.headerDetails.departmentCode,
+        entityTitle: `${data.headerDetails.documentType} - ${data.bankDetails.purposeOfClaim}`,
+        entityAmount: data.financialSummary.totalAdvanceClaimAmount.toString(),
+        entityDates: formatISO(data.headerDetails.claimForMonthOf, {representation: 'date'})
+      });
+      console.log(`✅ Sent unified workflow notifications for claim ${claimRequestId}`);
     } catch (notificationError) {
-      console.error(`Failed to create approval notifications for claim ${claimRequestId}:`, notificationError);
+      console.error(`❌ Failed to send workflow notifications for claim ${claimRequestId}:`, notificationError);
       // Don't fail the claim submission due to notification errors
     }
     
@@ -254,70 +245,135 @@ export const GET = withAuth(async function(request: NextRequest) {
     console.log("Executing SQL query to fetch claims");
     let query;
     
-    // Role-based data filtering
-    const whereConditions = [];
+    // Build query with conditions  
+    const userIdentifier = getUserIdentifier(session);
     
-    // Data access rules based on role
-    const canViewAll = canViewAllData(session);
-    const canViewDomain = canViewDomainData(session, 'claims');
-    const canViewApprovals = canViewApprovalData(session, 'claims');
-    
-    if (canViewAll || canViewDomain) {
-      console.log(`API_CLAIMS_GET (PostgreSQL): Admin/domain admin ${session.role} can view all claims`);
-      // No filtering needed - admin can see everything
-    } else if (canViewApprovals) {
-      // Users with approval rights see their own requests + requests pending their approval
-      const userIdentifier = getUserIdentifier(session);
-      if (!statusesParam) {
-        // For regular listing - show only user's own requests
-        const staffIdCondition = userIdentifier.staffId 
-          ? `staff_no = '${userIdentifier.staffId}' OR ` 
-          : '';
-        whereConditions.push(`(${staffIdCondition}staff_no = '${userIdentifier.userId}' OR staff_name LIKE '%${userIdentifier.email}%')`);
-        console.log(`API_CLAIMS_GET (PostgreSQL): User ${session.role} viewing own claims`);
-      } else {
-        // For approval queue - show all requests with specified statuses
-        console.log(`API_CLAIMS_GET (PostgreSQL): User ${session.role} viewing approval queue`);
-      }
-    } else {
-      // Regular users can only see their own claims
-      const userIdentifier = getUserIdentifier(session);
-      console.log(`API_CLAIMS_GET (PostgreSQL): Regular user ${session.role} filtering claims for user ${userIdentifier.userId}`);
-      
-      // Filter by user's staff number, staff ID, or email - handle undefined staffId gracefully
-      const staffIdCondition = userIdentifier.staffId 
-        ? `staff_no = '${userIdentifier.staffId}' OR ` 
-        : '';
-      whereConditions.push(`(${staffIdCondition}staff_no = '${userIdentifier.userId}' OR staff_name LIKE '%${userIdentifier.email}%')`);
-    }
+    console.log("Session data:", { 
+      role: session.role, 
+      name: session.name, 
+      userId: userIdentifier.userId,
+      staffId: userIdentifier.staffId, 
+      email: userIdentifier.email 
+    });
     
     if (statusesParam) {
       // Split the comma-separated statuses and filter claims
       const statusesArray = statusesParam.split(',').map(s => s.trim());
       console.log("Filtering claims by statuses:", statusesArray);
       
-      const statusCondition = `status = ANY(ARRAY[${statusesArray.map(s => `'${s}'`).join(', ')}])`;
-      whereConditions.push(statusCondition);
-      
-      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-      
-      query = sql.unsafe(`
-        SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
-        FROM expense_claims 
-        ${whereClause}
-        ORDER BY submitted_at DESC
-        LIMIT ${limit}
-      `);
+      if (shouldBypassUserFilter(session, statusesParam)) {
+        console.log(`API_CLAIMS_GET (PostgreSQL): Admin ${session.role} viewing approval queue - no user filter`);
+        query = sql`
+          SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+          FROM expense_claims 
+          WHERE status = ANY(${statusesArray})
+          ORDER BY submitted_at DESC
+          LIMIT ${limit}
+        `;
+      } else {
+        console.log(`API_CLAIMS_GET (PostgreSQL): User ${session.role} viewing own claims with universal filtering`);
+        
+        // Build user filter conditions
+        const userConditions = [];
+        if (userIdentifier.staffId) {
+          userConditions.push(sql`staff_no = ${userIdentifier.staffId}`);
+        }
+        if (session.name) {
+          userConditions.push(sql`staff_name = ${session.name}`);
+          userConditions.push(sql`staff_name ILIKE ${`%${session.name}%`}`);
+        }
+        
+        if (userConditions.length === 0) {
+          console.log("No user filter conditions available, returning empty result");
+          query = sql`
+            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+            FROM expense_claims 
+            WHERE FALSE
+          `;
+        } else if (userConditions.length === 1) {
+          query = sql`
+            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+            FROM expense_claims 
+            WHERE status = ANY(${statusesArray}) 
+              AND ${userConditions[0]}
+            ORDER BY submitted_at DESC
+            LIMIT ${limit}
+          `;
+        } else if (userConditions.length === 2) {
+          query = sql`
+            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+            FROM expense_claims 
+            WHERE status = ANY(${statusesArray}) 
+              AND (${userConditions[0]} OR ${userConditions[1]})
+            ORDER BY submitted_at DESC
+            LIMIT ${limit}
+          `;
+        } else {
+          query = sql`
+            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+            FROM expense_claims 
+            WHERE status = ANY(${statusesArray}) 
+              AND (${userConditions[0]} OR ${userConditions[1]} OR ${userConditions[2]})
+            ORDER BY submitted_at DESC
+            LIMIT ${limit}
+          `;
+        }
+      }
     } else {
-      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-      
-      query = sql.unsafe(`
-        SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
-        FROM expense_claims 
-        ${whereClause}
-        ORDER BY submitted_at DESC
-        LIMIT ${limit}
-      `);
+      if (shouldBypassUserFilter(session, statusesParam)) {
+        console.log(`API_CLAIMS_GET (PostgreSQL): Admin ${session.role} viewing all claims - no user filter`);
+        query = sql`
+          SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+          FROM expense_claims 
+          ORDER BY submitted_at DESC
+          LIMIT ${limit}
+        `;
+      } else {
+        console.log(`API_CLAIMS_GET (PostgreSQL): User ${session.role} viewing own claims with universal filtering`);
+        
+        // Build user filter conditions
+        const userConditions = [];
+        if (userIdentifier.staffId) {
+          userConditions.push(sql`staff_no = ${userIdentifier.staffId}`);
+        }
+        if (session.name) {
+          userConditions.push(sql`staff_name = ${session.name}`);
+          userConditions.push(sql`staff_name ILIKE ${`%${session.name}%`}`);
+        }
+        
+        if (userConditions.length === 0) {
+          console.log("No user filter conditions available, returning empty result");
+          query = sql`
+            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+            FROM expense_claims 
+            WHERE FALSE
+          `;
+        } else if (userConditions.length === 1) {
+          query = sql`
+            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+            FROM expense_claims 
+            WHERE ${userConditions[0]}
+            ORDER BY submitted_at DESC
+            LIMIT ${limit}
+          `;
+        } else if (userConditions.length === 2) {
+          query = sql`
+            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+            FROM expense_claims 
+            WHERE (${userConditions[0]} OR ${userConditions[1]})
+            ORDER BY submitted_at DESC
+            LIMIT ${limit}
+          `;
+        } else {
+          query = sql`
+            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
+            FROM expense_claims 
+            WHERE (${userConditions[0]} OR ${userConditions[1]} OR ${userConditions[2]})
+            ORDER BY submitted_at DESC
+            LIMIT ${limit}
+          `;
+        }
+      }
     }
     
     const claims = await query;

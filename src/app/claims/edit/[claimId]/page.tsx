@@ -113,16 +113,18 @@ export default function EditClaimPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8 px-4 flex flex-col items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Loading claim data...</p>
+      <div className="space-y-8">
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-lg text-muted-foreground">Loading claim data...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto py-8 px-4">
+      <div className="space-y-8">
         <Alert variant="destructive" className="mb-6">
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
@@ -136,7 +138,7 @@ export default function EditClaimPage() {
 
   if (!claimData) {
     return (
-      <div className="container mx-auto py-8 px-4">
+      <div className="space-y-8">
         <Alert variant="destructive" className="mb-6">
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>Claim data not found</AlertDescription>

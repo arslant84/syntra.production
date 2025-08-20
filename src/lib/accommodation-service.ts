@@ -1,4 +1,5 @@
 import { sql } from '@/lib/db';
+import { BookingData, StaffGuest, StaffHouseData, BookingStatus } from '@/types/accommodation';
 
 export interface AccommodationRequestDetails {
   id: string;
@@ -191,14 +192,14 @@ export async function getAccommodationRequestById(requestId: string): Promise<(A
       requestorGender: request.requestorGender as 'Male' | 'Female',
       department: request.department,
       location: request.location as 'Ashgabat' | 'Kiyanly' | 'Turkmenbashy',
-      requestedCheckInDate: new Date(request.requestedCheckInDate),
-      requestedCheckOutDate: new Date(request.requestedCheckOutDate),
+      requestedCheckInDate: new Date(request.requestedCheckInDate).toISOString(),
+      requestedCheckOutDate: new Date(request.requestedCheckOutDate).toISOString(),
       requestedRoomType: request.requestedRoomType,
       status: request.status as BookingStatus,
       assignedRoomName: request.assignedRoomName,
       assignedStaffHouseName: request.assignedStaffHouseName,
-      submittedDate: new Date(request.submittedDate),
-      lastUpdatedDate: request.lastUpdatedDate ? new Date(request.lastUpdatedDate) : new Date(request.submittedDate),
+      submittedDate: new Date(request.submittedDate).toISOString(),
+      lastUpdatedDate: request.lastUpdatedDate ? new Date(request.lastUpdatedDate).toISOString() : new Date(request.submittedDate).toISOString(),
       specialRequests: request.specialRequests,
       flightArrivalTime: request.flightArrivalTime,
       flightDepartureTime: request.flightDepartureTime,
@@ -246,7 +247,8 @@ export async function getStaffHouses(): Promise<StaffHouseData[]> {
         .filter(room => room.staffHouseId === house.id)
         .map(room => ({
           id: room.id,
-          name: room.name
+          name: room.name,
+          staff_house_id: room.staffHouseId
         }));
 
       return {
@@ -408,4 +410,70 @@ function generateFullApprovalWorkflow(
   }
 
   return fullWorkflow;
+}
+
+/**
+ * Get all bookings for a specific staff member
+ * @param staffId The staff member ID
+ * @returns Array of booking data
+ */
+export async function getBookingsForStaff(staffId: string): Promise<BookingData[]> {
+  try {
+    const bookings = await sql`
+      SELECT 
+        ab.id,
+        ab.staff_house_id as "staffHouseId",
+        ab.room_id as "roomId", 
+        ab.date,
+        ab.staff_id as "staffId"
+      FROM accommodation_bookings ab
+      WHERE ab.staff_id = ${staffId}
+      AND ab.status != 'Cancelled'
+      ORDER BY ab.date
+    `;
+
+    return bookings.map((booking: any) => ({
+      id: booking.id,
+      roomId: booking.roomId,
+      staffHouseId: booking.staffHouseId,
+      date: booking.date instanceof Date ? booking.date.toISOString().split('T')[0] : booking.date,
+      staffId: booking.staffId
+    }));
+  } catch (error) {
+    console.error('Error fetching bookings for staff:', error);
+    throw new Error('Failed to fetch bookings for staff');
+  }
+}
+
+/**
+ * Get all bookings for a specific TRF
+ * @param trfId The TRF ID
+ * @returns Array of booking data
+ */
+export async function getBookingsForTrf(trfId: string): Promise<BookingData[]> {
+  try {
+    const bookings = await sql`
+      SELECT 
+        ab.id,
+        ab.staff_house_id as "staffHouseId",
+        ab.room_id as "roomId", 
+        ab.date,
+        ab.staff_id as "staffId"
+      FROM accommodation_bookings ab
+      WHERE ab.trf_id = ${trfId}
+      AND ab.status != 'Cancelled'
+      ORDER BY ab.date
+    `;
+
+    return bookings.map((booking: any) => ({
+      id: booking.id,
+      roomId: booking.roomId,
+      staffHouseId: booking.staffHouseId,
+      date: booking.date instanceof Date ? booking.date.toISOString().split('T')[0] : booking.date,
+      staffId: booking.staffId
+    }));
+  } catch (error) {
+    console.error('Error fetching bookings for TRF:', error);
+    throw new Error('Failed to fetch bookings for TRF');
+  }
 }

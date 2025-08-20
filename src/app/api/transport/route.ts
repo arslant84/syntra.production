@@ -4,6 +4,7 @@ import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUs
 import { hasPermission } from '@/lib/session-utils';
 import { sql } from '@/lib/db';
 import { NotificationService } from '@/lib/notification-service';
+import { shouldBypassUserFilter } from '@/lib/universal-user-matching';
 
 export const GET = withAuth(async function(request: NextRequest) {
   try {
@@ -22,18 +23,20 @@ export const GET = withAuth(async function(request: NextRequest) {
     if (summary === 'true') {
       let allTransportRequests;
       
-      // Role-based data filtering
+      // Universal filtering for summary
       const canViewAll = canViewAllData(session);
       const canViewTransport = canViewDomainData(session, 'transport');
+      const userIdentifier = getUserIdentifier(session);
       let userId = null;
-      if (!canViewAll && !canViewTransport) {
-        // Regular users can only see their own requests
-        const userIdentifier = getUserIdentifier(session);
-        userId = userIdentifier.userId;
-        console.log(`API_TRANSPORT_GET: Regular user ${session.role} filtering for user ${userId}`);
+      
+      if (canViewAll || canViewTransport) {
+        console.log(`API_TRANSPORT_GET: Admin ${session.role} can view all transport requests for summary`);
+        userId = null; // Show all data
       } else {
-        // Admins can see all data for summary reports
-        console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} can view all transport requests for summary`);
+        // All other users see only their own requests with universal filtering
+        userId = userIdentifier.userId;
+        console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport summary with universal filtering`);
+        // Note: Summary endpoints will use universal filtering
       }
       
       if (fromDate && toDate) {
@@ -70,39 +73,20 @@ export const GET = withAuth(async function(request: NextRequest) {
       return NextResponse.json({ statusByMonth: sortedMonths });
     }
     
-    // Role-based data filtering
-    const canViewAll = canViewAllData(session);
-    const canViewDomain = canViewDomainData(session, 'transport');
-    const canViewApprovals = canViewApprovalData(session, 'transport');
+    // Universal user filtering system
+    const userIdentifier = getUserIdentifier(session);
     let userId = null;
     
-    if (canViewAll || canViewDomain) {
-      // Even domain admins should see only their own requests on personal transport page
-      // Only show all requests when viewing approval queues (when statuses param is provided)
-      if (!statuses) {
-        const userIdentifier = getUserIdentifier(session);
-        userId = userIdentifier.userId;
-        console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} viewing own requests only (${userId})`);
-      } else {
-        console.log(`API_TRANSPORT_GET: Admin/domain admin ${session.role} can view all transport requests for approval queue`);
-      }
-    } else if (canViewApprovals) {
-      // Users with approval rights see their own requests + requests pending their approval
-      const userIdentifier = getUserIdentifier(session);
-      if (!statuses) {
-        // For regular listing - show only user's own requests
-        userId = userIdentifier.userId;
-        console.log(`API_TRANSPORT_GET: User ${session.role} viewing own requests (${userId})`);
-      } else {
-        // For approval queue - show all requests with specified statuses (userId stays null to show all matching requests)
-        userId = null;
-        console.log(`API_TRANSPORT_GET: User ${session.role} viewing approval queue with statuses: ${statuses}`);
-      }
+    if (shouldBypassUserFilter(session, statuses)) {
+      console.log(`API_TRANSPORT_GET: Admin ${session.role} viewing approval queue - no user filter`);
+      // Admins viewing approval queue see all requests
+      userId = null;
     } else {
-      // Regular users can only see their own requests
-      const userIdentifier = getUserIdentifier(session);
+      // Use universal user filtering - works for ALL users regardless of role
+      // For transport service, we pass the full session and let it handle universal matching
       userId = userIdentifier.userId;
-      console.log(`API_TRANSPORT_GET: Regular user ${session.role} filtering for user ${userId}`);
+      console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport requests with universal filtering (${userId})`);
+      // Note: TransportService will need to be updated to use universal filtering
     }
     
     // If statuses are specified, fetch all transport requests with those statuses (for approval queue)
@@ -141,7 +125,7 @@ export const POST = withAuth(async function(request: NextRequest) {
     }
 
     const body = await request.json();
-    const userId = session.user.id || session.user.email;
+    const userId = session.id || session.email;
     const requestData = { ...body, userId };
     
     const transportRequest = await TransportService.createTransportRequest(requestData);

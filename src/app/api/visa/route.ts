@@ -5,7 +5,9 @@ import { sql } from '@/lib/db'; // Assuming PostgreSQL setup
 import { formatISO, parseISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
-import { hasPermission } from '@/lib/session-utils';
+import { hasPermission, hasAnyPermission } from '@/lib/session-utils';
+import { NotificationService } from '@/lib/notification-service';
+import { generateUniversalUserFilter, shouldBypassUserFilter } from '@/lib/universal-user-matching';
 
 const visaApplicationCreateSchema = z.object({
   applicantName: z.string().min(1, "Applicant name is required"),
@@ -36,7 +38,7 @@ export const POST = withAuth(async function(request: NextRequest) {
   const session = (request as any).user;
   
   // Check if user has permission to create visa applications - using create_trf as requestors should be able to create visa applications
-  if (!hasPermission(session, 'create_trf')) {
+  if (!hasAnyPermission(session, ['create_trf', 'create_visa_applications'])) {
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
   
@@ -92,6 +94,48 @@ export const POST = withAuth(async function(request: NextRequest) {
         )
     `;
 
+    // Send notification to Department Focals in the requestor's department
+    try {
+      // First get the requestor's department from their user record
+      let requestorDepartment = 'Unknown';
+      if (data.employeeId) {
+        const requestorInfo = await sql`
+          SELECT department FROM users WHERE staff_id = ${data.employeeId} OR email = ${data.employeeId} LIMIT 1
+        `;
+        if (requestorInfo.length > 0) {
+          requestorDepartment = requestorInfo[0].department || 'Unknown';
+        }
+      }
+
+      // Find Department Focals with visa approval permission in the same department
+      const departmentFocals = await sql`
+        SELECT u.id, u.name 
+        FROM users u
+        INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+        INNER JOIN permissions p ON rp.permission_id = p.id
+        WHERE p.name = 'approve_trf_focal'
+          AND u.department = ${requestorDepartment}
+          AND u.status = 'Active'
+      `;
+
+      for (const focal of departmentFocals) {
+        await NotificationService.createApprovalRequest({
+          approverId: focal.id,
+          requestorName: data.applicantName,
+          entityType: 'visa',
+          entityId: visaRequestId,
+          entityTitle: `Visa Application to ${data.destination}`
+        });
+      }
+      
+      if (departmentFocals.length > 0) {
+        console.log(`Created approval notifications for visa ${visaRequestId} to ${departmentFocals.length} department focals`);
+      }
+    } catch (notificationError) {
+      console.error('Error sending notifications for new visa application:', notificationError);
+      // Don't fail the main operation due to notification errors
+    }
+
     console.log("API_VISA_POST (PostgreSQL): Visa application created successfully:", newVisaApp.id);
     return NextResponse.json({ 
       message: 'Visa application submitted successfully!', 
@@ -137,38 +181,19 @@ export const GET = withAuth(async function(request: NextRequest) {
     // Role-based data filtering
     let userFilter = '';
     
-    // Data access rules based on role
-    const canViewAll = canViewAllData(session);
-    const canViewDomain = canViewDomainData(session, 'visa');
-    const canViewApprovals = canViewApprovalData(session, 'visa');
-    
-    if (canViewAll || canViewDomain) {
-      console.log(`API_VISA_GET (PostgreSQL): Admin/domain admin ${session.role} can view all visa applications`);
-      // No filtering needed - admin can see everything
-    } else if (canViewApprovals) {
-      // Users with approval rights see their own requests + requests pending their approval
-      const userIdentifier = getUserIdentifier(session);
-      if (!statusesParam) {
-        // For regular listing - show only user's own requests
-        const staffIdCondition = userIdentifier.staffId 
-          ? `staff_id = '${userIdentifier.staffId}' OR ` 
-          : '';
-        userFilter = ` AND (user_id = '${userIdentifier.userId}' OR ${staffIdCondition}email = '${userIdentifier.email}')`;
-        console.log(`API_VISA_GET (PostgreSQL): User ${session.role} viewing own visa applications`);
-      } else {
-        // For approval queue - show all requests with specified statuses
-        console.log(`API_VISA_GET (PostgreSQL): User ${session.role} viewing approval queue`);
-      }
+    // Universal user filtering system
+    if (shouldBypassUserFilter(session, statusesParam)) {
+      console.log(`API_VISA_GET (PostgreSQL): Admin ${session.role} viewing approval queue - no user filter`);
+      // Admins viewing approval queue see all requests
     } else {
-      // Regular users can only see their own visa applications
-      const userIdentifier = getUserIdentifier(session);
-      console.log(`API_VISA_GET (PostgreSQL): Regular user ${session.role} filtering visa applications for user ${userIdentifier.userId}`);
-      
-      // Filter by user's ID, staff ID, or email - handle undefined staffId gracefully
-      const staffIdCondition = userIdentifier.staffId 
-        ? `staff_id = '${userIdentifier.staffId}' OR ` 
-        : '';
-      userFilter = ` AND (user_id = '${userIdentifier.userId}' OR ${staffIdCondition}email = '${userIdentifier.email}')`;
+      // Use universal user filtering - works for ALL users regardless of role
+      console.log(`API_VISA_GET (PostgreSQL): User ${session.role} viewing own visa applications with universal filtering`);
+      userFilter = ` AND ${generateUniversalUserFilter(session, '', {
+        staffIdField: 'staff_id',
+        nameField: 'requestor_name',
+        emailField: 'email',
+        userIdField: 'user_id'
+      })}`;
     }
     
     if (statusesParam) {

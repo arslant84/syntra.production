@@ -178,13 +178,13 @@ export function canViewApprovalData(session: any, domain: string): boolean {
     case 'trf':
       return hasAnyPermission(session, ['approve_trf_focal', 'approve_trf_manager', 'approve_trf_hod']);
     case 'accommodation':
-      return hasPermission(session, 'approve_accommodation_requests');
+      return hasAnyPermission(session, ['approve_accommodation_requests', 'approve_trf_focal', 'approve_trf_manager', 'approve_trf_hod', 'manage_accommodation_bookings']);
     case 'transport':
-      return hasPermission(session, 'approve_transport_requests');
+      return hasAnyPermission(session, ['approve_transport_requests', 'approve_trf_focal', 'approve_trf_manager', 'approve_trf_hod']);
     case 'claims':
       return hasAnyPermission(session, ['approve_claims_focal', 'approve_claims_manager', 'approve_claims_hod', 'process_claims']);
     case 'visa':
-      return hasPermission(session, 'process_visa_applications');
+      return hasAnyPermission(session, ['process_visa_applications', 'approve_visa_requests', 'approve_trf_focal', 'approve_trf_manager', 'approve_trf_hod']);
     default:
       return false;
   }

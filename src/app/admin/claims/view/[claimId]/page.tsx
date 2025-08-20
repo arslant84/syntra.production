@@ -97,7 +97,7 @@ export default function ViewClaimPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto py-8 px-4 text-center">
+      <div className="space-y-8">
         <Card className="max-w-lg mx-auto">
           <CardHeader>
             <CardTitle className="flex items-center justify-center gap-2 text-destructive">
@@ -114,7 +114,7 @@ export default function ViewClaimPage() {
   
   if (!claimData) {
      return (
-      <div className="container mx-auto py-8 px-4 text-center">
+      <div className="space-y-8">
         <Card className="max-w-lg mx-auto">
           <CardHeader>
             <CardTitle>Claim Not Found</CardTitle>
@@ -128,7 +128,7 @@ export default function ViewClaimPage() {
   }
   
   return (
-    <div className="container mx-auto py-8 px-4 space-y-6">
+    <div className="space-y-8">
       <Card className="shadow-xl print:shadow-none">
         <CardHeader className="bg-muted/30 print:bg-transparent">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

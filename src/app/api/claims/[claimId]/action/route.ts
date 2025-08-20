@@ -3,10 +3,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { NotificationService } from '@/lib/notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 
 // Placeholder for claim actions
 const claimActionSchema = z.object({
-  action: z.enum(["verify", "approve_hod", "approve_finance", "reject", "process_payment", "approve"]),
+  action: z.enum(["approve", "verify", "approve_manager", "approve_hod", "approve_finance", "reject", "process_payment"]),
   comments: z.string().optional().nullable(),
   approverRole: z.string().optional(),
   approverName: z.string().optional()
@@ -38,19 +39,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     
     // Handle generic 'approve' action by mapping it to the appropriate specific action based on the current status
     if (action === "approve") {
-      if (currentClaim.status === "Pending Verification") effectiveAction = "verify";
-      else if (currentClaim.status === "Pending HOD Approval") effectiveAction = "approve_hod";
-      else if (currentClaim.status === "Pending Finance Approval") effectiveAction = "approve_finance";
+      if (currentClaim.status === "Pending Department Focal") effectiveAction = "approve";
+      else if (currentClaim.status === "Pending Verification") effectiveAction = "verify"; // Legacy support
+      else if (currentClaim.status === "Pending Line Manager") effectiveAction = "approve_manager";
+      else if (currentClaim.status === "Pending HOD" || currentClaim.status === "Pending HOD Approval") effectiveAction = "approve_hod";
+      else if (currentClaim.status === "Pending Finance Approval") effectiveAction = "approve_finance"; // Legacy - will be removed
       else if (currentClaim.status === "Approved") effectiveAction = "process_payment";
       else {
         return NextResponse.json({ error: `Cannot approve claim in status '${currentClaim.status}'`}, {status: 400});
       }
     }
     
-    // Simplified workflow for mock
-    if (effectiveAction === "verify" && currentClaim.status === "Pending Verification") nextStatus = "Pending HOD Approval";
-    else if (effectiveAction === "approve_hod" && currentClaim.status === "Pending HOD Approval") nextStatus = "Pending Finance Approval"; // Or "Approved" if no finance step
-    else if (effectiveAction === "approve_finance" && currentClaim.status === "Pending Finance Approval") nextStatus = "Approved";
+    // Standard workflow following TSR pattern
+    if (effectiveAction === "approve" && currentClaim.status === "Pending Department Focal") nextStatus = "Pending Line Manager";
+    else if (effectiveAction === "verify" && currentClaim.status === "Pending Verification") nextStatus = "Pending Line Manager"; // Legacy support
+    else if (effectiveAction === "approve_manager" && currentClaim.status === "Pending Line Manager") nextStatus = "Pending HOD";
+    else if (effectiveAction === "approve_hod" && (currentClaim.status === "Pending HOD" || currentClaim.status === "Pending HOD Approval")) nextStatus = "Approved";
+    else if (effectiveAction === "approve_finance" && currentClaim.status === "Pending Finance Approval") nextStatus = "Approved"; // Legacy support
     else if (effectiveAction === "process_payment" && currentClaim.status === "Approved") nextStatus = "Processed";
     else if (effectiveAction === "reject") nextStatus = "Rejected";
     else {
@@ -71,7 +76,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     
     // Map action to proper approval status
     let approvalStatus = "Pending";
-    if (effectiveAction === "verify") approvalStatus = "Verified";
+    if (effectiveAction === "approve" && currentClaim.status === "Pending Department Focal") approvalStatus = "Approved";
+    else if (effectiveAction === "verify") approvalStatus = "Verified";
     else if (effectiveAction === "approve_hod") approvalStatus = "Approved"; 
     else if (effectiveAction === "approve_finance") approvalStatus = "Approved";
     else if (effectiveAction === "process_payment") approvalStatus = "Processed";
@@ -79,7 +85,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     else if (action === "approve") approvalStatus = "Approved";
     
     const approvalComments = comments || 
-      (effectiveAction === "verify" ? "Verified." :
+      (effectiveAction === "approve" && currentClaim.status === "Pending Department Focal" ? "Approved by Department Focal." :
+       effectiveAction === "verify" ? "Verified." :
        effectiveAction === "approve_hod" ? "Approved by HOD." :
        effectiveAction === "approve_finance" ? "Approved by Finance." :
        effectiveAction === "process_payment" ? "Payment processed." :
@@ -121,46 +128,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           });
         }
 
-        // If moving to next approval step, notify next approver
-        if (nextStatus === 'Pending HOD Approval') {
-          const hodApprovers = await sql`
-            SELECT u.id, u.name 
-            FROM users u
-            INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-            INNER JOIN permissions p ON rp.permission_id = p.id
-            WHERE p.name = 'approve_claims_hod'
-              AND u.department = ${claimInfo.department_code}
-              AND u.status = 'Active'
-          `;
-
-          for (const approver of hodApprovers) {
-            await NotificationService.createApprovalRequest({
-              approverId: approver.id,
-              requestorName: claimInfo.staff_name,
-              entityType: 'claim',
-              entityId: claimId,
-              entityTitle: `Expense Claim`
-            });
-          }
-        } else if (nextStatus === 'Pending Finance Approval') {
-          const financeApprovers = await sql`
-            SELECT u.id, u.name 
-            FROM users u
-            INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-            INNER JOIN permissions p ON rp.permission_id = p.id
-            WHERE p.name = 'process_claims'
-              AND u.status = 'Active'
-          `;
-
-          for (const approver of financeApprovers) {
-            await NotificationService.createApprovalRequest({
-              approverId: approver.id,
-              requestorName: claimInfo.staff_name,
-              entityType: 'claim',
-              entityId: claimId,
-              entityTitle: `Expense Claim`
-            });
-          }
+        // Send comprehensive workflow notifications based on action
+        if (action === 'reject') {
+          // Handle rejection notification
+          await UnifiedNotificationService.notifyRejection({
+            entityType: 'claims',
+            entityId: claimId,
+            requestorId: requestorUser[0]?.id || '',
+            requestorName: claimInfo.staff_name,
+            requestorEmail: requestorUser[0]?.email || '',
+            approverName: validationResult.data.approverName || 'System',
+            approverRole: validationResult.data.approverRole || 'Approver',
+            rejectionReason: comments || 'No reason provided',
+            entityTitle: `${claimInfo.document_type || 'Expense Claim'} - ${claimInfo.purpose_of_claim}`
+          });
+        } else {
+          // Handle approval notification (includes progression to next step)
+          await UnifiedNotificationService.notifyApproval({
+            entityType: 'claims',
+            entityId: claimId,
+            requestorId: requestorUser[0]?.id || '',
+            requestorName: claimInfo.staff_name,
+            requestorEmail: requestorUser[0]?.email || '',
+            currentStatus: nextStatus,
+            previousStatus: currentClaim.status,
+            approverName: validationResult.data.approverName || 'System',
+            approverRole: validationResult.data.approverRole || 'Approver',
+            nextApprover: nextStatus === 'Pending HOD Approval' ? 'HOD' : 
+                         nextStatus === 'Pending Finance Approval' ? 'Finance' : 
+                         nextStatus === 'Approved' ? 'Completed' : 'Next Approver',
+            entityTitle: `${claimInfo.document_type || 'Expense Claim'} - ${claimInfo.purpose_of_claim}`,
+            comments: comments
+          });
         }
 
         console.log(`Created notifications for claim ${claimId} ${effectiveAction} action`);

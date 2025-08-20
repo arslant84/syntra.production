@@ -268,9 +268,12 @@ export default function AccommodationAdminPage() {
   };
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-3xl font-bold">Accommodation Admin</h1>
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Accommodation Admin</h1>
+          <p className="text-muted-foreground">Manage accommodation assignments and room blocking.</p>
+        </div>
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>

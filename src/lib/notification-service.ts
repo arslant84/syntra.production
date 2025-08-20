@@ -3,6 +3,7 @@
 
 import { sql } from '@/lib/db';
 import { WebSocketService } from './websocket-service';
+import { WorkflowEmailService } from './workflow-email-service';
 
 export interface CreateNotificationParams {
   userId: string;
@@ -109,7 +110,23 @@ export class NotificationService {
     } = {}
   ): Promise<UserNotification[]> {
     try {
-      let query = sql`
+      // Build the base WHERE clause
+      let baseWhere = `user_id = $1 AND is_dismissed = FALSE AND (expires_at IS NULL OR expires_at > NOW())`;
+      const params = [userId];
+      let paramIndex = 2;
+
+      if (options.unreadOnly) {
+        baseWhere += ` AND is_read = FALSE`;
+      }
+
+      if (options.category) {
+        baseWhere += ` AND category = $${paramIndex}`;
+        params.push(options.category);
+        paramIndex++;
+      }
+
+      // Build the complete query based on limit/offset options
+      let queryStr = `
         SELECT 
           id, user_id as "userId", title, message, type, category, priority,
           related_entity_type as "relatedEntityType", related_entity_id as "relatedEntityId",
@@ -118,30 +135,22 @@ export class NotificationService {
           read_at as "readAt", dismissed_at as "dismissedAt",
           created_at as "createdAt", updated_at as "updatedAt", expires_at as "expiresAt"
         FROM user_notifications
-        WHERE user_id = ${userId}
-          AND is_dismissed = FALSE
-          AND (expires_at IS NULL OR expires_at > NOW())
+        WHERE ${baseWhere}
+        ORDER BY created_at DESC
       `;
 
-      if (options.unreadOnly) {
-        query = sql`${query} AND is_read = FALSE`;
-      }
-
-      if (options.category) {
-        query = sql`${query} AND category = ${options.category}`;
-      }
-
-      query = sql`${query} ORDER BY created_at DESC`;
-
       if (options.limit) {
-        query = sql`${query} LIMIT ${options.limit}`;
+        queryStr += ` LIMIT $${paramIndex}`;
+        params.push(options.limit);
+        paramIndex++;
       }
 
       if (options.offset) {
-        query = sql`${query} OFFSET ${options.offset}`;
+        queryStr += ` OFFSET $${paramIndex}`;
+        params.push(options.offset);
       }
 
-      const result = await query;
+      const result = await sql.unsafe(queryStr, params);
       return result as UserNotification[];
     } catch (error) {
       console.error('Error fetching user notifications:', error);
@@ -269,16 +278,38 @@ export class NotificationService {
   static async createApprovalRequest(params: {
     approverId: string;
     requestorName: string;
-    entityType: 'trf' | 'claim' | 'visa' | 'transport';
+    requestorEmail?: string;
+    requestorId?: string;
+    entityType: 'trf' | 'claim' | 'visa' | 'transport' | 'accommodation';
     entityId: string;
     entityTitle?: string;
+    department?: string;
+    currentStatus?: string;
   }): Promise<string> {
     const entityTypeMap = {
       trf: 'Travel Request',
       claim: 'Expense Claim', 
       visa: 'Visa Application',
-      transport: 'Transport Request'
+      transport: 'Transport Request',
+      accommodation: 'Accommodation Request'
     };
+
+    // Send email notification using workflow email service
+    try {
+      await WorkflowEmailService.sendWorkflowNotification({
+        eventType: `${params.entityType}_submitted`,
+        entityType: params.entityType,
+        entityId: params.entityId,
+        requestorName: params.requestorName,
+        requestorEmail: params.requestorEmail,
+        requestorId: params.requestorId,
+        currentStatus: params.currentStatus || 'Pending Department Focal',
+        department: params.department
+      });
+    } catch (emailError) {
+      console.error('Failed to send workflow email:', emailError);
+      // Don't fail the notification creation due to email errors
+    }
 
     return this.createNotification({
       userId: params.approverId,
@@ -299,8 +330,10 @@ export class NotificationService {
    */
   static async createStatusUpdate(params: {
     requestorId: string;
+    requestorName?: string;
+    requestorEmail?: string;
     status: string;
-    entityType: 'trf' | 'claim' | 'visa' | 'transport';
+    entityType: 'trf' | 'claim' | 'visa' | 'transport' | 'accommodation';
     entityId: string;
     approverName?: string;
     comments?: string;
@@ -314,6 +347,23 @@ export class NotificationService {
 
     const message = `Your ${params.entityType.toUpperCase()} ${params.entityId} ${statusMessages[params.status.toLowerCase()] || `status updated to ${params.status}`}${params.approverName ? ` by ${params.approverName}` : ''}${params.comments ? `. Comments: ${params.comments}` : ''}`;
 
+    // Send email notification using workflow email service
+    try {
+      await WorkflowEmailService.sendApprovalNotification({
+        entityType: params.entityType,
+        entityId: params.entityId,
+        requestorName: params.requestorName || 'User',
+        requestorEmail: params.requestorEmail,
+        requestorId: params.requestorId,
+        newStatus: params.status,
+        approverName: params.approverName || 'System',
+        comments: params.comments
+      });
+    } catch (emailError) {
+      console.error('Failed to send status update email:', emailError);
+      // Don't fail the notification creation due to email errors
+    }
+
     return this.createNotification({
       userId: params.requestorId,
       title: `${params.entityType.toUpperCase()} Status Update`,
@@ -326,5 +376,61 @@ export class NotificationService {
       actionRequired: false,
       actionUrl: `/${params.entityType}/view/${params.entityId}`
     });
+  }
+
+  /**
+   * Create notification for post-approval processing (e.g., flight booking after TRF approval)
+   */
+  static async createProcessingNotification(params: {
+    processorPermission: string;
+    requestorName: string;
+    entityType: 'trf' | 'claim' | 'visa' | 'transport' | 'accommodation';
+    entityId: string;
+    processingType: string; // e.g., 'flight booking', 'visa processing'
+    department?: string;
+  }): Promise<void> {
+    try {
+      // Find users with permission to process this type of request
+      let query = `
+        SELECT u.id, u.name 
+        FROM users u
+        INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+        INNER JOIN permissions p ON rp.permission_id = p.id
+        WHERE p.name = $1
+          AND u.status = 'Active'
+      `;
+      
+      const queryParams = [params.processorPermission];
+      
+      // Add department filtering if provided
+      if (params.department && params.department !== 'Unknown') {
+        query += ` AND u.department = $2`;
+        queryParams.push(params.department);
+      }
+
+      const processors = await sql.unsafe(query, queryParams);
+
+      for (const processor of processors) {
+        await this.createNotification({
+          userId: processor.id,
+          title: `New ${params.processingType} Required`,
+          message: `${params.requestorName}'s ${params.entityType.toUpperCase()} ${params.entityId} has been approved and requires ${params.processingType}`,
+          type: 'approval_request',
+          category: 'workflow_approval',
+          priority: 'normal',
+          relatedEntityType: params.entityType,
+          relatedEntityId: params.entityId,
+          actionRequired: true,
+          actionUrl: `/${params.entityType}/view/${params.entityId}`
+        });
+      }
+      
+      if (processors.length > 0) {
+        console.log(`Created ${params.processingType} notifications for ${params.entityType} ${params.entityId} to ${processors.length} processors`);
+      }
+    } catch (error) {
+      console.error('Error creating processing notification:', error);
+      throw error;
+    }
   }
 }

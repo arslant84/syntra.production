@@ -1113,6 +1113,78 @@ export default function AccommodationAdminPage() {
     }
   };
 
+  // Handler for cancelling all bookings for a specific guest/TRF
+  const handleCancelAllBookings = async () => {
+    if (!selectedBookingDetails) return;
+
+    const guestName = selectedBookingDetails.guestName || 'this guest';
+    const hasStaffId = selectedBookingDetails.staffId;
+    const hasTrfId = selectedBookingDetails.trfId;
+    
+    let confirmMessage = `Are you sure you want to cancel ALL bookings for ${guestName}? This will:
+
+• Cancel all accommodation bookings for this person
+• Revert the accommodation request back to pending status
+• This action cannot be undone
+
+Do you want to continue?`;
+    
+    const confirmed = confirm(confirmMessage);
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    try {
+      const requestBody: any = {};
+      
+      // Use TRF ID if available, otherwise use staff ID
+      if (hasTrfId) {
+        requestBody.trfId = String(selectedBookingDetails.trfId);
+      } else if (hasStaffId) {
+        requestBody.staffId = String(selectedBookingDetails.staffId);
+      } else {
+        throw new Error('No staff ID or TRF ID available for batch cancellation');
+      }
+
+      const response = await fetch('/api/accommodation/admin/bookings/cancel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to cancel all bookings');
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "All Bookings Cancelled",
+        description: `Successfully cancelled ${result.cancelledCount} booking(s) for ${guestName}. ${
+          result.revertedTrfIds && result.revertedTrfIds.length > 0 
+            ? 'Accommodation request has been reverted to pending status.' 
+            : ''
+        }`,
+      });
+
+      setBookingDetailsDialog(false);
+      await fetchAccommodationData();
+      await fetchTrfsAwaitingAccommodation(); // Refresh pending TRFs list
+    } catch (error: any) {
+      console.error('Error cancelling all bookings:', error);
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to cancel all bookings',
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handler for unblocking a room from the booking details modal
   const handleUnblockFromModal = async () => {
     if (!selectedBookingDetails) return;
@@ -1769,29 +1841,48 @@ export default function AccommodationAdminPage() {
                 </div>
               )}
 
-              <div className="flex gap-2 pt-4 border-t">
-                {selectedBookingDetails.status === 'Confirmed' && (
-                  <>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={handleCheckIn} disabled={isLoading}>
-                      <UserCheck className="h-4 w-4 mr-1" />
-                      Check In
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={handleCancelBooking} disabled={isLoading}>
+              <div className="flex flex-col gap-2 pt-4 border-t">
+                <div className="flex gap-2">
+                  {selectedBookingDetails.status === 'Confirmed' && (
+                    <>
+                      <Button variant="outline" size="sm" className="flex-1" onClick={handleCheckIn} disabled={isLoading}>
+                        <UserCheck className="h-4 w-4 mr-1" />
+                        Check In
+                      </Button>
+                      <Button variant="outline" size="sm" className="flex-1" onClick={handleCancelBooking} disabled={isLoading}>
+                        <UserX className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                    </>
+                  )}
+                  {selectedBookingDetails.status === 'Checked-in' && (
+                    <Button variant="outline" size="sm" className="flex-1" onClick={handleCheckOut} disabled={isLoading}>
                       <UserX className="h-4 w-4 mr-1" />
-                      Cancel
+                      Check Out
                     </Button>
-                  </>
-                )}
-                {selectedBookingDetails.status === 'Checked-in' && (
-                  <Button variant="outline" size="sm" className="flex-1" onClick={handleCheckOut} disabled={isLoading}>
+                  )}
+                  {selectedBookingDetails.status === 'Blocked' && (
+                    <Button variant="outline" size="sm" className="flex-1" onClick={handleUnblockFromModal} disabled={isLoading}>
+                      <AlertTriangle className="h-4 w-4 mr-1" />
+                      Unblock Room
+                    </Button>
+                  )}
+                </div>
+                
+                {/* Show Cancel All Bookings button for confirmed bookings or any booking with TRF/staff ID */}
+                {(selectedBookingDetails.status === 'Confirmed' || 
+                  selectedBookingDetails.status === 'Checked-in' || 
+                  selectedBookingDetails.status === 'Checked-out') && 
+                 (selectedBookingDetails.staffId || selectedBookingDetails.trfId) && (
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    className="w-full" 
+                    onClick={handleCancelAllBookings} 
+                    disabled={isLoading}
+                  >
                     <UserX className="h-4 w-4 mr-1" />
-                    Check Out
-                  </Button>
-                )}
-                {selectedBookingDetails.status === 'Blocked' && (
-                  <Button variant="outline" size="sm" className="flex-1" onClick={handleUnblockFromModal} disabled={isLoading}>
-                    <AlertTriangle className="h-4 w-4 mr-1" />
-                    Unblock Room
+                    Cancel All Bookings for {selectedBookingDetails.guestName || 'This Guest'}
                   </Button>
                 )}
               </div>

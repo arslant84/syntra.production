@@ -106,8 +106,8 @@ export default function EditAccommodationRequestPage({ params }: { params: Promi
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center space-x-2 mb-6">
+      <div className="space-y-8">
+        <div className="flex items-center space-x-2">
           <Button variant="ghost" size="sm" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -119,8 +119,8 @@ export default function EditAccommodationRequestPage({ params }: { params: Promi
 
   if (!accommodationRequest) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center space-x-2 mb-6">
+      <div className="space-y-8">
+        <div className="flex items-center space-x-2">
           <Button variant="ghost" size="sm" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -131,12 +131,17 @@ export default function EditAccommodationRequestPage({ params }: { params: Promi
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex items-center space-x-2 mb-6">
-        <Button variant="ghost" size="sm" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-2xl font-bold">Edit Accommodation Request</h1>
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center space-x-2">
+          <Button variant="ghost" size="sm" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Edit Accommodation Request</h1>
+            <p className="text-muted-foreground">Update accommodation request details.</p>
+          </div>
+        </div>
         <Badge variant="outline">{accommodationRequest.status}</Badge>
       </div>
 

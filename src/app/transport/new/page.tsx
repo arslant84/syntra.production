@@ -177,14 +177,16 @@ export default function NewTransportRequestPage() {
   
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">New Transport Request</h1>
-          <Button variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Button>
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">New Transport Request</h1>
+          <p className="text-muted-foreground">Create a new transport request for your travel needs.</p>
         </div>
+        <Button variant="outline" onClick={() => router.back()}>
+          Cancel
+        </Button>
+      </div>
 
         <form onSubmit={handleSubmit}>
           <div className="grid gap-6">
@@ -444,7 +446,6 @@ export default function NewTransportRequestPage() {
             </div>
           </div>
         </form>
-      </div>
     </div>
   );
 } 

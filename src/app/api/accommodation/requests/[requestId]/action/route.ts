@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { z } from 'zod';
 import { requireAuth, requireRoles, createAuthError } from '@/lib/auth-utils';
+import { NotificationService } from '@/lib/notification-service';
 
 const actionSchema = z.object({
   action: z.enum(['approve', 'reject', 'cancel']),
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Get the accommodation request directly from travel_requests table
     console.log(`API_ACCOM_REQ_ACTION_POST: Querying travel_requests for ID ${requestId}`);
     const accommodationRequests = await sql`
-      SELECT id, status, travel_type, requestor_name 
+      SELECT id, status, travel_type, requestor_name, staff_id
       FROM travel_requests 
       WHERE id = ${requestId}
     `;
@@ -117,6 +118,74 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       console.log(`API_ACCOM_REQ_ACTION_POST: Approval step added successfully`);
     }
     
+    // Send notifications
+    try {
+      // Notify the requestor about status update
+      if (accommodationRequest.staff_id) {
+        // Get the user ID from staff_id
+        const requestorUser = await sql`
+          SELECT id FROM users WHERE staff_id = ${accommodationRequest.staff_id} LIMIT 1
+        `;
+        
+        if (requestorUser.length > 0) {
+          await NotificationService.createStatusUpdate({
+            requestorId: requestorUser[0].id,
+            status: newStatus,
+            entityType: 'accommodation',
+            entityId: requestId,
+            approverName: approverName || 'Unknown',
+            comments: comments || undefined
+          });
+        }
+      }
+
+      // If moving to next approval step, notify the next approver
+      if (action === 'approve' && newStatus !== 'Approved') {
+        // Map next status to specific approval permission
+        const nextApproverPermission = newStatus === 'Pending Line Manager' ? 'approve_accommodation_manager' : 
+                                     newStatus === 'Pending HOD' ? 'approve_accommodation_hod' : null;
+        
+        if (nextApproverPermission) {
+          let approvers;
+          
+          // HODs can approve accommodation from any department, others are department-specific
+          if (nextApproverPermission === 'approve_accommodation_hod') {
+            approvers = await sql`
+              SELECT u.id, u.name 
+              FROM users u
+              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+              INNER JOIN permissions p ON rp.permission_id = p.id
+              WHERE p.name = ${nextApproverPermission}
+                AND u.status = 'Active'
+            `;
+          } else {
+            approvers = await sql`
+              SELECT u.id, u.name 
+              FROM users u
+              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+              INNER JOIN permissions p ON rp.permission_id = p.id
+              WHERE p.name = ${nextApproverPermission}
+                AND u.department = ${accommodationRequest.department || 'Unknown'}
+                AND u.status = 'Active'
+            `;
+          }
+
+          for (const approver of approvers) {
+            await NotificationService.createApprovalRequest({
+              approverId: approver.id,
+              requestorName: accommodationRequest.requestor_name || 'Unknown',
+              entityType: 'accommodation',
+              entityId: requestId,
+              entityTitle: `Accommodation Request ${requestId}`
+            });
+          }
+        }
+      }
+    } catch (notificationError) {
+      console.error('Error sending notifications for accommodation action:', notificationError);
+      // Don't fail the main operation due to notification errors
+    }
+
     console.log(`API_ACCOM_REQ_ACTION_POST (PostgreSQL): Successfully ${action}ed accommodation request ${requestId}.`);
     
     const actionMessage = action === 'approve' 

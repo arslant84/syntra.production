@@ -2,7 +2,8 @@ import { sql } from './db';
 import { TransportRequestForm, TransportRequestSummary, TransportDetails, TransportApprovalStep } from '@/types/transport';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 
-import { emailService } from './email-service';
+import { WorkflowEmailService } from './workflow-email-service';
+import { NotificationService } from './notification-service';
 import { NotificationEventType } from '@/types/notifications';
 
 export class TransportService {
@@ -80,19 +81,26 @@ export class TransportService {
         return request;
       });
 
-      // Send notification
-      const template = await sql`SELECT subject, body FROM notification_templates WHERE name = ${'new_transport_request' as NotificationEventType}`;
-      if (template.length > 0) {
-        const subject = template[0].subject.replace('{requestId}', transportId);
-        const body = template[0].body.replace('{requestorName}', requestData.requestorName || 'User').replace('{requestId}', transportId);
-        
-        // For now, send to a placeholder email. In a real app, determine actual recipient.
-        await emailService.sendEmail({
-          to: 'approver@example.com', // Placeholder
-          cc: 'requestor@example.com', // Placeholder
-          subject,
-          body,
+      // Send notification using enhanced workflow notification system
+      try {
+        // Get requestor information for email
+        const requestorInfo = await sql`SELECT email FROM users WHERE id = ${userId}`;
+        const requestorEmail = requestorInfo.length > 0 ? requestorInfo[0].email : null;
+
+        // Send workflow notification
+        await WorkflowEmailService.sendSubmissionNotification({
+          entityType: 'transport',
+          entityId: transportId,
+          requestorName: requestData.requestorName || 'User',
+          requestorEmail,
+          requestorId: userId,
+          department: requestData.department
         });
+
+        console.log(`Workflow notification sent for transport request: ${transportId}`);
+      } catch (notificationError) {
+        console.error('Failed to send workflow notification:', notificationError);
+        // Don't fail the request creation due to notification errors
       }
 
       return this.getTransportRequestById(transportId);
@@ -230,7 +238,12 @@ export class TransportService {
               tr.tsr_reference
             FROM transport_requests tr
             WHERE tr.status = ANY(${statuses})
-              AND (tr.created_by = ${userId} OR tr.staff_id = ${userId})
+              AND (
+                tr.created_by = ${userId} 
+                OR tr.staff_id = ${userId}
+                OR tr.staff_id IN (SELECT staff_id FROM users WHERE id = ${userId})
+                OR tr.requestor_name IN (SELECT name FROM users WHERE id = ${userId})
+              )
             ORDER BY tr.created_at DESC
             LIMIT ${limit}
           `;
@@ -246,7 +259,12 @@ export class TransportService {
               tr.tsr_reference
             FROM transport_requests tr
             WHERE tr.status = ANY(${statuses})
-              AND (tr.created_by = ${userId} OR tr.staff_id = ${userId})
+              AND (
+                tr.created_by = ${userId} 
+                OR tr.staff_id = ${userId}
+                OR tr.staff_id IN (SELECT staff_id FROM users WHERE id = ${userId})
+                OR tr.requestor_name IN (SELECT name FROM users WHERE id = ${userId})
+              )
             ORDER BY tr.created_at DESC
           `;
         }
@@ -316,7 +334,12 @@ export class TransportService {
             tr.created_at as submitted_at,
             tr.tsr_reference
           FROM transport_requests tr
-          WHERE tr.created_by = ${userId} OR tr.staff_id = ${userId}
+          WHERE (
+            tr.created_by = ${userId} 
+            OR tr.staff_id = ${userId}
+            OR tr.staff_id IN (SELECT staff_id FROM users WHERE id = ${userId})
+            OR tr.requestor_name IN (SELECT name FROM users WHERE id = ${userId})
+          )
           ORDER BY tr.created_at DESC
         `;
       } else {
@@ -367,7 +390,12 @@ export class TransportService {
             tr.tsr_reference
           FROM transport_requests tr
           WHERE tr.created_at >= ${fromDate.toISOString()} AND tr.created_at <= ${toDate.toISOString()}
-            AND (tr.created_by = ${userId} OR tr.staff_id = ${userId})
+            AND (
+              tr.created_by = ${userId} 
+              OR tr.staff_id = ${userId}
+              OR tr.staff_id IN (SELECT staff_id FROM users WHERE id = ${userId})
+              OR tr.requestor_name IN (SELECT name FROM users WHERE id = ${userId})
+            )
           ORDER BY tr.created_at DESC
         `;
       } else {
@@ -546,6 +574,37 @@ export class TransportService {
             ${comments || (action === 'approve' ? 'Approved' : 'Rejected')}
           )
         `;
+
+        // Send notification for status update
+        try {
+          // Get requestor information
+          const requestorInfo = await sql`
+            SELECT tr.requestor_name, tr.created_by, u.email
+            FROM transport_requests tr
+            LEFT JOIN users u ON tr.created_by = u.id
+            WHERE tr.id = ${transportRequestId}
+          `;
+
+          if (requestorInfo.length > 0) {
+            const requestor = requestorInfo[0];
+            
+            await NotificationService.createStatusUpdate({
+              requestorId: requestor.created_by,
+              requestorName: requestor.requestor_name,
+              requestorEmail: requestor.email,
+              status: newStatus,
+              entityType: 'transport',
+              entityId: transportRequestId,
+              approverName,
+              comments
+            });
+
+            console.log(`Status update notification sent for transport request: ${transportRequestId}`);
+          }
+        } catch (notificationError) {
+          console.error('Failed to send status update notification:', notificationError);
+          // Don't fail the approval due to notification errors
+        }
 
         return { success: true };
       });

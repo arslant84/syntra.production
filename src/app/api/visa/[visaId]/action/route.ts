@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db';
 import type { VisaStatus } from '@/types/visa';
 import { hasPermission } from '@/lib/permissions';
+import { NotificationService } from '@/lib/notification-service';
 
 const visaActionSchema = z.object({
   action: z.enum(["approve", "reject", "mark_processing", "upload_visa", "cancel"]),
@@ -176,9 +177,73 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Failed to update visa application' }, { status: 500 });
     }
     
-    const requestorEmailVal = updated.email || `${updated.requestor_name}@example.com`;
-    const finalNotificationLog = `Placeholder: Send Notification - Visa ${visaId} - Action: ${action.toUpperCase()} by ${approverName} (${approverRole}). Old Status: ${currentStatus}. New Status: ${updated.status}. Comments: ${comments || 'N/A'}. Notify ${nextNotificationRecipient}. To Requestor (${requestorEmailVal}): "${notificationMessage}"`;
-    console.log(finalNotificationLog);
+    // Send notifications
+    try {
+      // Notify the requestor about status update
+      if (updated.staff_id) {
+        // Get the user ID from staff_id
+        const requestorUser = await sql`
+          SELECT id FROM users WHERE staff_id = ${updated.staff_id} LIMIT 1
+        `;
+        
+        if (requestorUser.length > 0) {
+          await NotificationService.createStatusUpdate({
+            requestorId: requestorUser[0].id,
+            status: updated.status,
+            entityType: 'visa',
+            entityId: visaId,
+            approverName,
+            comments: comments || undefined
+          });
+        }
+      }
+
+      // If moving to next approval step, notify the next approver
+      if (action === 'approve' && nextStatus !== 'Approved' && nextStatus !== 'Processing with Embassy') {
+        // Map next status to specific approval permission
+        const nextApproverPermission = nextStatus === 'Pending Line Manager/HOD' ? 'approve_trf_manager' : 
+                                     nextStatus === 'Pending Visa Clerk' ? 'process_visa_applications' : null;
+        
+        if (nextApproverPermission) {
+          let approvers;
+          
+          // Visa Clerks can process visas from any department, managers are department-specific
+          if (nextApproverPermission === 'process_visa_applications') {
+            approvers = await sql`
+              SELECT u.id, u.name 
+              FROM users u
+              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+              INNER JOIN permissions p ON rp.permission_id = p.id
+              WHERE p.name = ${nextApproverPermission}
+                AND u.status = 'Active'
+            `;
+          } else {
+            approvers = await sql`
+              SELECT u.id, u.name 
+              FROM users u
+              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+              INNER JOIN permissions p ON rp.permission_id = p.id
+              WHERE p.name = ${nextApproverPermission}
+                AND u.department = ${updated.department || 'Unknown'}
+                AND u.status = 'Active'
+            `;
+          }
+
+          for (const approver of approvers) {
+            await NotificationService.createApprovalRequest({
+              approverId: approver.id,
+              requestorName: updated.requestor_name || 'Unknown',
+              entityType: 'visa',
+              entityId: visaId,
+              entityTitle: `Visa Application ${visaId}`
+            });
+          }
+        }
+      }
+    } catch (notificationError) {
+      console.error('Error sending notifications for visa action:', notificationError);
+      // Don't fail the main operation due to notification errors
+    }
 
     console.log(`API_VISA_ACTION_POST (PostgreSQL): Visa App ${visaId} action '${action}' processed. New status: ${updated.status}`);
     

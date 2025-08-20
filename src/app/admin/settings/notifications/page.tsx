@@ -12,22 +12,27 @@ import NotificationTemplateForm from '@/components/admin/settings/NotificationTe
 interface NotificationTemplate {
   id: string;
   name: string;
+  description?: string;
   subject: string;
   body: string;
+  type?: string;
+  eventType?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export default function NotificationTemplatesPage() {
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
+  const [eventTypes, setEventTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentTemplate, setCurrentTemplate] = useState<NotificationTemplate | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSetupLoading, setIsSetupLoading] = useState(false);
   const { toast } = useToast();
 
   const fetchTemplates = async () => {
-    setLoading(true);
     try {
       const response = await fetch('/api/admin/notification-templates');
       if (!response.ok) {
@@ -41,17 +46,57 @@ export default function NotificationTemplatesPage() {
         description: 'Failed to fetch notification templates.',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const fetchEventTypes = async () => {
+    try {
+      const response = await fetch('/api/admin/notification-events');
+      if (!response.ok) {
+        throw new Error('Failed to fetch event types');
+      }
+      const data = await response.json();
+      setEventTypes(data.eventTypes || []);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch event types.',
+        variant: 'destructive',
+      });
     }
   };
 
   useEffect(() => {
-    fetchTemplates();
+    const fetchData = async () => {
+      setLoading(true);
+      await Promise.all([fetchTemplates(), fetchEventTypes()]);
+      setLoading(false);
+    };
+    fetchData();
   }, []);
 
-  const handleOpenModal = (template: NotificationTemplate | null = null) => {
-    setCurrentTemplate(template);
+  const handleOpenModal = async (template: NotificationTemplate | null = null) => {
+    if (template) {
+      // Fetch the full template data when editing
+      try {
+        const response = await fetch(`/api/admin/notification-templates/${template.id}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch template details');
+        }
+        const fullTemplate = await response.json();
+        console.log('Full template data:', fullTemplate);
+        setCurrentTemplate(fullTemplate);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch template details for editing.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    } else {
+      setCurrentTemplate(null);
+    }
     setIsModalOpen(true);
   };
 
@@ -127,30 +172,80 @@ export default function NotificationTemplatesPage() {
     }
   };
 
+  const handleSetupDefaultTemplates = async () => {
+    setIsSetupLoading(true);
+    try {
+      const response = await fetch('/api/admin/setup-notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || 'Failed to setup default templates');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: 'Success',
+        description: `Successfully setup ${result.templateCount} notification templates!`,
+      });
+      
+      // Refresh templates list
+      await fetchTemplates();
+      
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to setup default templates.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSetupLoading(false);
+    }
+  };
+
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Notification Templates</h1>
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenModal(null)}>
-              <PlusCircle className="mr-2 h-5 w-5" />
-              Create New Template
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>{currentTemplate ? 'Edit Notification Template' : 'Create New Notification Template'}</DialogTitle>
-            </DialogHeader>
-            <NotificationTemplateForm
-              initialData={currentTemplate}
-              onFormSubmit={handleFormSubmit}
-              onCancel={handleCloseModal}
-              isSubmitting={isSubmitting}
-              submitError={submitError}
-            />
-          </DialogContent>
-        </Dialog>
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Notification Templates</h1>
+          <p className="text-muted-foreground">Manage notification templates for system events.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={handleSetupDefaultTemplates}
+            disabled={isSetupLoading}
+          >
+            {isSetupLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Setup Default Templates
+          </Button>
+          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => handleOpenModal(null)}>
+                <PlusCircle className="mr-2 h-5 w-5" />
+                Create New Template
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>{currentTemplate ? 'Edit Notification Template' : 'Create New Notification Template'}</DialogTitle>
+              </DialogHeader>
+              <NotificationTemplateForm
+                initialData={currentTemplate}
+                eventTypes={eventTypes}
+                onFormSubmit={handleFormSubmit}
+                onCancel={handleCloseModal}
+                isSubmitting={isSubmitting}
+                submitError={submitError}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>

@@ -128,7 +128,7 @@ export default function EditVisaApplicationPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto py-8 px-4 text-center">
+      <div className="space-y-8">
         <Card className="max-w-lg mx-auto shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center justify-center gap-2 text-destructive">
@@ -148,7 +148,7 @@ export default function EditVisaApplicationPage() {
 
   if (!initialVisaData) {
     return (
-      <div className="container mx-auto py-8 px-4 text-center">
+      <div className="space-y-8">
         <Card className="max-w-lg mx-auto shadow-lg">
           <CardHeader>
             <CardTitle>Visa Application Not Found</CardTitle>

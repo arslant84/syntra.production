@@ -7,6 +7,7 @@ import {
   updateWorkflowTemplate,
   deleteWorkflowTemplate
 } from '@/lib/workflow-service';
+import { WorkflowValidator, WorkflowTemplate as ValidatedWorkflowTemplate } from '@/lib/workflow-validation';
 
 // Validation schema for workflow template
 const workflowTemplateSchema = z.object({
@@ -85,31 +86,74 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('Creating workflow with data:', body);
     
-    // Validate input
-    const validationResult = workflowTemplateSchema.safeParse(body);
-    if (!validationResult.success) {
-      console.error('Validation error:', validationResult.error.flatten());
+    // Convert to our enhanced validation format
+    const workflowTemplate: ValidatedWorkflowTemplate = {
+      name: body.name,
+      description: body.description,
+      module: body.module,
+      isActive: body.is_active ?? true,
+      steps: body.steps?.map((step: any) => ({
+        stepNumber: step.step_number,
+        stepName: step.step_name,
+        requiredRole: step.required_role,
+        description: step.description,
+        isMandatory: step.is_mandatory ?? true,
+        canDelegate: step.can_delegate ?? false,
+        timeoutDays: step.timeout_days,
+        escalationRole: step.escalation_role,
+        conditions: step.conditions
+      })) || []
+    };
+    
+    // Enhanced validation using our foolproof system
+    const validation = await WorkflowValidator.validateWorkflow(workflowTemplate);
+    if (!validation.isValid) {
+      console.error('Enhanced validation failed:', validation.errors);
       return NextResponse.json(
         {
           success: false,
-          error: 'Validation failed',
-          details: validationResult.error.flatten()
+          error: 'Workflow validation failed - cannot save invalid workflow',
+          validationErrors: validation.errors,
+          validationWarnings: validation.warnings,
+          details: 'All validation errors must be fixed before saving'
         },
         { status: 400 }
       );
     }
     
-    const { steps, ...templateData } = validationResult.data;
+    // Convert back to legacy format for existing service
+    const legacySteps = workflowTemplate.steps.map(step => ({
+      step_number: step.stepNumber,
+      step_name: step.stepName,
+      required_role: step.requiredRole || '',
+      description: step.description,
+      is_mandatory: step.isMandatory,
+      can_delegate: step.canDelegate,
+      timeout_days: step.timeoutDays,
+      escalation_role: step.escalationRole,
+      conditions: step.conditions
+    }));
     
-    // Create workflow template
-    const newWorkflow = await createWorkflowTemplate(templateData, steps);
+    const legacyTemplate = {
+      name: workflowTemplate.name,
+      description: workflowTemplate.description,
+      module: workflowTemplate.module,
+      is_active: workflowTemplate.isActive
+    };
     
-    console.log('Created workflow:', newWorkflow.id);
+    // Create workflow template using existing service
+    const newWorkflow = await createWorkflowTemplate(legacyTemplate, legacySteps);
+    
+    console.log('Created validated workflow:', newWorkflow.id);
     
     return NextResponse.json({
       success: true,
       data: newWorkflow,
-      message: 'Workflow template created successfully'
+      message: 'Workflow template created successfully with full validation',
+      validation: {
+        isValid: true,
+        warnings: validation.warnings
+      }
     }, { status: 201 });
     
   } catch (error: any) {

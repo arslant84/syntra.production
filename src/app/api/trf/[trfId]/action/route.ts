@@ -164,15 +164,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                                      nextStatus === 'Pending HOD' ? 'approve_trf_hod' : null;
         
         if (nextApproverPermission) {
-          const nextApprovers = await sql`
-            SELECT u.id, u.name 
-            FROM users u
-            INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-            INNER JOIN permissions p ON rp.permission_id = p.id
-            WHERE p.name = ${nextApproverPermission}
-              AND u.department = ${currentTrf.department}
-              AND u.status = 'Active'
-          `;
+          let nextApprovers;
+          
+          // HODs can approve TRFs from any department, others are department-specific
+          if (nextApproverPermission === 'approve_trf_hod') {
+            nextApprovers = await sql`
+              SELECT u.id, u.name 
+              FROM users u
+              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+              INNER JOIN permissions p ON rp.permission_id = p.id
+              WHERE p.name = ${nextApproverPermission}
+                AND u.status = 'Active'
+            `;
+          } else {
+            nextApprovers = await sql`
+              SELECT u.id, u.name 
+              FROM users u
+              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+              INNER JOIN permissions p ON rp.permission_id = p.id
+              WHERE p.name = ${nextApproverPermission}
+                AND u.department = ${currentTrf.department}
+                AND u.status = 'Active'
+            `;
+          }
 
           for (const nextApprover of nextApprovers) {
             await NotificationService.createApprovalRequest({
@@ -183,6 +197,45 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               entityTitle: `${currentTrf.purpose || 'Travel Request'}`
             });
           }
+        }
+      }
+
+      // If TRF is fully approved, notify relevant processing teams
+      if (action === 'approve' && updated.status === 'Approved') {
+        // Check if TRF includes flights
+        if (currentTrf.include_flights) {
+          await NotificationService.createProcessingNotification({
+            processorPermission: 'process_flights',
+            requestorName: currentTrf.requestor_name,
+            entityType: 'trf',
+            entityId: trfId,
+            processingType: 'Flight Booking',
+            department: currentTrf.department
+          });
+        }
+
+        // Check if TRF includes accommodation
+        if (currentTrf.include_accommodation) {
+          await NotificationService.createProcessingNotification({
+            processorPermission: 'manage_accommodation_bookings',
+            requestorName: currentTrf.requestor_name,
+            entityType: 'trf',
+            entityId: trfId,
+            processingType: 'Accommodation Booking',
+            department: currentTrf.department
+          });
+        }
+
+        // Check if TRF includes transport
+        if (currentTrf.include_transport) {
+          await NotificationService.createProcessingNotification({
+            processorPermission: 'manage_transport_bookings',
+            requestorName: currentTrf.requestor_name,
+            entityType: 'trf',
+            entityId: trfId,
+            processingType: 'Transport Booking',
+            department: currentTrf.department
+          });
         }
       }
 

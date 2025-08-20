@@ -114,8 +114,19 @@ SET
     event_type_id = (SELECT id FROM notification_event_types WHERE name = 'accommodation_cancelled' LIMIT 1)
 WHERE name = 'accommodation_cancelled' AND event_type_id IS NULL;
 
+-- Update some templates to use different notification types for testing
+UPDATE notification_templates 
+SET notification_type = 'system' 
+WHERE name IN ('transport_submitted', 'trf_submitted', 'claim_submitted_requestor')
+  AND notification_type = 'email';
+
+UPDATE notification_templates 
+SET notification_type = 'both' 
+WHERE name IN ('transport_approved', 'trf_approved_focal', 'claim_submitted_approver')
+  AND notification_type = 'email';
+
 -- Display results
-SELECT name, description, event_type_id, 
+SELECT name, description, notification_type, event_type_id, 
        (SELECT name FROM notification_event_types WHERE id = notification_templates.event_type_id) as event_name
 FROM notification_templates 
 WHERE description IS NOT NULL

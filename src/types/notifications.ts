@@ -66,7 +66,7 @@ export interface NotificationTemplate {
   description?: string;
   subject: string;
   body: string;
-  type: 'email' | 'sms' | 'in_app';
+  type: 'email' | 'system' | 'both';
   eventType: string;
   created_at: Date;
   updated_at: Date;
@@ -85,6 +85,6 @@ export interface NotificationTemplateFormValues {
   description?: string;
   subject: string;
   body: string;
-  type: 'email' | 'sms' | 'in_app';
+  type: 'email' | 'system' | 'both';
   eventType: string;
 }

@@ -54,6 +54,7 @@ export interface NotificationTemplate {
   name: string;
   subject: string;
   body: string;
+  notificationType: 'email' | 'system' | 'both';
   recipientType: 'approver' | 'requestor' | 'both';
   variablesAvailable?: string[];
 }
@@ -143,31 +144,35 @@ export class UnifiedNotificationService {
       const subject = this.processTemplate(template.subject, variables);
       const body = this.processTemplate(template.body, variables);
 
-      console.log(`📨 Sending to ${recipient.name} (${recipient.email}): ${subject}`);
+      console.log(`📨 Sending to ${recipient.name} (${recipient.email}): ${subject} (type: ${template.notificationType})`);
 
-      // Send email notification
-      if (recipient.email) {
+      // Send email notification if template includes email
+      if ((template.notificationType === 'email' || template.notificationType === 'both') && recipient.email) {
         await emailService.sendEmail({
           to: recipient.email,
           subject,
           html: body,
           from: process.env.DEFAULT_FROM_EMAIL || 'VMS System <noreplyvmspctsb@gmail.com>'
         });
+        console.log(`📧 Email sent to ${recipient.email}`);
       }
 
-      // Create in-app notification
-      await NotificationService.createNotification({
-        userId: recipient.userId,
-        title: subject,
-        message: this.stripHtml(body).substring(0, 500) + '...',
-        type: this.getNotificationType(params.eventType),
-        category: 'workflow_approval',
-        priority: this.getNotificationPriority(params.eventType),
-        relatedEntityType: params.entityType,
-        relatedEntityId: params.entityId,
-        actionRequired: template.recipientType === 'approver',
-        actionUrl: variables.approvalUrl || variables.viewUrl
-      });
+      // Create in-app notification if template includes system notifications
+      if (template.notificationType === 'system' || template.notificationType === 'both') {
+        await NotificationService.createNotification({
+          userId: recipient.userId,
+          title: subject,
+          message: this.stripHtml(body).substring(0, 500) + '...',
+          type: this.getNotificationType(params.eventType),
+          category: 'workflow_approval',
+          priority: this.getNotificationPriority(params.eventType),
+          relatedEntityType: params.entityType,
+          relatedEntityId: params.entityId,
+          actionRequired: template.recipientType === 'approver',
+          actionUrl: variables.approvalUrl || variables.viewUrl
+        });
+        console.log(`🔔 In-app notification created for ${recipient.name}`);
+      }
 
       console.log(`✅ Successfully sent notification to ${recipient.name}`);
 
@@ -184,6 +189,7 @@ export class UnifiedNotificationService {
       const result = await sql`
         SELECT 
           id, name, subject, body,
+          notification_type as "notificationType",
           recipient_type as "recipientType",
           variables_available as "variablesAvailable"
         FROM notification_templates 

@@ -23,7 +23,7 @@ export interface NotificationUserSubscription {
   roleRequired?: string;
   departmentFilter?: string;
   isEnabled: boolean;
-  notificationMethod: 'email' | 'in_app' | 'both';
+  notificationMethod: 'email' | 'system' | 'both';
 }
 
 export interface EnhancedNotificationTemplate {
@@ -33,7 +33,7 @@ export interface EnhancedNotificationTemplate {
   subject: string;
   body: string;
   eventTypeId?: string;
-  notificationType: 'email' | 'in_app' | 'sms';
+  notificationType: 'email' | 'system' | 'both';
   isActive: boolean;
   variablesAvailable?: string[];
 }

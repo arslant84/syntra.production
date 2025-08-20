@@ -14,6 +14,7 @@ const userUpdateSchema = z.object({
   role_id: z.string().uuid("Invalid Role ID format").nullable().optional(),
   department: z.string().nullable().optional(),
   staff_id: z.string().nullable().optional(),
+  gender: z.enum(["Male", "Female"]).nullable().optional(),
   status: z.enum(["Active", "Inactive"]).optional(),
   password: z.string().min(15, "Password must be at least 15 characters.").optional(),
 });
@@ -129,6 +130,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (updateData.staff_id !== undefined) {
       updateFields.push('staff_id');
       updateValues.push(updateData.staff_id);
+    }
+    if (updateData.hasOwnProperty('gender')) {
+      updateFields.push('gender');
+      updateValues.push(updateData.gender);
     }
     if (updateData.status !== undefined) {
       updateFields.push('status');

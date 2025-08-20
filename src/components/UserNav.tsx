@@ -16,10 +16,11 @@ import { User as UserIcon, Settings, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { signOut } from "next-auth/react";
 import { NotificationBell } from '@/components/notifications/NotificationDropdown';
-import { useUserProfile } from '@/hooks/use-user-profile';
+import { useOptionalUserProfile } from '@/contexts/UserProfileContext';
 
 export function UserNav() {
-  const { user } = useUserProfile();
+  const userProfileContext = useOptionalUserProfile();
+  const user = userProfileContext?.user;
 
   const getInitials = (name?: string | null) => {
     if (!name) return 'U';

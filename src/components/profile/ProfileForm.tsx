@@ -10,6 +10,7 @@ import { Camera, Loader2, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import { UserProfile } from '@/hooks/use-user-profile';
+import { useOptionalUserProfile } from '@/contexts/UserProfileContext';
 
 interface ProfileFormProps {
   user: UserProfile;
@@ -19,6 +20,7 @@ interface ProfileFormProps {
 export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const userProfileContext = useOptionalUserProfile();
   const [formData, setFormData] = useState({
     name: user.name,
     gender: user.gender || '',
@@ -80,26 +82,37 @@ export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
     setIsSaving(true);
     
     try {
-      const response = await fetch('/api/user-profile', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Use context's updateProfile method if available, otherwise fall back to direct API call
+      if (userProfileContext?.updateProfile) {
+        await userProfileContext.updateProfile({
           name: formData.name,
           gender: formData.gender || null,
           phone: formData.phone || null,
           profile_photo: formData.profile_photo,
-        }),
-      });
+        });
+      } else {
+        // Fallback to direct API call
+        const response = await fetch('/api/user-profile', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            gender: formData.gender || null,
+            phone: formData.phone || null,
+            profile_photo: formData.profile_photo,
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update profile');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update profile');
+        }
+        
+        onUserUpdate(); // Trigger refetch only for fallback
       }
-
-      await response.json();
-      onUserUpdate(); // Trigger refetch
+      
       setIsEditing(false);
       
       toast({

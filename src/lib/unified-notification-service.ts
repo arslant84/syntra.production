@@ -433,9 +433,9 @@ export class UnifiedNotificationService {
         'Pending Finance Approval': 'approve_claims_finance'
       },
       'transport': {
-        'Pending Department Focal': 'approve_transport_focal',
-        'Pending Line Manager': 'approve_transport_manager',
-        'Pending HOD': 'approve_transport_hod'
+        'Pending Department Focal': 'approve_transport_requests',
+        'Pending Line Manager': 'approve_transport_requests',
+        'Pending HOD': 'approve_transport_requests'
       },
       'accommodation': {
         'Pending Department Focal': 'approve_accommodation_focal',

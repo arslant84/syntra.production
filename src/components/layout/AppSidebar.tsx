@@ -23,6 +23,7 @@ import { Home, Plane, ReceiptText, CheckSquare, Users, Settings, StickyNote, Bed
 import { cn } from '@/lib/utils';
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from 'react';
+import { useOptionalUserProfile } from '@/contexts/UserProfileContext';
 
 // Mock user data for sidebar footer - similar to UserNav
 const mockUser: User = {
@@ -84,7 +85,8 @@ export default function AppSidebar() {
   const sidebarContext = useSidebar();
   const toggleSidebar = sidebarContext?.toggleSidebar;
   const { data: session } = useSession();
-  const user = session?.user;
+  const userProfileContext = useOptionalUserProfile();
+  const userProfile = userProfileContext?.user;
   const [navItems, setNavItems] = useState<NavItem[]>([]);
 
   // Load role-based navigation items
@@ -238,18 +240,28 @@ export default function AppSidebar() {
         <div className="mt-2">
             <Link href="/profile">
                 <SidebarMenuButton
-                    tooltip={user?.name || "User"}
+                    tooltip={userProfile?.name || session?.user?.name || "User"}
                     className={cn(
                         "h-auto p-2 group-data-[state=collapsed]:w-auto group-data-[state=collapsed]:justify-center"
                     )}
                 >
                     <Avatar className="h-8 w-8">
-                        <AvatarImage src="https://placehold.co/100x100.png" alt={user?.name || "User"} data-ai-hint="profile avatar"/>
-                        <AvatarFallback>{user?.name ? getInitials(user.name) : "U"}</AvatarFallback>
+                        <AvatarImage 
+                            src={userProfile?.profile_photo || undefined} 
+                            alt={userProfile?.name || session?.user?.name || "User"} 
+                        />
+                        <AvatarFallback>
+                            {userProfile?.name ? getInitials(userProfile.name) : 
+                             session?.user?.name ? getInitials(session.user.name) : "U"}
+                        </AvatarFallback>
                     </Avatar>
                     <div className="group-data-[state=collapsed]:hidden ml-2 flex-grow min-w-0">
-                        <p className="text-sm font-medium truncate">{user?.name || "User"}</p>
-                        <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
+                        <p className="text-sm font-medium truncate">
+                            {userProfile?.name || session?.user?.name || "User"}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                            {userProfile?.email || session?.user?.email || ""}
+                        </p>
                     </div>
                 </SidebarMenuButton>
             </Link>

@@ -16,6 +16,7 @@ const userCreateSchema = z.object({
   role_id: z.string().uuid().nullable().optional(),
   department: z.string().nullable().optional(),
   staff_id: z.string().nullable().optional(),
+  gender: z.enum(['Male', 'Female']).nullable().optional(),
   status: z.enum(['Active', 'Inactive']).default('Active'),
 });
 
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
     console.log("API_USERS_GET (PostgreSQL): Attempting to query users.");
     const usersQuery = sql`
       SELECT 
-        users.id, users.name, users.email, users.department, users.staff_id, users.status, 
+        users.id, users.name, users.email, users.department, users.staff_id, users.gender, users.status, 
         users.last_login_at AS "lastLogin", users.created_at, users.updated_at,
         users.role_id, roles.name AS "roleName"
       FROM users
@@ -115,6 +116,7 @@ export async function GET(request: NextRequest) {
         roleName: user.roleName,
         department: user.department,
         staff_id: user.staff_id,
+        gender: user.gender,
         status: user.status,
         lastLogin: user.lastLogin ? formatISO(new Date(user.lastLogin)) : null,
         created_at: user.created_at ? formatISO(new Date(user.created_at)) : null,
@@ -164,7 +166,7 @@ export async function POST(request: NextRequest) {
       console.error("API_USERS_POST_VALIDATION_ERROR (PostgreSQL):", validationResult.error.flatten());
       return NextResponse.json({ error: "Validation failed", details: validationResult.error.flatten() }, { status: 400 });
     }
-    const { name, email, password, role_id, department, staff_id, status } = validationResult.data;
+    const { name, email, password, role_id, department, staff_id, gender, status } = validationResult.data;
 
     if (password.length < 15) {
       return NextResponse.json({ error: "Password must be at least 15 characters." }, { status: 400 });
@@ -197,9 +199,9 @@ export async function POST(request: NextRequest) {
     }
     
     const newUserArray = await sql`
-      INSERT INTO users (name, email, password, role_id, role, department, staff_id, status, created_at, updated_at)
-      VALUES (${name}, ${email}, ${hashedPassword}, ${role_id || null}, ${roleName || null}, ${department || null}, ${staff_id || null}, ${status}, NOW(), NOW())
-      RETURNING id, name, email, role_id, role AS "roleName", department, staff_id, status, last_login_at AS "lastLogin", created_at, updated_at
+      INSERT INTO users (name, email, password, role_id, role, department, staff_id, gender, status, created_at, updated_at)
+      VALUES (${name}, ${email}, ${hashedPassword}, ${role_id || null}, ${roleName || null}, ${department || null}, ${staff_id || null}, ${gender || null}, ${status}, NOW(), NOW())
+      RETURNING id, name, email, role_id, role AS "roleName", department, staff_id, gender, status, last_login_at AS "lastLogin", created_at, updated_at
     `;
     const newUser = newUserArray[0];
     
@@ -211,6 +213,7 @@ export async function POST(request: NextRequest) {
       roleName: newUser.roleName,
       department: newUser.department,
       staff_id: newUser.staff_id,
+      gender: newUser.gender,
       status: newUser.status,
       lastLogin: newUser.lastLogin ? formatISO(new Date(newUser.lastLogin)) : null,
       created_at: newUser.created_at ? formatISO(new Date(newUser.created_at)) : null,

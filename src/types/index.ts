@@ -8,6 +8,7 @@ export type User = {
   roleName?: string | null; // Alias for role name from joined query
   department?: string | null;
   staff_id?: string | null;
+  gender?: 'Male' | 'Female' | null;
   status?: string; // 'Active' | 'Inactive'
   lastLogin?: string | Date | null;
   created_at?: string | Date;

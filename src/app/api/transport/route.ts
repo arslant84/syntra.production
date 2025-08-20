@@ -128,34 +128,11 @@ export const POST = withAuth(async function(request: NextRequest) {
     const userId = session.id || session.email;
     const requestData = { ...body, userId };
     
+    console.log('🚗 TRANSPORT_API: Creating transport request via TransportService...');
     const transportRequest = await TransportService.createTransportRequest(requestData);
+    console.log(`✅ TRANSPORT_API: Transport request created with ID: ${transportRequest.id}`);
     
-    // Create notification for transport admin/approvers
-    try {
-      // Find transport admins and managers who need to approve
-      const transportApprovers = await sql`
-        SELECT u.id, u.name 
-        FROM users u
-        INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-        INNER JOIN permissions p ON rp.permission_id = p.id
-        WHERE p.name IN ('manage_transport_requests', 'approve_transport_requests')
-          AND u.status = 'Active'
-      `;
-
-      for (const approver of transportApprovers) {
-        await NotificationService.createApprovalRequest({
-          approverId: approver.id,
-          requestorName: session.name || 'User',
-          entityType: 'transport',
-          entityId: transportRequest.id,
-          entityTitle: `Transport Request`
-        });
-      }
-      
-      console.log(`Created approval notifications for transport request ${transportRequest.id}`);
-    } catch (notificationError) {
-      console.error(`Failed to create approval notifications for transport request:`, notificationError);
-    }
+    // Note: Notifications are handled within TransportService.createTransportRequest
     
     return NextResponse.json(transportRequest, { status: 201 });
   } catch (error) {

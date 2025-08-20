@@ -65,6 +65,7 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
   React.useEffect(() => {
     if (editingUser && availableRoles.length > 0) {
       console.log("Editing user in form:", editingUser);
+      console.log("User gender:", editingUser.gender);
       console.log("Available roles in form:", availableRoles);
       console.log("User role_id:", editingUser.role_id);
       console.log("Available role IDs:", availableRoles.map(r => r.id));
@@ -87,7 +88,7 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
         staff_id: editingUser.staff_id || null,
         role_id: validRoleId,
         department: editingUser.department || null,
-        gender: (editingUser as any).gender || null,
+        gender: editingUser.gender || null,
         status: (editingUser.status === 'Active' || editingUser.status === 'Inactive') ? editingUser.status : 'Active',
         password: '',
       };
@@ -124,7 +125,7 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
         delete submitValues.password;
       }
       await onFormSubmit(submitValues);
-      toast({ title: editingUser ? "User Updated!" : "User Created!", description: `User "${values.name}" ${editingUser ? "updated" : "created"}.`, variant: "success" });
+      // Toast notification is handled by the parent component
     } catch (error: any) {
       let errorMessage = "An unknown error occurred.";
       let fieldErrors = null;

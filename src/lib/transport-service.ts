@@ -83,9 +83,13 @@ export class TransportService {
 
       // Send notification using enhanced workflow notification system
       try {
+        console.log(`🔔 TRANSPORT_SERVICE: Starting notification process for transport request: ${transportId}`);
+        
         // Get requestor information for email
         const requestorInfo = await sql`SELECT email FROM users WHERE id = ${userId}`;
         const requestorEmail = requestorInfo.length > 0 ? requestorInfo[0].email : null;
+        
+        console.log(`🔔 TRANSPORT_SERVICE: Requestor email: ${requestorEmail}, Department: ${requestData.department}`);
 
         // Send workflow notification
         await WorkflowEmailService.sendSubmissionNotification({
@@ -97,9 +101,10 @@ export class TransportService {
           department: requestData.department
         });
 
-        console.log(`Workflow notification sent for transport request: ${transportId}`);
+        console.log(`✅ TRANSPORT_SERVICE: Workflow notification sent successfully for transport request: ${transportId}`);
       } catch (notificationError) {
-        console.error('Failed to send workflow notification:', notificationError);
+        console.error('❌ TRANSPORT_SERVICE: Failed to send workflow notification:', notificationError);
+        console.error('❌ TRANSPORT_SERVICE: Error details:', notificationError.stack);
         // Don't fail the request creation due to notification errors
       }
 

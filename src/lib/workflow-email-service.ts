@@ -34,21 +34,24 @@ export class WorkflowEmailService {
    */
   static async sendWorkflowNotification(params: WorkflowEmailParams): Promise<void> {
     try {
-      console.log(`Sending workflow notification for ${params.eventType}: ${params.entityType} ${params.entityId}`);
+      console.log(`📧 WORKFLOW_EMAIL: Sending workflow notification for ${params.eventType}: ${params.entityType} ${params.entityId}`);
+      console.log(`📧 WORKFLOW_EMAIL: Current status: ${params.currentStatus}, Department: ${params.department}`);
 
       // Get email template for this event type
       const template = await this.getEmailTemplate(params.eventType);
       if (!template) {
-        console.warn(`No email template found for event type: ${params.eventType}`);
+        console.warn(`❌ WORKFLOW_EMAIL: No email template found for event type: ${params.eventType}`);
         return;
       }
+      console.log(`✅ WORKFLOW_EMAIL: Found template for ${params.eventType}`);
 
       // Get recipients based on event type and current status
       const recipients = await this.getRecipientsForEvent(params);
       if (recipients.length === 0) {
-        console.warn(`No recipients found for event: ${params.eventType}`);
+        console.warn(`❌ WORKFLOW_EMAIL: No recipients found for event: ${params.eventType}`);
         return;
       }
+      console.log(`✅ WORKFLOW_EMAIL: Found ${recipients.length} recipients:`, recipients.map(r => `${r.name} (${r.email})`));
 
       // Prepare template variables
       const variables = this.prepareTemplateVariables(params);
@@ -57,11 +60,15 @@ export class WorkflowEmailService {
       const subject = this.replaceTemplateVariables(template.subject, variables);
       const body = this.replaceTemplateVariables(template.body, variables);
 
+      console.log(`📧 WORKFLOW_EMAIL: Processed template - Subject: ${subject}`);
+
       // Send emails
       await this.sendToRecipients(recipients, subject, body, params);
+      console.log(`✅ WORKFLOW_EMAIL: Email sent successfully for ${params.eventType}`);
 
     } catch (error) {
-      console.error(`Error sending workflow notification for ${params.eventType}:`, error);
+      console.error(`❌ WORKFLOW_EMAIL: Error sending workflow notification for ${params.eventType}:`, error);
+      console.error(`❌ WORKFLOW_EMAIL: Error stack:`, error.stack);
       throw error;
     }
   }
@@ -75,7 +82,7 @@ export class WorkflowEmailService {
       let templates = await sql`
         SELECT nt.subject, nt.body
         FROM notification_templates nt
-        INNER JOIN notification_event_types net ON nt.event_type = net.name
+        INNER JOIN notification_event_types net ON nt.event_type_id = net.id
         WHERE net.name = ${eventType}
         LIMIT 1
       `;
@@ -87,6 +94,17 @@ export class WorkflowEmailService {
           SELECT subject, body
           FROM notification_templates
           WHERE name = ${eventType}
+          LIMIT 1
+        `;
+      }
+
+      // If still no template found, try pattern matching for approver templates
+      if (templates.length === 0) {
+        console.log(`No direct template found for ${eventType}, trying pattern matching`);
+        templates = await sql`
+          SELECT subject, body
+          FROM notification_templates
+          WHERE name LIKE ${eventType + '_approver%'} OR name LIKE ${eventType + '%'}
           LIMIT 1
         `;
       }
@@ -177,13 +195,40 @@ export class WorkflowEmailService {
       // Map status to required permission
       switch (params.currentStatus) {
         case 'Pending Department Focal':
-          permissionName = `approve_${params.entityType}_focal`;
+          // Use the actual permission names from the database
+          if (params.entityType === 'transport') {
+            permissionName = 'approve_transport_requests';
+          } else if (params.entityType === 'accommodation') {
+            permissionName = 'approve_accommodation_requests';
+          } else if (params.entityType === 'visa') {
+            permissionName = 'process_visa_applications';
+          } else if (params.entityType === 'trf') {
+            permissionName = 'approve_trf_focal';
+          } else if (params.entityType === 'claim') {
+            permissionName = 'approve_claims_focal';
+          } else {
+            permissionName = `approve_${params.entityType}_focal`;
+          }
           break;
         case 'Pending Line Manager':
-          permissionName = `approve_${params.entityType}_manager`;
+          // For Line Manager, use similar mapping
+          if (params.entityType === 'transport') {
+            permissionName = 'approve_transport_requests';
+          } else if (params.entityType === 'trf') {
+            permissionName = 'approve_trf_manager';
+          } else {
+            permissionName = `approve_${params.entityType}_manager`;
+          }
           break;
         case 'Pending HOD':
-          permissionName = `approve_${params.entityType}_hod`;
+          // For HOD, use similar mapping
+          if (params.entityType === 'transport') {
+            permissionName = 'approve_transport_requests';
+          } else if (params.entityType === 'trf') {
+            permissionName = 'approve_trf_hod';
+          } else {
+            permissionName = `approve_${params.entityType}_hod`;
+          }
           break;
         default:
           console.warn(`No permission mapping for status: ${params.currentStatus}`);
@@ -210,7 +255,12 @@ export class WorkflowEmailService {
         queryParams.push(params.department);
       }
 
+      console.log(`🔍 WORKFLOW_EMAIL: Executing permission query for: ${permissionName}`);
+      console.log(`🔍 WORKFLOW_EMAIL: Query: ${query}`);
+      console.log(`🔍 WORKFLOW_EMAIL: Params:`, queryParams);
+      
       const users = await sql.unsafe(query, queryParams);
+      console.log(`🔍 WORKFLOW_EMAIL: Query returned ${users.length} users`);
 
       for (const user of users) {
         approvers.push({
@@ -219,9 +269,10 @@ export class WorkflowEmailService {
           role: user.role_name,
           userId: user.id
         });
+        console.log(`✅ WORKFLOW_EMAIL: Added approver: ${user.name} (${user.email}) - Role: ${user.role_name}`);
       }
 
-      console.log(`Found ${approvers.length} approvers for ${params.currentStatus}`);
+      console.log(`✅ WORKFLOW_EMAIL: Found ${approvers.length} approvers for ${params.currentStatus}`);
       return approvers;
 
     } catch (error) {

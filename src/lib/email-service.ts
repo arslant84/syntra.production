@@ -23,15 +23,14 @@ class EmailService {
   }
 
   async sendEmail(options: EmailOptions): Promise<void> {
-    console.log('---- Sending Email ----');
-    console.log(`To: ${options.to}`);
+    console.log('📧 EMAIL_SERVICE: ---- Sending Email ----');
+    console.log(`📧 EMAIL_SERVICE: To: ${options.to}`);
     if (options.cc) {
-      console.log(`CC: ${options.cc}`);
+      console.log(`📧 EMAIL_SERVICE: CC: ${options.cc}`);
     }
-    console.log(`Subject: ${options.subject}`);
-    console.log('Body:');
-    console.log(options.body);
-    console.log('-----------------------');
+    console.log(`📧 EMAIL_SERVICE: Subject: ${options.subject}`);
+    console.log(`📧 EMAIL_SERVICE: Body length: ${options.body?.length || 0} characters`);
+    console.log('📧 EMAIL_SERVICE: -----------------------');
 
     try {
       const mailOptions = {
@@ -42,10 +41,12 @@ class EmailService {
         html: options.body,
       };
 
+      console.log('📧 EMAIL_SERVICE: Attempting to send email via SMTP...');
       const result = await this.transporter.sendMail(mailOptions);
-      console.log('Email sent successfully:', result.messageId);
+      console.log('✅ EMAIL_SERVICE: Email sent successfully:', result.messageId);
     } catch (error) {
-      console.error('Failed to send email:', error);
+      console.error('❌ EMAIL_SERVICE: Failed to send email:', error);
+      console.error('❌ EMAIL_SERVICE: Error details:', error.stack);
       throw error;
     }
   }

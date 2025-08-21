@@ -25,7 +25,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import type { TravelRequestForm, TrfStatus } from '@/types/trf';
 import { getApprovalQueueFilters } from '@/lib/client-rbac-utils';
-import { useSessionPermissions } from '@/hooks/use-session-permissions'; 
+import { useSessionPermissions } from '@/hooks/use-session-permissions';
+import { StatusBadge } from '@/lib/status-utils'; 
 
 // Define a common interface for all approvable items
 interface ApprovableItem {
@@ -355,13 +356,7 @@ export default function AdminApprovalsPage() {
     });
   };
 
-  const getStatusBadgeVariant = (status: string) => {
-    if (status?.toLowerCase().includes('approved')) return 'default';
-    if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
-    if (status?.toLowerCase().includes('pending')) return 'outline';
-    if (["Processing Flights", "Processing Accommodation", "Awaiting Visa", "TRF Processed"].includes(status)) return 'default';
-    return 'secondary';
-  };
+  // Using unified status badge system
 
   // Filter items based on the active tab
   const filteredItems = pendingItems.filter(item => {
@@ -524,7 +519,7 @@ export default function AdminApprovalsPage() {
                       )}
                     </TableCell>
                     <TableCell className="max-w-xs truncate">{item.purpose}</TableCell>
-                    <TableCell><Badge variant={getStatusBadgeVariant(item.status as TrfStatus)} className={item.status === "Approved" ? "bg-green-600 text-white" : ""}>{item.status}</Badge></TableCell>
+                    <TableCell><StatusBadge status={item.status} showIcon={true} /></TableCell>
                     <TableCell>{format(parseISO(item.submittedAt), 'PPP p')}</TableCell>
                     <TableCell className="space-x-1 text-center">
                       {/* View button with appropriate link based on item type */}

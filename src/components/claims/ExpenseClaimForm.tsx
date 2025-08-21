@@ -495,7 +495,7 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
         {/* Expense Items Table */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Briefcase className="w-5 h-5 text-primary" /> Expense Details (Original Currency)</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Briefcase className="w-5 h-5 text-primary" /> Expense Details (Convert to USD)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -667,14 +667,14 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
                                         </Popover>
                                     )} />
                                 </TableCell>
-                                <TableCell><FormField control={form.control} name={`informationOnForeignExchangeRate.${index}.typeOfCurrency`} render={({ field: itemField }) => <Input {...itemField} placeholder="e.g. USD" />} /></TableCell>
+                                <TableCell><FormField control={form.control} name={`informationOnForeignExchangeRate.${index}.typeOfCurrency`} render={({ field: itemField }) => <Input {...itemField} placeholder="USD" />} /></TableCell>
                                 <TableCell><FormField control={form.control} name={`informationOnForeignExchangeRate.${index}.sellingRateTTOD`} render={({ field: itemField }) => <SafeInput type="number" {...itemField} placeholder="0.0000" className="text-right" />} /></TableCell>
                                 <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => removeFx(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button></TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
                 </Table>
-                <Button type="button" variant="outline" size="sm" onClick={() => appendFx({date: new Date(), typeOfCurrency: "", sellingRateTTOD: null})} className="mt-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => appendFx({date: new Date(), typeOfCurrency: "USD", sellingRateTTOD: null})} className="mt-2">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add FX Rate
                 </Button>
             </CardContent>
@@ -684,10 +684,10 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
         <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><Banknote className="w-5 h-5 text-primary" /> Financial Summary</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-                <FormField control={form.control} name="financialSummary.totalAdvanceClaimAmount" render={({ field }) => (<FormItem><FormLabel>Total Advance/Claim Amount</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right font-semibold" readOnly /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="financialSummary.lessAdvanceTaken" render={({ field }) => (<FormItem><FormLabel>Less: Advance Taken</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right" /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="financialSummary.lessCorporateCreditCardPayment" render={({ field }) => (<FormItem><FormLabel>Less: Corporate Credit Card Payment</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right" /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="financialSummary.balanceClaimRepayment" render={({ field }) => (<FormItem><FormLabel>Balance of Claim/Repayment</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right font-semibold" readOnly /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="financialSummary.totalAdvanceClaimAmount" render={({ field }) => (<FormItem><FormLabel>Total Advance/Claim Amount (USD)</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right font-semibold" readOnly /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="financialSummary.lessAdvanceTaken" render={({ field }) => (<FormItem><FormLabel>Less: Advance Taken (USD)</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right" /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="financialSummary.lessCorporateCreditCardPayment" render={({ field }) => (<FormItem><FormLabel>Less: Corporate Credit Card Payment (USD)</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right" /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="financialSummary.balanceClaimRepayment" render={({ field }) => (<FormItem><FormLabel>Balance of Claim/Repayment (USD)</FormLabel><FormControl><SafeInput type="number" {...field} placeholder="0.00" className="text-right font-semibold" readOnly /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="financialSummary.chequeReceiptNo" render={({ field }) => (<FormItem><FormLabel>Cheque / Receipt No.</FormLabel><FormControl><SafeInput {...field} /></FormControl><FormMessage /></FormItem>)} />
             </CardContent>
         </Card>

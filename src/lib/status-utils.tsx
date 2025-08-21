@@ -49,6 +49,9 @@ export const StatusBadge: React.FC<{
   } else if (statusLower.includes('verified') || statusLower.includes('processed')) {
     customClasses = "!bg-blue-600 !text-white hover:!bg-blue-700";
     IconComponent = showIcon ? CheckCircle : null;
+  } else if (statusLower.includes('verification')) {
+    customClasses = "!border-blue-500 !text-blue-600 hover:!bg-blue-50";
+    IconComponent = showIcon ? Clock : null;
   } else if (status === "Processed") {
     customClasses = "!bg-blue-600 !text-white hover:!bg-blue-700";
     IconComponent = showIcon ? CheckCircle : null;

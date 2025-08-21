@@ -19,6 +19,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { useSessionPermissions } from '@/hooks/use-session-permissions';
 import { shouldShowRequest } from '@/lib/client-rbac-utils';
+import { LoadingPage, LoadingSpinner } from '@/components/ui/loading';
 
 interface AdminTrfListItemForFlights {
   id: string;
@@ -297,7 +298,7 @@ export default function FlightsAdminPage() {
           <CardHeader><CardTitle>TRFs Awaiting Flight Booking</CardTitle><CardDescription>List of travel requests needing flight arrangements.</CardDescription></CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="flex items-center justify-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading TRFs...</p></div>
+              <LoadingPage message="Loading TRFs..." />
             ) : error ? (
               <div className="text-center py-8"><AlertTriangleIcon className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-2 text-lg font-medium text-destructive">Error Loading TRFs</h3><p className="mt-1 text-sm text-muted-foreground">{error}</p><Button onClick={fetchTrfsAwaitingFlights} className="mt-4">Try Again</Button></div>
             ) : trfsForFlights.length > 0 ? (
@@ -378,7 +379,7 @@ export default function FlightsAdminPage() {
                 )}
 
                 <div className="space-y-2 pt-2">
-                    <Button className="w-full" onClick={() => handleProcessFlightBooking(selectedTrf.id)} disabled={isProcessingAction || selectedTrf.status !== 'Approved'}>{isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserCheck className="mr-2 h-4 w-4" />}Confirm Flight Booking</Button>
+                    <Button className="w-full" onClick={() => handleProcessFlightBooking(selectedTrf.id)} disabled={isProcessingAction || selectedTrf.status !== 'Approved'}>{isProcessingAction ? <LoadingSpinner size="sm" className="mr-2" /> : <UserCheck className="mr-2 h-4 w-4" />}Confirm Flight Booking</Button>
                     <Button variant="outline" className="w-full" disabled={isProcessingAction}><AlertCircle className="mr-2 h-4 w-4" /> No Flights Available</Button>
                 </div>
               </>

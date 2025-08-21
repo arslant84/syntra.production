@@ -2,8 +2,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { z } from 'zod';
-import { requireAuth, requireRoles, createAuthError } from '@/lib/auth-utils';
+import { hasPermission } from '@/lib/permissions';
 import { NotificationService } from '@/lib/notification-service';
+import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
 
 const actionSchema = z.object({
   action: z.enum(['approve', 'reject', 'cancel']),
@@ -20,9 +21,10 @@ interface RouteParams {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    // SECURITY: Require authentication and authorization
-    const user = await requireRoles(['Department Focal', 'Line Manager', 'HOD', 'admin']);
-    console.log(`API_ACCOM_REQ_ACTION_POST_START: User ${user.email} (${user.role}) processing action`);
+    // Check if user has permission to approve accommodation requests
+    if (!await hasPermission('approve_accommodation_requests')) {
+      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+    }
 
     const { requestId } = await params;
     console.log(`API_ACCOM_REQ_ACTION_POST_START (PostgreSQL): Processing action for accommodation request ${requestId}.`);
@@ -118,72 +120,38 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       console.log(`API_ACCOM_REQ_ACTION_POST: Approval step added successfully`);
     }
     
-    // Send notifications
+    // Send enhanced workflow notifications
     try {
-      // Notify the requestor about status update
-      if (accommodationRequest.staff_id) {
-        // Get the user ID from staff_id
-        const requestorUser = await sql`
-          SELECT id FROM users WHERE staff_id = ${accommodationRequest.staff_id} LIMIT 1
-        `;
-        
-        if (requestorUser.length > 0) {
-          await NotificationService.createStatusUpdate({
-            requestorId: requestorUser[0].id,
-            status: newStatus,
-            entityType: 'accommodation',
-            entityId: requestId,
-            approverName: approverName || 'Unknown',
-            comments: comments || undefined
-          });
-        }
-      }
+      // Get accommodation request details including requestor information
+      const accommodationDetails = await sql`
+        SELECT tr.staff_id, tr.requestor_name, u.email, u.id as user_id, u.department
+        FROM travel_requests tr
+        LEFT JOIN users u ON (tr.staff_id = u.staff_id OR tr.staff_id = u.id OR tr.staff_id = u.email)
+        WHERE tr.id = ${requestId}
+      `;
 
-      // If moving to next approval step, notify the next approver
-      if (action === 'approve' && newStatus !== 'Approved') {
-        // Map next status to specific approval permission
-        const nextApproverPermission = newStatus === 'Pending Line Manager' ? 'approve_accommodation_manager' : 
-                                     newStatus === 'Pending HOD' ? 'approve_accommodation_hod' : null;
+      if (accommodationDetails.length > 0) {
+        const accommodationInfo = accommodationDetails[0];
         
-        if (nextApproverPermission) {
-          let approvers;
-          
-          // HODs can approve accommodation from any department, others are department-specific
-          if (nextApproverPermission === 'approve_accommodation_hod') {
-            approvers = await sql`
-              SELECT u.id, u.name 
-              FROM users u
-              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-              INNER JOIN permissions p ON rp.permission_id = p.id
-              WHERE p.name = ${nextApproverPermission}
-                AND u.status = 'Active'
-            `;
-          } else {
-            approvers = await sql`
-              SELECT u.id, u.name 
-              FROM users u
-              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-              INNER JOIN permissions p ON rp.permission_id = p.id
-              WHERE p.name = ${nextApproverPermission}
-                AND u.department = ${accommodationRequest.department || 'Unknown'}
-                AND u.status = 'Active'
-            `;
-          }
+        // Send enhanced workflow notification for status change
+        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
+          entityType: 'accommodation',
+          entityId: requestId,
+          requestorName: accommodationInfo.requestor_name || 'User',
+          requestorEmail: accommodationInfo.email,
+          requestorId: accommodationInfo.user_id,
+          department: accommodationInfo.department,
+          purpose: 'Accommodation request',
+          newStatus: newStatus,
+          approverName: approverName || 'Administrator',
+          comments: comments
+        });
 
-          for (const approver of approvers) {
-            await NotificationService.createApprovalRequest({
-              approverId: approver.id,
-              requestorName: accommodationRequest.requestor_name || 'Unknown',
-              entityType: 'accommodation',
-              entityId: requestId,
-              entityTitle: `Accommodation Request ${requestId}`
-            });
-          }
-        }
+        console.log(`✅ Created enhanced workflow notifications for accommodation ${requestId} ${action} by ${approverName || 'Administrator'}`);
       }
     } catch (notificationError) {
-      console.error('Error sending notifications for accommodation action:', notificationError);
-      // Don't fail the main operation due to notification errors
+      console.error(`❌ Failed to create enhanced workflow notifications for accommodation ${requestId}:`, notificationError);
+      // Don't fail the accommodation action due to notification errors
     }
 
     console.log(`API_ACCOM_REQ_ACTION_POST (PostgreSQL): Successfully ${action}ed accommodation request ${requestId}.`);
@@ -200,17 +168,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
   } catch (error: any) {
-    // Handle authentication/authorization errors
-    if (error.message === 'UNAUTHORIZED') {
-      const authError = createAuthError('UNAUTHORIZED');
-      return NextResponse.json({ error: authError.message }, { status: authError.status });
-    }
-    
-    if (error.message === 'FORBIDDEN') {
-      const authError = createAuthError('FORBIDDEN');
-      return NextResponse.json({ error: authError.message }, { status: authError.status });
-    }
-
     console.error(`API_ACCOM_REQ_ACTION_POST_ERROR (PostgreSQL):`, error.message, error.stack);
     return NextResponse.json({ 
       error: 'Failed to process accommodation request.' 

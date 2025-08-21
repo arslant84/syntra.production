@@ -5,6 +5,7 @@ import { TransportService } from '@/lib/transport-service';
 import { hasPermission } from '@/lib/permissions';
 import { sql } from '@/lib/db';
 import { NotificationService } from '@/lib/notification-service';
+import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
 
 interface RouteParams {
   params: Promise<{
@@ -54,40 +55,37 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       comments
     );
     
-    // Create notifications for transport action
+    // Create notifications using enhanced workflow notification system
     try {
-      // Get the transport request details
+      // Get the transport request details including requestor information
       const transportDetails = await sql`
-        SELECT user_id, pickup_location, destination 
-        FROM transport_requests 
-        WHERE id = ${transportId}
+        SELECT tr.created_by, tr.requestor_name, tr.department, tr.purpose, u.email
+        FROM transport_requests tr
+        LEFT JOIN users u ON tr.created_by = u.id
+        WHERE tr.id = ${transportId}
       `;
 
       if (transportDetails.length > 0) {
         const transportInfo = transportDetails[0];
         
-        // Notify the requestor about status update
-        const requestorUser = await sql`
-          SELECT id, name FROM users 
-          WHERE id = ${transportInfo.user_id}
-          LIMIT 1
-        `;
-        
-        if (requestorUser.length > 0) {
-          await NotificationService.createStatusUpdate({
-            requestorId: requestorUser[0].id,
-            status: updatedTransportRequest.status,
-            entityType: 'transport',
-            entityId: transportId,
-            approverName: approverName || 'System',
-            comments: comments || undefined
-          });
-        }
+        // Send enhanced workflow notification for status change
+        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
+          entityType: 'transport',
+          entityId: transportId,
+          requestorName: transportInfo.requestor_name || 'User',
+          requestorEmail: transportInfo.email,
+          requestorId: transportInfo.created_by,
+          department: transportInfo.department,
+          purpose: transportInfo.purpose,
+          newStatus: updatedTransportRequest.status,
+          approverName: approverName,
+          comments: comments
+        });
 
-        console.log(`Created notifications for transport ${transportId} ${action} action`);
+        console.log(`✅ Created enhanced workflow notifications for transport ${transportId} ${action} action`);
       }
     } catch (notificationError) {
-      console.error(`Failed to create notifications for transport ${transportId}:`, notificationError);
+      console.error(`❌ Failed to create enhanced workflow notifications for transport ${transportId}:`, notificationError);
       // Don't fail the transport action due to notification errors
     }
     

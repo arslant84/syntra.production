@@ -1118,8 +1118,8 @@ export default function AccommodationAdminPage() {
     if (!selectedBookingDetails) return;
 
     const guestName = selectedBookingDetails.guestName || 'this guest';
-    const hasStaffId = selectedBookingDetails.staffId;
-    const hasTrfId = selectedBookingDetails.trfId;
+    const hasStaffId = selectedBookingDetails.staffId && String(selectedBookingDetails.staffId).trim();
+    const hasTrfId = selectedBookingDetails.trfId && String(selectedBookingDetails.trfId).trim();
     
     let confirmMessage = `Are you sure you want to cancel ALL bookings for ${guestName}? This will:
 
@@ -1235,6 +1235,7 @@ Do you want to continue?`;
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="assigned">Assigned Accommodations</TabsTrigger>
           <TabsTrigger value="locations">Locations</TabsTrigger>
           <TabsTrigger value="rooms">Rooms</TabsTrigger>
         </TabsList>
@@ -1773,6 +1774,243 @@ Do you want to continue?`;
           </Card>
       </div>
 
+        </TabsContent>
+
+        <TabsContent value="assigned" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BedDouble className="h-5 w-5 text-primary" />
+                Assigned Accommodations
+              </CardTitle>
+              <CardDescription>
+                View and manage all assigned accommodation bookings. You can cancel entire bookings or individual dates.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {!bookings || bookings.filter(booking => booking.status === 'Confirmed' || booking.status === 'Checked-in').length === 0 ? (
+                  <div className="text-center py-12">
+                    <BedDouble className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+                    <p className="text-gray-500 mb-2">No assigned accommodations found.</p>
+                    <p className="text-sm text-gray-400">Use the Overview tab to assign accommodations to pending requests.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {Object.entries(
+                      (bookings || [])
+                        .filter(booking => booking.status === 'Confirmed' || booking.status === 'Checked-in')
+                        .reduce((acc, booking) => {
+                          const key = booking.staffId || booking.trfId || 'unknown';
+                          if (!acc[key]) {
+                            acc[key] = [];
+                          }
+                          acc[key].push(booking);
+                          return acc;
+                        }, {} as Record<string, any[]>)
+                    ).map(([guestKey, bookings]) => {
+                      const firstBooking = bookings[0];
+                      const sortedBookings = bookings.sort((a, b) => {
+                        // Handle both bookingDate and date properties, and both string/Date types
+                        const getDateValue = (booking: any) => {
+                          const dateValue = booking.bookingDate || booking.date;
+                          if (!dateValue) return new Date(0); // fallback to epoch
+                          
+                          if (typeof dateValue === 'string') {
+                            // Handle different string formats
+                            if (dateValue.includes('T')) {
+                              return new Date(dateValue.split('T')[0]);
+                            }
+                            return new Date(dateValue);
+                          }
+                          return new Date(dateValue);
+                        };
+                        
+                        const dateA = getDateValue(a);
+                        const dateB = getDateValue(b);
+                        return dateA.getTime() - dateB.getTime();
+                      });
+                      
+                      const getBookingDate = (booking: any) => {
+                        const dateValue = booking.bookingDate || booking.date;
+                        if (!dateValue) return null;
+                        
+                        if (typeof dateValue === 'string') {
+                          if (dateValue.includes('T')) {
+                            return dateValue.split('T')[0];
+                          }
+                          return dateValue;
+                        }
+                        return dateValue;
+                      };
+                      
+                      const startDateRaw = getBookingDate(sortedBookings[0]);
+                      const endDateRaw = getBookingDate(sortedBookings[sortedBookings.length - 1]);
+                      const roomInfo = `${firstBooking.staffHouseName} - ${firstBooking.roomName}`;
+                      
+                      return (
+                        <div key={guestKey} className="border rounded-lg p-4 hover:bg-gray-50">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2">
+                              <div className="font-semibold text-lg">{firstBooking.guestName || 'Unknown Guest'}</div>
+                              <div className="text-sm text-gray-600">
+                                <strong>Room:</strong> {roomInfo}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                <strong>Dates:</strong> {
+                                  (() => {
+                                    try {
+                                      if (!startDateRaw || !endDateRaw) {
+                                        return 'Date not available';
+                                      }
+                                      
+                                      const startDate = new Date(startDateRaw);
+                                      const endDate = new Date(endDateRaw);
+                                      
+                                      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                                        return 'Invalid date range';
+                                      }
+                                      
+                                      if (startDate.getTime() === endDate.getTime()) {
+                                        return format(startDate, 'MMM dd, yyyy');
+                                      }
+                                      
+                                      return `${format(startDate, 'MMM dd, yyyy')} - ${format(endDate, 'MMM dd, yyyy')}`;
+                                    } catch (error) {
+                                      console.error('Date formatting error:', error, { startDateRaw, endDateRaw });
+                                      return 'Date formatting error';
+                                    }
+                                  })()
+                                }
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                <strong>Duration:</strong> {bookings.length} night{bookings.length > 1 ? 's' : ''}
+                              </div>
+                              {firstBooking.trfId && (
+                                <div className="text-sm text-gray-600">
+                                  <strong>TRF ID:</strong> {firstBooking.trfId}
+                                </div>
+                              )}
+                              <div className="flex gap-2">
+                                <Badge variant={firstBooking.status === 'Confirmed' ? 'default' : 'outline'}>
+                                  {firstBooking.status}
+                                </Badge>
+                                {firstBooking.staffId && (
+                                  <Badge variant="outline">
+                                    Staff ID: {firstBooking.staffId}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedBookingDetails(firstBooking);
+                                  setBookingDetailsDialog(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                View Details
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="sm"
+                                  >
+                                    <UserX className="h-4 w-4 mr-1" />
+                                    Cancel Booking
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Cancel Accommodation Booking</AlertDialogTitle>
+                                    <AlertDialogDescription asChild>
+                                      <div>
+                                        <p>
+                                          Are you sure you want to cancel the entire accommodation booking for <strong>{firstBooking.guestName || 'this guest'}</strong>?
+                                        </p>
+                                        <p className="mt-4">This will:</p>
+                                        <ul className="list-disc list-inside mt-2 space-y-1">
+                                          <li>Cancel all {bookings.length} night{bookings.length > 1 ? 's' : ''} of accommodation</li>
+                                          <li>Free up the room for other bookings</li>
+                                          {firstBooking.trfId && <li>Revert the accommodation request status to pending</li>}
+                                          <li>Send a notification to the requestor</li>
+                                        </ul>
+                                        <p className="mt-4">
+                                          <strong>This action cannot be undone.</strong>
+                                        </p>
+                                      </div>
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={async () => {
+                                        setIsLoading(true);
+                                        try {
+                                          const response = await fetch('/api/accommodation/admin/bookings/cancel', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify((() => {
+                                              const payload: any = {};
+                                              
+                                              // Try to use TRF ID first, then staff ID, then booking IDs as fallback
+                                              if (firstBooking.trfId && String(firstBooking.trfId).trim()) {
+                                                payload.trfId = String(firstBooking.trfId).trim();
+                                              } else if (firstBooking.staffId && String(firstBooking.staffId).trim()) {
+                                                payload.staffId = String(firstBooking.staffId).trim();
+                                              } else {
+                                                // If no TRF ID or staff ID, use booking IDs as fallback
+                                                payload.bookingIds = bookings.map(b => String(b.id));
+                                              }
+                                              
+                                              return payload;
+                                            })()),
+                                          });
+
+                                          if (!response.ok) {
+                                            const errorData = await response.json();
+                                            throw new Error(errorData.error || 'Failed to cancel booking');
+                                          }
+
+                                          const result = await response.json();
+                                          toast({
+                                            title: "Booking Cancelled Successfully",
+                                            description: `Cancelled ${result.cancelledCount} booking(s) for ${firstBooking.guestName}. Notification sent to requestor.`,
+                                          });
+
+                                          // Refresh data
+                                          fetchAccommodationData();
+                                        } catch (error: any) {
+                                          toast({
+                                            title: "Error",
+                                            description: error.message || 'Failed to cancel booking',
+                                            variant: "destructive",
+                                          });
+                                        } finally {
+                                          setIsLoading(false);
+                                        }
+                                      }}
+                                      className="bg-destructive hover:bg-destructive/90"
+                                    >
+                                      Yes, Cancel Booking
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="locations" className="space-y-4">

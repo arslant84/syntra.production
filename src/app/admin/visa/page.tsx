@@ -7,12 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { StickyNote, Search, Filter, Upload, CheckCircle, XCircle, Clock, Eye, BarChart2, Loader2 } from 'lucide-react';
 import type { VisaApplication, VisaStatus } from '@/types/visa';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { useSessionPermissions } from '@/hooks/use-session-permissions';
 import { shouldShowRequest } from '@/lib/client-rbac-utils';
+import { useToast } from '@/hooks/use-toast';
+import { LoadingPage, LoadingSpinner } from '@/components/ui/loading';
+import { StatusBadge } from '@/lib/status-utils';
 
 type VisaReportData = {
   summary: {
@@ -37,7 +43,18 @@ export default function VisaAdminPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Processing dialog state
+  const [processingDialogOpen, setProcessingDialogOpen] = useState(false);
+  const [selectedApplication, setSelectedApplication] = useState<VisaApplication | null>(null);
+  const [processingAction, setProcessingAction] = useState<'approve' | 'reject' | 'complete'>('approve');
+  const [processingComments, setProcessingComments] = useState('');
+  const [processingLoading, setProcessingLoading] = useState(false);
+  const [visaOutcome, setVisaOutcome] = useState<'approved' | 'rejected'>('approved');
+  const [visaNumber, setVisaNumber] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  
   const { role, userId, isLoading: sessionLoading } = useSessionPermissions();
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchVisaReports = async () => {
@@ -105,26 +122,127 @@ export default function VisaAdminPage() {
     setSearchTerm(e.target.value);
   };
 
-  const getStatusBadgeVariant = (status: VisaStatus) => {
-    switch (status) {
-      case 'Approved': return 'default';
-      case 'Rejected': return 'destructive';
-      case 'Pending Department Focal':
-      case 'Pending Line Manager/HOD':
-      case 'Pending Visa Clerk':
-      case 'Processing with Embassy':
-        return 'outline';
-      default: return 'secondary';
+  // Using unified status badge system
+
+  const openProcessingDialog = (application: VisaApplication) => {
+    setSelectedApplication(application);
+    setProcessingAction(application.status === 'Processing with Embassy' ? 'complete' : 'approve');
+    setProcessingComments('');
+    setVisaOutcome('approved');
+    setVisaNumber('');
+    setRejectionReason('');
+    setProcessingDialogOpen(true);
+  };
+
+  const handleVisaAction = async (visaId: string, action: string, newStatus?: string) => {
+    setProcessingLoading(true);
+    try {
+      const response = await fetch(`/api/visa/${visaId}/action`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          approverRole: 'Visa Clerk',
+          approverName: 'Visa Administrator',
+          comments: `Marked as ${newStatus || action} by Visa Administrator`
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: `Visa application ${action}ed successfully`,
+        });
+        // Refresh the data
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error",
+          description: error.error || `Failed to ${action} visa application`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process visa action",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingLoading(false);
+    }
+  };
+
+  const handleProcessingSubmit = async () => {
+    if (!selectedApplication) return;
+
+    setProcessingLoading(true);
+    try {
+      let requestBody: any = {
+        approverRole: 'Visa Clerk',
+        approverName: 'Visa Administrator',
+      };
+
+      if (processingAction === 'complete') {
+        // Processing completion - either approved with visa or rejected
+        if (visaOutcome === 'approved') {
+          requestBody.action = 'upload_visa';
+          requestBody.visaCopyFilename = `visa_${selectedApplication.id}_${visaNumber}.pdf`;
+          requestBody.comments = `Visa processing completed successfully. Visa Number: ${visaNumber}. ${processingComments}`;
+        } else {
+          requestBody.action = 'reject';
+          requestBody.comments = `Visa application rejected by embassy. Reason: ${rejectionReason}. ${processingComments}`;
+        }
+      } else if (processingAction === 'approve') {
+        // Direct approval (skip embassy processing)
+        requestBody.action = 'approve';
+        requestBody.comments = `Visa approved directly by Visa Clerk. ${processingComments}`;
+      } else {
+        // Reject
+        requestBody.action = 'reject';
+        requestBody.comments = `Visa rejected by Visa Clerk. Reason: ${processingComments}`;
+      }
+
+      const response = await fetch(`/api/visa/${selectedApplication.id}/action`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Visa processing completed successfully",
+        });
+        setProcessingDialogOpen(false);
+        // Refresh the data
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error",
+          description: error.error || "Failed to process visa application",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process visa application",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingLoading(false);
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="ml-2">Loading visa reports...</span>
-      </div>
-    );
+    return <LoadingPage message="Loading visa reports..." />;
   }
 
   if (error) {
@@ -277,12 +395,7 @@ export default function VisaAdminPage() {
                         ) : 'N/A'}
                       </TableCell>
                       <TableCell>
-                        <Badge 
-                          variant={getStatusBadgeVariant(app.status)} 
-                          className={app.status === "Approved" ? "bg-green-600 text-white" : ""}
-                        >
-                          {app.status || "Unknown"}
-                        </Badge>
+                        <StatusBadge status={app.status || "Unknown"} showIcon={true} />
                       </TableCell>
                       <TableCell>{app.submittedDate ? format(new Date(app.submittedDate), 'PPP') : 'N/A'}</TableCell>
                       <TableCell className="space-x-1 text-center">
@@ -293,21 +406,35 @@ export default function VisaAdminPage() {
                         </Button>
                         {app.status === 'Pending Visa Clerk' && (
                           <>
-                            <Button variant="outline" size="sm" title="Mark as Processing">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              title="Mark as Processing with Embassy"
+                              onClick={() => handleVisaAction(app.id, 'mark_processing', 'Processing with Embassy')}
+                            >
                               <Clock className="h-4 w-4" />
                             </Button>
-                            <Button variant="outline" size="sm" title="Mark Approved">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              title="Process Visa Request"
+                              onClick={() => openProcessingDialog(app)}
+                            >
                               <CheckCircle className="h-4 w-4 text-green-600" />
-                            </Button>
-                            <Button variant="outline" size="sm" title="Mark Rejected">
-                              <XCircle className="h-4 w-4 text-red-600" />
                             </Button>
                           </>
                         )}
                         {app.status === 'Processing with Embassy' && (
-                          <Button variant="outline" size="sm" title="Upload Visa Copy/Denial">
-                            <Upload className="h-4 w-4" />
-                          </Button>
+                          <>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              title="Complete Processing - Upload Result"
+                              onClick={() => openProcessingDialog(app)}
+                            >
+                              <Upload className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
                       </TableCell>
                     </TableRow>
@@ -374,6 +501,138 @@ export default function VisaAdminPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Visa Processing Dialog */}
+      <Dialog open={processingDialogOpen} onOpenChange={setProcessingDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {processingAction === 'complete' ? 'Complete Visa Processing' : 
+               processingAction === 'approve' ? 'Process Visa Application' : 'Reject Visa Application'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedApplication && (
+                <>
+                  Processing visa application {selectedApplication.id} for {selectedApplication.applicantName}
+                  {processingAction === 'complete' && 
+                    ' - Enter the final outcome from embassy processing'}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {processingAction === 'complete' && (
+              <>
+                <div>
+                  <Label htmlFor="visa-outcome">Visa Outcome</Label>
+                  <Select value={visaOutcome} onValueChange={(value: 'approved' | 'rejected') => setVisaOutcome(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="approved">Visa Approved</SelectItem>
+                      <SelectItem value="rejected">Visa Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {visaOutcome === 'approved' && (
+                  <div>
+                    <Label htmlFor="visa-number">Visa Number</Label>
+                    <Input
+                      id="visa-number"
+                      placeholder="Enter visa number"
+                      value={visaNumber}
+                      onChange={(e) => setVisaNumber(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {visaOutcome === 'rejected' && (
+                  <div>
+                    <Label htmlFor="rejection-reason">Rejection Reason</Label>
+                    <Textarea
+                      id="rejection-reason"
+                      placeholder="Enter rejection reason from embassy"
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            {processingAction === 'reject' && (
+              <div>
+                <Label htmlFor="processing-comments">Rejection Reason</Label>
+                <Textarea
+                  id="processing-comments"
+                  placeholder="Enter reason for rejection"
+                  value={processingComments}
+                  onChange={(e) => setProcessingComments(e.target.value)}
+                />
+              </div>
+            )}
+
+            {processingAction === 'approve' && (
+              <>
+                <div className="space-y-2">
+                  <Label>Processing Options</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={processingAction === 'approve' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setProcessingAction('approve')}
+                    >
+                      Direct Approval
+                    </Button>
+                    <Button
+                      variant={processingAction === 'reject' ? 'destructive' : 'outline'}
+                      size="sm"
+                      onClick={() => setProcessingAction('reject')}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div>
+              <Label htmlFor="additional-comments">Additional Comments</Label>
+              <Textarea
+                id="additional-comments"
+                placeholder="Enter any additional comments or notes"
+                value={processingComments}
+                onChange={(e) => setProcessingComments(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setProcessingDialogOpen(false)}
+              disabled={processingLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleProcessingSubmit}
+              disabled={processingLoading || 
+                (processingAction === 'complete' && visaOutcome === 'approved' && !visaNumber) ||
+                (processingAction === 'complete' && visaOutcome === 'rejected' && !rejectionReason) ||
+                (processingAction === 'reject' && !processingComments)
+              }
+            >
+              {processingLoading && <LoadingSpinner size="sm" className="mr-2" />}
+              {processingAction === 'complete' ? 'Complete Processing' : 
+               processingAction === 'approve' ? 'Approve' : 'Reject'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

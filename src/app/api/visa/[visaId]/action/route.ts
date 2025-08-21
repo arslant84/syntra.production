@@ -5,6 +5,7 @@ import { sql } from '@/lib/db';
 import type { VisaStatus } from '@/types/visa';
 import { hasPermission } from '@/lib/permissions';
 import { NotificationService } from '@/lib/notification-service';
+import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
 
 const visaActionSchema = z.object({
   action: z.enum(["approve", "reject", "mark_processing", "upload_visa", "cancel"]),
@@ -177,72 +178,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Failed to update visa application' }, { status: 500 });
     }
     
-    // Send notifications
+    // Send enhanced workflow notifications
     try {
-      // Notify the requestor about status update
-      if (updated.staff_id) {
-        // Get the user ID from staff_id
-        const requestorUser = await sql`
-          SELECT id FROM users WHERE staff_id = ${updated.staff_id} LIMIT 1
-        `;
-        
-        if (requestorUser.length > 0) {
-          await NotificationService.createStatusUpdate({
-            requestorId: requestorUser[0].id,
-            status: updated.status,
-            entityType: 'visa',
-            entityId: visaId,
-            approverName,
-            comments: comments || undefined
-          });
-        }
-      }
+      // Get visa application details including requestor information
+      const visaDetails = await sql`
+        SELECT va.staff_id, va.applicant_name, va.destination, u.email, u.id as user_id, u.department
+        FROM visa_applications va
+        LEFT JOIN users u ON (va.staff_id = u.staff_id OR va.staff_id = u.id OR va.staff_id = u.email)
+        WHERE va.id = ${visaId}
+      `;
 
-      // If moving to next approval step, notify the next approver
-      if (action === 'approve' && nextStatus !== 'Approved' && nextStatus !== 'Processing with Embassy') {
-        // Map next status to specific approval permission
-        const nextApproverPermission = nextStatus === 'Pending Line Manager/HOD' ? 'approve_trf_manager' : 
-                                     nextStatus === 'Pending Visa Clerk' ? 'process_visa_applications' : null;
+      if (visaDetails.length > 0) {
+        const visaInfo = visaDetails[0];
         
-        if (nextApproverPermission) {
-          let approvers;
-          
-          // Visa Clerks can process visas from any department, managers are department-specific
-          if (nextApproverPermission === 'process_visa_applications') {
-            approvers = await sql`
-              SELECT u.id, u.name 
-              FROM users u
-              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-              INNER JOIN permissions p ON rp.permission_id = p.id
-              WHERE p.name = ${nextApproverPermission}
-                AND u.status = 'Active'
-            `;
-          } else {
-            approvers = await sql`
-              SELECT u.id, u.name 
-              FROM users u
-              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-              INNER JOIN permissions p ON rp.permission_id = p.id
-              WHERE p.name = ${nextApproverPermission}
-                AND u.department = ${updated.department || 'Unknown'}
-                AND u.status = 'Active'
-            `;
-          }
+        // Send enhanced workflow notification for status change
+        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
+          entityType: 'visa',
+          entityId: visaId,
+          requestorName: visaInfo.applicant_name || 'User',
+          requestorEmail: visaInfo.email,
+          requestorId: visaInfo.user_id,
+          department: visaInfo.department,
+          purpose: `Visa application for ${visaInfo.destination || 'travel'}`,
+          newStatus: updated.status,
+          approverName: approverName,
+          comments: comments
+        });
 
-          for (const approver of approvers) {
-            await NotificationService.createApprovalRequest({
-              approverId: approver.id,
-              requestorName: updated.requestor_name || 'Unknown',
-              entityType: 'visa',
-              entityId: visaId,
-              entityTitle: `Visa Application ${visaId}`
-            });
-          }
-        }
+        console.log(`✅ Created enhanced workflow notifications for visa ${visaId} ${action} by ${approverName}`);
       }
     } catch (notificationError) {
-      console.error('Error sending notifications for visa action:', notificationError);
-      // Don't fail the main operation due to notification errors
+      console.error(`❌ Failed to create enhanced workflow notifications for visa ${visaId}:`, notificationError);
+      // Don't fail the visa action due to notification errors
     }
 
     console.log(`API_VISA_ACTION_POST (PostgreSQL): Visa App ${visaId} action '${action}' processed. New status: ${updated.status}`);

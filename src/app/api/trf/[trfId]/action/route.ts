@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db';
 import type { TravelRequestForm, TrfStatus } from '@/types/trf';
 import { NotificationService } from '@/lib/notification-service';
+import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
 
 const actionSchema = z.object({
   action: z.enum(["approve", "reject", "cancel"]),
@@ -138,110 +139,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Failed to update TRF' }, { status: 500 });
     }
     
-    // Create real notifications instead of placeholder log
+    // Create enhanced workflow notifications
     try {
-      // Notify the original requestor about status update
-      if (currentTrf.staff_id) {
-        const requestorUser = await sql`
-          SELECT id FROM users WHERE staff_id = ${currentTrf.staff_id} OR email = ${currentTrf.staff_id} LIMIT 1
-        `;
+      // Get TRF details including requestor information
+      const trfDetails = await sql`
+        SELECT tr.staff_id, tr.requestor_name, tr.department, tr.purpose, u.email, u.id as user_id
+        FROM travel_requests tr
+        LEFT JOIN users u ON (tr.staff_id = u.staff_id OR tr.staff_id = u.id OR tr.staff_id = u.email)
+        WHERE tr.id = ${trfId}
+      `;
+
+      if (trfDetails.length > 0) {
+        const trfInfo = trfDetails[0];
         
-        if (requestorUser.length > 0) {
-          await NotificationService.createStatusUpdate({
-            requestorId: requestorUser[0].id,
-            status: updated.status,
-            entityType: 'trf',
-            entityId: trfId,
-            approverName,
-            comments: comments || undefined
-          });
-        }
+        // Send enhanced workflow notification for status change
+        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
+          entityType: 'trf',
+          entityId: trfId,
+          requestorName: trfInfo.requestor_name || 'User',
+          requestorEmail: trfInfo.email,
+          requestorId: trfInfo.user_id,
+          department: trfInfo.department,
+          purpose: trfInfo.purpose,
+          newStatus: updated.status,
+          approverName: approverName,
+          comments: comments
+        });
       }
 
-      // If approved and moving to next step, notify next approver
-      if (action === 'approve' && nextStatus !== 'Approved') {
-        const nextApproverPermission = nextStatus === 'Pending Line Manager' ? 'approve_trf_manager' : 
-                                     nextStatus === 'Pending HOD' ? 'approve_trf_hod' : null;
-        
-        if (nextApproverPermission) {
-          let nextApprovers;
-          
-          // HODs can approve TRFs from any department, others are department-specific
-          if (nextApproverPermission === 'approve_trf_hod') {
-            nextApprovers = await sql`
-              SELECT u.id, u.name 
-              FROM users u
-              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-              INNER JOIN permissions p ON rp.permission_id = p.id
-              WHERE p.name = ${nextApproverPermission}
-                AND u.status = 'Active'
-            `;
-          } else {
-            nextApprovers = await sql`
-              SELECT u.id, u.name 
-              FROM users u
-              INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-              INNER JOIN permissions p ON rp.permission_id = p.id
-              WHERE p.name = ${nextApproverPermission}
-                AND u.department = ${currentTrf.department}
-                AND u.status = 'Active'
-            `;
-          }
-
-          for (const nextApprover of nextApprovers) {
-            await NotificationService.createApprovalRequest({
-              approverId: nextApprover.id,
-              requestorName: currentTrf.requestor_name,
-              entityType: 'trf',
-              entityId: trfId,
-              entityTitle: `${currentTrf.purpose || 'Travel Request'}`
-            });
-          }
-        }
-      }
-
-      // If TRF is fully approved, notify relevant processing teams
-      if (action === 'approve' && updated.status === 'Approved') {
-        // Check if TRF includes flights
-        if (currentTrf.include_flights) {
-          await NotificationService.createProcessingNotification({
-            processorPermission: 'process_flights',
-            requestorName: currentTrf.requestor_name,
-            entityType: 'trf',
-            entityId: trfId,
-            processingType: 'Flight Booking',
-            department: currentTrf.department
-          });
-        }
-
-        // Check if TRF includes accommodation
-        if (currentTrf.include_accommodation) {
-          await NotificationService.createProcessingNotification({
-            processorPermission: 'manage_accommodation_bookings',
-            requestorName: currentTrf.requestor_name,
-            entityType: 'trf',
-            entityId: trfId,
-            processingType: 'Accommodation Booking',
-            department: currentTrf.department
-          });
-        }
-
-        // Check if TRF includes transport
-        if (currentTrf.include_transport) {
-          await NotificationService.createProcessingNotification({
-            processorPermission: 'manage_transport_bookings',
-            requestorName: currentTrf.requestor_name,
-            entityType: 'trf',
-            entityId: trfId,
-            processingType: 'Transport Booking',
-            department: currentTrf.department
-          });
-        }
-      }
-
-      console.log(`Created notifications for TRF ${trfId} ${action} by ${approverName}`);
+      console.log(`✅ Created enhanced workflow notifications for TRF ${trfId} ${action} by ${approverName}`);
     } catch (notificationError) {
-      console.error(`Failed to create notifications for TRF ${trfId}:`, notificationError);
+      console.error(`❌ Failed to create enhanced workflow notifications for TRF ${trfId}:`, notificationError);
       // Don't fail the approval due to notification errors
     }
 

@@ -165,7 +165,7 @@ export default function ClaimView({ claimData }: ClaimViewProps) {
 
       {/* Expense Items Table */}
       <Card className="print:shadow-none print:border-none">
-        <CardHeader className="print:pb-2"><CardTitle className="flex items-center gap-2 print:text-base"><Briefcase /> Expense Details (Original Currency)</CardTitle></CardHeader>
+        <CardHeader className="print:pb-2"><CardTitle className="flex items-center gap-2 print:text-base"><Briefcase /> Expense Details (USD)</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto print:p-0">
           <Table className="print:text-xs">
             <TableHeader>
@@ -248,10 +248,10 @@ export default function ClaimView({ claimData }: ClaimViewProps) {
           <Card className="h-full print:shadow-none print:border-none">
             <CardHeader className="print:pb-2"><CardTitle className="flex items-center gap-2 print:text-base"><Banknote /> Financial Summary</CardTitle></CardHeader>
             <CardContent className="space-y-1 print:p-2 print:text-xs">
-              <DetailItem label="Total Advance/Claim Amount" value={formatNumberSafe(financialSummary.totalAdvanceClaimAmount)} valueClassName="text-right font-semibold" />
-              <DetailItem label="Less: Advance Taken" value={formatNumberSafe(financialSummary.lessAdvanceTaken)} valueClassName="text-right" />
-              <DetailItem label="Less: Corporate Credit Card Payment" value={formatNumberSafe(financialSummary.lessCorporateCreditCardPayment)} valueClassName="text-right" />
-              <DetailItem label="Balance of Claim/Repayment (Cheque/Receipt No.)" value={`${formatNumberSafe(financialSummary.balanceClaimRepayment)} (${financialSummary.chequeReceiptNo || "N/A"})`} valueClassName="text-right font-bold" />
+              <DetailItem label="Total Advance/Claim Amount (USD)" value={`$${formatNumberSafe(financialSummary.totalAdvanceClaimAmount)}`} valueClassName="text-right font-semibold" />
+              <DetailItem label="Less: Advance Taken (USD)" value={`$${formatNumberSafe(financialSummary.lessAdvanceTaken)}`} valueClassName="text-right" />
+              <DetailItem label="Less: Corporate Credit Card Payment (USD)" value={`$${formatNumberSafe(financialSummary.lessCorporateCreditCardPayment)}`} valueClassName="text-right" />
+              <DetailItem label="Balance of Claim/Repayment (USD) (Cheque/Receipt No.)" value={`$${formatNumberSafe(financialSummary.balanceClaimRepayment)} (${financialSummary.chequeReceiptNo || "N/A"})`} valueClassName="text-right font-bold" />
             </CardContent>
           </Card>
         </div>

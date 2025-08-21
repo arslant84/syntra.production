@@ -14,6 +14,7 @@ import type { TransportRequestStatus } from '@/types/transport';
 import { useDebounce } from "@/hooks/use-debounce";
 import { useSessionPermissions } from '@/hooks/use-session-permissions';
 import { canViewAllRequests, shouldShowRequest } from '@/lib/client-rbac-utils';
+import { StatusBadge } from '@/lib/status-utils';
 
 interface TransportListItem {
   id: string;
@@ -126,20 +127,8 @@ export default function AdminTransportRequestsPage() {
     else fetchTransportRequests(1); 
   }, [debouncedSearchTerm, statusFilter, sortConfig]);
 
-  const getStatusBadgeVariant = (status: string) => {
-    if (status?.toLowerCase().includes('approved')) return 'default';
-    if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return 'destructive';
-    if (status?.toLowerCase().includes('pending')) return 'outline';
-    if (["Processing", "Completed"].includes(status)) return 'default';
-    return 'secondary';
-  };
+  // Using unified status badge system
 
-  const getStatusIcon = (status: string) => {
-    if (status?.toLowerCase().includes('approved')) return <CheckCircle className="h-4 w-4" />;
-    if (status?.toLowerCase().includes('rejected') || status?.toLowerCase().includes('cancelled')) return <XCircle className="h-4 w-4" />;
-    if (status?.toLowerCase().includes('pending')) return <Clock className="h-4 w-4" />;
-    return <Clock className="h-4 w-4" />;
-  };
 
   const handleSort = (key: SortConfig['key']) => {
     if (!key) return;
@@ -319,12 +308,7 @@ export default function AdminTransportRequestsPage() {
                         <TableCell>{request.department || 'N/A'}</TableCell>
                         <TableCell className="max-w-xs truncate">{request.purpose || 'N/A'}</TableCell>
                         <TableCell>
-                          <Badge variant={getStatusBadgeVariant(request.status)} className={request.status === "Approved" ? "bg-green-600 text-white" : ""}>
-                            <span className="flex items-center gap-1">
-                              {getStatusIcon(request.status)}
-                              {request.status}
-                            </span>
-                          </Badge>
+                          <StatusBadge status={request.status} showIcon={true} />
                         </TableCell>
                         <TableCell>
                           {request.submittedAt && isValid(parseISO(request.submittedAt)) ? format(parseISO(request.submittedAt), 'PPP') : 'N/A'}

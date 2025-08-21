@@ -3,15 +3,16 @@ import { sql } from '@/lib/db';
 import { withAuth } from '@/lib/api-protection';
 import { hasPermission } from '@/lib/session-utils';
 import { z } from 'zod';
+import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
 
 const cancelBookingSchema = z.object({
-  staffId: z.string().optional(), // Cancel all bookings for this person
-  trfId: z.string().optional(),   // Cancel all bookings related to this TRF
-  bookingIds: z.array(z.string()).optional(), // Cancel specific booking IDs
+  staffId: z.string().min(1).optional(), // Cancel all bookings for this person
+  trfId: z.string().min(1).optional(),   // Cancel all bookings related to this TRF
+  bookingIds: z.array(z.string().min(1)).optional(), // Cancel specific booking IDs
   dateRange: z.object({
-    startDate: z.string(),
-    endDate: z.string(),
-    staffId: z.string()
+    startDate: z.string().min(1),
+    endDate: z.string().min(1),
+    staffId: z.string().min(1)
   }).optional() // Cancel bookings for specific person in date range
 });
 
@@ -25,9 +26,12 @@ export const POST = withAuth(async function(request: NextRequest) {
     }
 
     const body = await request.json();
+    console.log('Cancel booking request body:', JSON.stringify(body, null, 2));
+    
     const validation = cancelBookingSchema.safeParse(body);
     
     if (!validation.success) {
+      console.error('Cancel booking validation failed:', validation.error.format());
       return NextResponse.json(
         { error: 'Validation failed', details: validation.error.format() },
         { status: 400 }
@@ -38,8 +42,20 @@ export const POST = withAuth(async function(request: NextRequest) {
 
     // Validate that at least one criterion is provided
     if (!staffId && !trfId && !bookingIds && !dateRange) {
+      console.error('Cancel booking error: No valid criteria provided. Request data:', {
+        staffId, trfId, bookingIds, dateRange,
+        originalBody: body
+      });
       return NextResponse.json(
-        { error: 'At least one cancellation criterion must be provided (staffId, trfId, bookingIds, or dateRange)' },
+        { 
+          error: 'At least one cancellation criterion must be provided (staffId, trfId, bookingIds, or dateRange)',
+          debug: {
+            providedStaffId: staffId,
+            providedTrfId: trfId,
+            providedBookingIds: bookingIds,
+            providedDateRange: dateRange
+          }
+        },
         { status: 400 }
       );
     }
@@ -131,34 +147,86 @@ export const POST = withAuth(async function(request: NextRequest) {
 
         // Only revert to pending if ALL bookings for this TRF are cancelled
         if (remainingBookings.length === 0) {
-          // Update TRF status back to pending accommodation
+          // Update TRF status back to approved so it appears in pending accommodation requests
           await sql`
-            UPDATE trf_requests 
-            SET status = 'Pending Accommodation'
+            UPDATE travel_requests 
+            SET status = 'Approved'
             WHERE id = ${trfId}
           `;
 
-          // Also clear any accommodation assignment details if they exist
-          await sql`
-            UPDATE trf_accommodation_details 
-            SET 
-              assigned_room_id = NULL,
-              assigned_room_name = NULL,
-              assigned_staff_house_id = NULL,
-              assigned_staff_house_name = NULL
-            WHERE trf_id = ${trfId}
-          `;
+          // Note: Accommodation assignment info is stored in additional_comments 
+          // and doesn't need to be cleared when bookings are cancelled
 
-          console.log(`Reverted TRF ${trfId} status to 'Pending Accommodation' due to booking cancellation`);
+          console.log(`Reverted TRF ${trfId} status to 'Approved' due to booking cancellation`);
         }
       }
 
       return {
         cancelledCount: cancelledBookingIds.length,
         cancelledBookingIds,
-        revertedTrfIds: Array.from(trfIdsToRevert)
+        revertedTrfIds: Array.from(trfIdsToRevert),
+        bookingsToCancel // Include booking details for notifications
       };
     });
+
+    // Send notifications to affected users
+    try {
+      // Group bookings by user/TRF to avoid sending multiple notifications to the same person
+      const notificationGroups = new Map<string, any[]>();
+      
+      for (const booking of bookingsToCancel) {
+        const key = booking.staff_id || booking.trf_id;
+        if (key) {
+          if (!notificationGroups.has(key)) {
+            notificationGroups.set(key, []);
+          }
+          notificationGroups.get(key).push(booking);
+        }
+      }
+
+      // Send notification for each user/TRF group
+      for (const [userKey, userBookings] of notificationGroups.entries()) {
+        try {
+          // Get user details
+          const userDetails = await sql`
+            SELECT u.id, u.name, u.email, u.staff_id, tr.id as trf_id, tr.requestor_name
+            FROM users u
+            LEFT JOIN travel_requests tr ON (tr.staff_id = u.staff_id OR tr.id = ${userKey})
+            WHERE u.staff_id = ${userKey} OR u.id = ${userKey} OR tr.id = ${userKey}
+            LIMIT 1
+          `;
+
+          if (userDetails.length > 0) {
+            const user = userDetails[0];
+            const bookingCount = userBookings.length;
+            const dateRange = userBookings.length > 1 ? 
+              `${new Date(Math.min(...userBookings.map(b => new Date(b.date).getTime()))).toLocaleDateString()} - ${new Date(Math.max(...userBookings.map(b => new Date(b.date).getTime()))).toLocaleDateString()}` :
+              new Date(userBookings[0].date).toLocaleDateString();
+
+            await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
+              entityType: 'accommodation',
+              entityId: user.trf_id || userKey,
+              requestorName: user.name || user.requestor_name || 'User',
+              requestorEmail: user.email,
+              requestorId: user.id,
+              department: 'Unknown',
+              purpose: `Accommodation booking${bookingCount > 1 ? 's' : ''} for ${dateRange}`,
+              newStatus: 'Cancelled',
+              approverName: 'Accommodation Administrator',
+              comments: `${bookingCount} accommodation booking${bookingCount > 1 ? 's have' : ' has'} been cancelled by the administrator. Please contact accommodation services if you need to make new arrangements.`
+            });
+
+            console.log(`✅ Sent cancellation notification to ${user.email} for ${bookingCount} booking(s)`);
+          }
+        } catch (notificationError) {
+          console.error(`❌ Failed to send cancellation notification for user ${userKey}:`, notificationError);
+          // Don't fail the main operation due to notification errors
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error sending cancellation notifications:', error);
+      // Don't fail the main operation due to notification errors
+    }
 
     return NextResponse.json({
       message: `Successfully cancelled ${result.cancelledCount} booking(s)`,

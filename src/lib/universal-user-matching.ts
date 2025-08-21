@@ -178,10 +178,21 @@ export function generateUniversalUserFilterSQL(
     return sql.unsafe(`${prefix}${staffIdField} = 'NO_MATCH'`);
   }
   
-  // For postgres.js sql.unsafe, we need to return a fragment that can be used in WHERE clauses
-  // Since we're using sql.unsafe throughout, we need to return the actual string condition
-  // The calling code will handle incorporating this into the main query
-  return conditions.length === 1 ? conditions[0] : sql.unsafe(`(${conditions.map((_, i) => `$${i + 1}`).join(' OR ')})`);
+  // For postgres.js, we need to combine the conditions properly
+  if (conditions.length === 1) {
+    return conditions[0];
+  }
+  
+  // Combine all conditions with OR - need to build this as a single sql.unsafe call
+  const conditionStrings = conditions.map(c => {
+    // Extract the actual SQL string from the sql.unsafe fragments
+    if (c && typeof c === 'object' && c.strings) {
+      return c.strings[0]; // Get the SQL string from the template literal
+    }
+    return String(c);
+  });
+  
+  return sql.unsafe(`(${conditionStrings.join(' OR ')})`);
 }
 
 /**

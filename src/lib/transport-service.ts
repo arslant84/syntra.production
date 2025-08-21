@@ -5,6 +5,7 @@ import { generateRequestId } from '@/utils/requestIdGenerator';
 import { WorkflowEmailService } from './workflow-email-service';
 import { NotificationService } from './notification-service';
 import { NotificationEventType } from '@/types/notifications';
+import { EnhancedWorkflowNotificationService } from './enhanced-workflow-notification-service';
 
 export class TransportService {
   // Create a new transport request
@@ -91,19 +92,20 @@ export class TransportService {
         
         console.log(`🔔 TRANSPORT_SERVICE: Requestor email: ${requestorEmail}, Department: ${requestData.department}`);
 
-        // Send workflow notification
-        await WorkflowEmailService.sendSubmissionNotification({
+        // Send enhanced workflow notification (only to Department Focal + CC requestor)
+        await EnhancedWorkflowNotificationService.sendSubmissionNotification({
           entityType: 'transport',
           entityId: transportId,
           requestorName: requestData.requestorName || 'User',
           requestorEmail,
           requestorId: userId,
-          department: requestData.department
+          department: requestData.department,
+          purpose: requestData.purpose
         });
 
-        console.log(`✅ TRANSPORT_SERVICE: Workflow notification sent successfully for transport request: ${transportId}`);
+        console.log(`✅ TRANSPORT_SERVICE: Enhanced workflow notification sent successfully for transport request: ${transportId}`);
       } catch (notificationError) {
-        console.error('❌ TRANSPORT_SERVICE: Failed to send workflow notification:', notificationError);
+        console.error('❌ TRANSPORT_SERVICE: Failed to send enhanced workflow notification:', notificationError);
         console.error('❌ TRANSPORT_SERVICE: Error details:', notificationError.stack);
         // Don't fail the request creation due to notification errors
       }
@@ -112,6 +114,81 @@ export class TransportService {
     } catch (error) {
       console.error('Error creating transport request:', error);
       throw new Error('Failed to create transport request');
+    }
+  }
+
+  // Create transport request without notifications (for auto-generation)
+  static async createTransportRequestWithoutNotifications(data: Partial<TransportRequestForm>): Promise<TransportRequestForm> {
+    const { userId, ...requestData } = data;
+    if (!userId) {
+      throw new Error('User ID is required to create a transport request');
+    }
+    
+    // Generate transport request ID using the standard naming convention
+    const context = requestData.transportDetails?.[0]?.transportType 
+      ? requestData.transportDetails[0].transportType.replace(/\s+/g, '').toUpperCase()
+      : 'GEN'; // Default context
+    const transportId = generateRequestId('TRN', context);
+    
+    try {
+      const transportRequest = await sql.begin(async (sql) => {
+        const [request] = await sql`
+          INSERT INTO transport_requests (
+            id, requestor_name, staff_id, department, position, 
+            purpose, status,
+            tsr_reference, additional_comments, confirm_policy, 
+            confirm_manager_approval, confirm_terms_and_conditions, created_by,
+            submitted_at
+          ) VALUES (
+            ${transportId}, ${requestData.requestorName}, ${requestData.staffId ?? null}, ${requestData.department ?? null}, ${requestData.position ?? null}, 
+            ${requestData.purpose}, 'Pending Department Focal', 
+            ${requestData.tsrReference ?? null}, ${requestData.additionalComments ?? null}, ${requestData.confirmPolicy ?? null}, 
+            ${requestData.confirmManagerApproval ?? null}, ${requestData.confirmTermsAndConditions ?? null}, ${userId},
+            NOW()
+          )
+          RETURNING *
+        `;
+
+        if (data.transportDetails && data.transportDetails.length > 0) {
+          for (const detail of data.transportDetails) {
+            await sql`
+              INSERT INTO transport_details (
+                transport_request_id, date, day, from_location, to_location,
+                departure_time, transport_type, vehicle_type,
+                number_of_passengers
+              ) VALUES (
+                ${transportId}, ${detail.date}, ${detail.day}, ${detail.from}, ${detail.to},
+                ${detail.departureTime}, ${detail.transportType}, 'Minivan',
+                ${detail.numberOfPassengers}
+              )
+            `;
+          }
+        }
+
+        // Record initial submission
+        await sql`
+          INSERT INTO transport_approval_steps (
+            transport_request_id, role, name, status, date, comments
+          ) VALUES (
+            ${transportId}, 
+            'Requestor', 
+            ${requestData.requestorName || 'Unknown'}, 
+            'Submitted',
+            NOW(), 
+            'Request submitted'
+          )
+        `;
+
+        return request;
+      });
+
+      // No notifications are sent here - will be handled by caller
+      console.log(`✅ TRANSPORT_SERVICE: Transport request created without notifications: ${transportId}`);
+
+      return this.getTransportRequestById(transportId);
+    } catch (error) {
+      console.error('Error creating transport request without notifications:', error);
+      throw new Error('Failed to create transport request without notifications');
     }
   }
   

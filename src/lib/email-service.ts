@@ -1,10 +1,12 @@
 import nodemailer from 'nodemailer';
 
 interface EmailOptions {
-  to: string;
+  to: string | string[];
   subject: string;
-  body: string;
+  body?: string;
+  html?: string;
   cc?: string | string[];
+  from?: string;
 }
 
 class EmailService {
@@ -12,7 +14,7 @@ class EmailService {
 
   constructor() {
     this.transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+      host: process.env.EMAIL_HOST || 'smtp-relay.brevo.com',
       port: parseInt(process.env.EMAIL_PORT || '587'),
       secure: process.env.EMAIL_USE_SSL === 'true', // true for 465, false for other ports
       auth: {
@@ -29,16 +31,16 @@ class EmailService {
       console.log(`📧 EMAIL_SERVICE: CC: ${options.cc}`);
     }
     console.log(`📧 EMAIL_SERVICE: Subject: ${options.subject}`);
-    console.log(`📧 EMAIL_SERVICE: Body length: ${options.body?.length || 0} characters`);
+    console.log(`📧 EMAIL_SERVICE: Body length: ${(options.body || options.html)?.length || 0} characters`);
     console.log('📧 EMAIL_SERVICE: -----------------------');
 
     try {
       const mailOptions = {
-        from: process.env.DEFAULT_FROM_EMAIL || 'VMS System <noreplyvmspctsb@gmail.com>',
+        from: options.from || process.env.DEFAULT_FROM_EMAIL || 'VMS System <noreplyvmspctsb@gmail.com>',
         to: options.to,
         cc: options.cc,
         subject: options.subject,
-        html: options.body,
+        html: options.html || options.body,
       };
 
       console.log('📧 EMAIL_SERVICE: Attempting to send email via SMTP...');

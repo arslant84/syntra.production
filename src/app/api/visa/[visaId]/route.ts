@@ -53,7 +53,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         staff_id,
         passport_number,
         passport_expiry_date,
-        additional_comments
+        additional_comments,
+        processing_details,
+        processing_started_at,
+        processing_completed_at
       FROM visa_applications 
       WHERE id = ${visaId}
     `;
@@ -71,17 +74,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const completedApprovalSteps = await sql`
       SELECT 
         id,
-        step_number as "stepNumber",
         step_role as "stepRole",
         step_name as "stepName",
         status,
         step_date as "stepDate",
-        approver_id as "approverId",
-        approver_name as "approverName",
         comments
       FROM visa_approval_steps
-      WHERE visa_application_id = ${visaId}
-      ORDER BY step_number ASC
+      WHERE visa_id = ${visaId}
+      ORDER BY created_at ASC
     `;
     
     // Generate the complete approval workflow including expected pending steps
@@ -116,7 +116,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       passportCopy: null,
       supportingDocumentsNotes: '',
       approvalWorkflow: fullApprovalHistory,
-      approvalHistory: fullApprovalHistory // Keep for backward compatibility
+      approvalHistory: fullApprovalHistory, // Keep for backward compatibility
+      // Processing details
+      processingDetails: app.processing_details ? JSON.parse(app.processing_details) : null,
+      processingStartedAt: app.processing_started_at ? new Date(app.processing_started_at) : null,
+      processingCompletedAt: app.processing_completed_at ? new Date(app.processing_completed_at) : null
     };
     
     return NextResponse.json({ visaApplication });

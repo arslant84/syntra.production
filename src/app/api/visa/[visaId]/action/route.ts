@@ -155,17 +155,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             `;
         }
         
-        // Get the next step number for this visa application
-        const stepNumberResult = await tx`
-            SELECT COALESCE(MAX(step_number), 0) + 1 as next_step_number 
-            FROM visa_approval_steps 
-            WHERE visa_application_id = ${visaId}
-        `;
-        const nextStepNumber = stepNumberResult[0]?.next_step_number || 1;
-
         await tx`
-            INSERT INTO visa_approval_steps (visa_application_id, step_number, step_role, step_name, approver_name, status, step_date, comments, created_at, updated_at)
-            VALUES (${visaId}, ${nextStepNumber}, ${approverRole}, ${approverRole}, ${approverName}, ${stepStatus}, NOW(), ${comments || (action === "cancel" ? "Cancelled by user/admin." : (action === "approve" ? "Approved." : ""))}, NOW(), NOW())
+            INSERT INTO visa_approval_steps (visa_id, step_role, step_name, status, step_date, comments, created_at, updated_at)
+            VALUES (${visaId}, ${approverRole}, ${approverName}, ${stepStatus}, NOW(), ${comments || (action === "cancel" ? "Cancelled by user/admin." : (action === "approve" ? "Approved." : ""))}, NOW(), NOW())
         `;
         return updatedVisaResult;
     });

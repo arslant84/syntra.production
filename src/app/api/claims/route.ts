@@ -125,7 +125,7 @@ export const POST = withAuth(async function(request: NextRequest) {
           is_medical_claim, applicable_medical_type, is_for_family, family_member_spouse,
           family_member_children, family_member_other, total_advance_claim_amount, less_advance_taken,
           less_corporate_credit_card_payment, balance_claim_repayment, cheque_receipt_no,
-          i_declare, declaration_date, status, submitted_at, created_at, updated_at
+          i_declare, declaration_date, status, submitted_at, created_at, updated_at, created_by
         ) VALUES (
           ${trfId || null}, ${headerDetails.documentType || null}, ${claimRequestId}, ${formatISO(headerDetails.claimForMonthOf, {representation: 'date'})},
           ${headerDetails.staffName}, ${headerDetails.staffNo}, ${headerDetails.gred}, ${headerDetails.staffType || null},
@@ -137,7 +137,7 @@ export const POST = withAuth(async function(request: NextRequest) {
           ${medicalClaimDetails.familyMemberOther || null}, ${financialSummary.totalAdvanceClaimAmount === null ? null : Number(financialSummary.totalAdvanceClaimAmount)},
           ${financialSummary.lessAdvanceTaken === null ? null : Number(financialSummary.lessAdvanceTaken)}, ${financialSummary.lessCorporateCreditCardPayment === null ? null : Number(financialSummary.lessCorporateCreditCardPayment)},
           ${financialSummary.balanceClaimRepayment === null ? null : Number(financialSummary.balanceClaimRepayment)}, ${financialSummary.chequeReceiptNo || null},
-          ${declaration.iDeclare}, ${formatISO(declaration.date, {representation: 'date'})}, 'Pending Department Focal', NOW(), NOW(), NOW()
+          ${declaration.iDeclare}, ${formatISO(declaration.date, {representation: 'date'})}, 'Pending Department Focal', NOW(), NOW(), NOW(), ${session.id || session.email}
         ) RETURNING id
       `;
 
@@ -273,47 +273,24 @@ export const GET = withAuth(async function(request: NextRequest) {
       } else {
         console.log(`API_CLAIMS_GET (PostgreSQL): User ${session.role} viewing own claims with universal filtering`);
         
-        // Build user filter conditions
-        const userConditions = [];
-        if (userIdentifier.staffId) {
-          userConditions.push(sql`staff_no = ${userIdentifier.staffId}`);
-        }
-        if (session.name) {
-          userConditions.push(sql`staff_name = ${session.name}`);
-          userConditions.push(sql`staff_name ILIKE ${`%${session.name}%`}`);
-        }
-        
-        if (userConditions.length === 0) {
-          console.log("No user filter conditions available, returning empty result");
+        // Use a simpler approach with direct condition matching
+        if (!session.name && !session.id && !session.email && !userIdentifier.staffId) {
+          console.log("No user identifiers available, returning empty result");
           query = sql`
             SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
             FROM expense_claims 
             WHERE FALSE
           `;
-        } else if (userConditions.length === 1) {
-          query = sql`
-            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
-            FROM expense_claims 
-            WHERE status = ANY(${statusesArray}) 
-              AND ${userConditions[0]}
-            ORDER BY submitted_at DESC
-            LIMIT ${limit}
-          `;
-        } else if (userConditions.length === 2) {
-          query = sql`
-            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
-            FROM expense_claims 
-            WHERE status = ANY(${statusesArray}) 
-              AND (${userConditions[0]} OR ${userConditions[1]})
-            ORDER BY submitted_at DESC
-            LIMIT ${limit}
-          `;
         } else {
+          // Use a simpler approach with direct condition matching
           query = sql`
             SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
             FROM expense_claims 
             WHERE status = ANY(${statusesArray}) 
-              AND (${userConditions[0]} OR ${userConditions[1]} OR ${userConditions[2]})
+              AND (staff_name = ${session.name || ''} 
+                   OR created_by = ${session.id || ''} 
+                   OR created_by = ${session.email || ''}
+                   OR staff_no = ${userIdentifier.staffId || ''})
             ORDER BY submitted_at DESC
             LIMIT ${limit}
           `;
@@ -331,44 +308,23 @@ export const GET = withAuth(async function(request: NextRequest) {
       } else {
         console.log(`API_CLAIMS_GET (PostgreSQL): User ${session.role} viewing own claims with universal filtering`);
         
-        // Build user filter conditions
-        const userConditions = [];
-        if (userIdentifier.staffId) {
-          userConditions.push(sql`staff_no = ${userIdentifier.staffId}`);
-        }
-        if (session.name) {
-          userConditions.push(sql`staff_name = ${session.name}`);
-          userConditions.push(sql`staff_name ILIKE ${`%${session.name}%`}`);
-        }
-        
-        if (userConditions.length === 0) {
-          console.log("No user filter conditions available, returning empty result");
+        // Use a simpler approach with direct condition matching
+        if (!session.name && !session.id && !session.email && !userIdentifier.staffId) {
+          console.log("No user identifiers available, returning empty result");
           query = sql`
             SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
             FROM expense_claims 
             WHERE FALSE
           `;
-        } else if (userConditions.length === 1) {
-          query = sql`
-            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
-            FROM expense_claims 
-            WHERE ${userConditions[0]}
-            ORDER BY submitted_at DESC
-            LIMIT ${limit}
-          `;
-        } else if (userConditions.length === 2) {
-          query = sql`
-            SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
-            FROM expense_claims 
-            WHERE (${userConditions[0]} OR ${userConditions[1]})
-            ORDER BY submitted_at DESC
-            LIMIT ${limit}
-          `;
         } else {
+          // Use a simpler approach with direct condition matching
           query = sql`
             SELECT id, document_number, staff_name, purpose_of_claim, total_advance_claim_amount, status, submitted_at 
             FROM expense_claims 
-            WHERE (${userConditions[0]} OR ${userConditions[1]} OR ${userConditions[2]})
+            WHERE (staff_name = ${session.name || ''} 
+                   OR created_by = ${session.id || ''} 
+                   OR created_by = ${session.email || ''}
+                   OR staff_no = ${userIdentifier.staffId || ''})
             ORDER BY submitted_at DESC
             LIMIT ${limit}
           `;

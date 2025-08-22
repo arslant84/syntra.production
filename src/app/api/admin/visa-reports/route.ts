@@ -42,7 +42,7 @@ export async function GET() {
     // Fetch approval history separately to avoid GROUP BY issues
     const approvalHistories = await sql`
       SELECT 
-        visa_application_id,
+        visa_id,
         json_agg(
           json_build_object(
             'stepName', step_name,
@@ -51,12 +51,12 @@ export async function GET() {
           ) ORDER BY step_date
         ) as approval_history
       FROM visa_approval_steps
-      GROUP BY visa_application_id
+      GROUP BY visa_id
     `;
 
     // Create a map of approval histories by visa application ID
     const approvalHistoryMap = approvalHistories.reduce((map, item) => {
-      map[item.visa_application_id] = item.approval_history;
+      map[item.visa_id] = item.approval_history;
       return map;
     }, {});
 

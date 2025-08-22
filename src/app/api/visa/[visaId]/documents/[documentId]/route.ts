@@ -1,21 +1,24 @@
 // src/app/api/visa/[visaId]/documents/[documentId]/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
-import { hasPermission } from '@/lib/permissions';
+import { withAuth } from '@/lib/api-protection';
+import { hasAnyPermission } from '@/lib/session-utils';
 import { readFile, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 
 // GET: Download a specific document
-export async function GET(
+export const GET = withAuth(async function(
   request: NextRequest, 
   { params }: { params: Promise<{ visaId: string; documentId: string }> }
 ) {
   const { visaId, documentId } = await params;
   console.log(`API_VISA_DOCUMENT_GET: Downloading document ${documentId} for visa ${visaId}`);
 
+  const session = (request as any).user;
+  
   // Check permissions
-  if (!await hasPermission('process_visa_applications') && !await hasPermission('view_visa_applications')) {
+  if (!hasAnyPermission(session, ['process_visa_applications', 'view_visa_applications', 'create_trf'])) {
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
 
@@ -28,13 +31,13 @@ export async function GET(
     const document = await sql`
       SELECT 
         id,
-        visa_application_id,
+        visa_id,
         document_type,
-        file_name,
-        file_path
+        document_name,
+        document_path
       FROM visa_documents 
       WHERE id = ${documentId} 
-      AND visa_application_id = ${visaId}
+      AND visa_id = ${visaId}
     `;
 
     if (document.length === 0) {
@@ -44,16 +47,16 @@ export async function GET(
     const doc = document[0];
 
     // Check if file exists
-    if (!existsSync(doc.file_path)) {
-      console.error(`File not found at path: ${doc.file_path}`);
+    if (!existsSync(doc.document_path)) {
+      console.error(`File not found at path: ${doc.document_path}`);
       return NextResponse.json({ error: 'File not found on server' }, { status: 404 });
     }
 
     // Read file
-    const fileBuffer = await readFile(doc.file_path);
+    const fileBuffer = await readFile(doc.document_path);
     
     // Determine content type
-    const extension = path.extname(doc.file_name).toLowerCase();
+    const extension = path.extname(doc.document_name).toLowerCase();
     let contentType = 'application/octet-stream';
     
     switch (extension) {
@@ -77,7 +80,7 @@ export async function GET(
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${doc.file_name}"`,
+        'Content-Disposition': `attachment; filename="${doc.document_name}"`,
         'Content-Length': fileBuffer.length.toString(),
       },
     });
@@ -86,18 +89,20 @@ export async function GET(
     console.error('API_VISA_DOCUMENT_GET_ERROR:', error);
     return NextResponse.json({ error: 'Failed to download document', details: error.message }, { status: 500 });
   }
-}
+});
 
 // DELETE: Remove a document
-export async function DELETE(
+export const DELETE = withAuth(async function(
   request: NextRequest, 
   { params }: { params: Promise<{ visaId: string; documentId: string }> }
 ) {
   const { visaId, documentId } = await params;
   console.log(`API_VISA_DOCUMENT_DELETE: Deleting document ${documentId} for visa ${visaId}`);
 
+  const session = (request as any).user;
+  
   // Check permissions (only process visa applications can delete)
-  if (!await hasPermission('process_visa_applications')) {
+  if (!hasAnyPermission(session, ['process_visa_applications'])) {
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
 
@@ -110,12 +115,12 @@ export async function DELETE(
     const document = await sql`
       SELECT 
         id,
-        visa_application_id,
-        file_path,
-        file_name
+        visa_id,
+        document_path,
+        document_name
       FROM visa_documents 
       WHERE id = ${documentId} 
-      AND visa_application_id = ${visaId}
+      AND visa_id = ${visaId}
     `;
 
     if (document.length === 0) {
@@ -128,16 +133,16 @@ export async function DELETE(
     await sql`
       DELETE FROM visa_documents 
       WHERE id = ${documentId} 
-      AND visa_application_id = ${visaId}
+      AND visa_id = ${visaId}
     `;
 
     // Then delete file from filesystem (if exists)
-    if (existsSync(doc.file_path)) {
+    if (existsSync(doc.document_path)) {
       try {
-        await unlink(doc.file_path);
-        console.log(`File deleted: ${doc.file_path}`);
+        await unlink(doc.document_path);
+        console.log(`File deleted: ${doc.document_path}`);
       } catch (fileError) {
-        console.error(`Failed to delete file ${doc.file_path}:`, fileError);
+        console.error(`Failed to delete file ${doc.document_path}:`, fileError);
         // Continue anyway since database record is deleted
       }
     }
@@ -148,7 +153,7 @@ export async function DELETE(
       message: 'Document deleted successfully',
       deletedDocument: {
         id: doc.id,
-        fileName: doc.file_name
+        fileName: doc.document_name
       }
     });
 
@@ -156,4 +161,4 @@ export async function DELETE(
     console.error('API_VISA_DOCUMENT_DELETE_ERROR:', error);
     return NextResponse.json({ error: 'Failed to delete document', details: error.message }, { status: 500 });
   }
-}
+});

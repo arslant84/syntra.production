@@ -16,7 +16,35 @@ export async function GET(request: NextRequest) {
     if (!await hasPermission('manage_transport_requests') && !await hasPermission('view_all_transport')) {
       return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
     }
+
+    const url = new URL(request.url);
+    const statuses = url.searchParams.get('statuses');
+    const fullDetails = url.searchParams.get('fullDetails') === 'true';
     
+    // If specific statuses are requested, use the by-statuses method
+    if (statuses) {
+      const statusArray = statuses.split(',');
+      
+      if (fullDetails) {
+        // For processing page - fetch full transport request details
+        const transportRequests = await TransportService.getTransportRequestsByStatuses(statusArray);
+        
+        // Fetch full details for each request
+        const fullTransportRequests = await Promise.all(
+          transportRequests.map(async (req) => {
+            return await TransportService.getTransportRequestById(req.id);
+          })
+        );
+        
+        return NextResponse.json(fullTransportRequests.filter(req => req !== null));
+      } else {
+        // For admin listing - fetch summary data
+        const transportRequests = await TransportService.getTransportRequestsByStatuses(statusArray);
+        return NextResponse.json(transportRequests);
+      }
+    }
+    
+    // Default behavior - return all transport requests summary
     const transportRequests = await TransportService.getAllTransportRequests();
     
     return NextResponse.json(transportRequests);

@@ -851,19 +851,19 @@ export const GET = withAuth(async function(request: NextRequest) {
 
   if (searchTerm) {
     whereClauses.push(sql`(
-      LOWER(id) LIKE LOWER(${'%' + searchTerm + '%'}) OR 
-      LOWER(COALESCE(requestor_name, external_full_name)) LIKE LOWER(${'%' + searchTerm + '%'}) OR
-      LOWER(purpose) LIKE LOWER(${'%' + searchTerm + '%'})
+      LOWER(tr.id) LIKE LOWER(${'%' + searchTerm + '%'}) OR 
+      LOWER(COALESCE(tr.requestor_name, tr.external_full_name)) LIKE LOWER(${'%' + searchTerm + '%'}) OR
+      LOWER(tr.purpose) LIKE LOWER(${'%' + searchTerm + '%'})
     )`);
   }
   if (statusFilter) {
-    whereClauses.push(sql`status = ${statusFilter}`);
+    whereClauses.push(sql`tr.status = ${statusFilter}`);
   }
   if (travelTypeFilter) {
-    whereClauses.push(sql`travel_type = ${travelTypeFilter}`);
+    whereClauses.push(sql`tr.travel_type = ${travelTypeFilter}`);
   }
   if (excludeTravelType) {
-    whereClauses.push(sql`travel_type != ${excludeTravelType}`);
+    whereClauses.push(sql`tr.travel_type != ${excludeTravelType}`);
   }
 
 
@@ -877,23 +877,31 @@ export const GET = withAuth(async function(request: NextRequest) {
   }
 
   const allowedSortColumns: Record<string, string> = {
-    id: 'id', requestorName: 'COALESCE(requestor_name, external_full_name)', travelType: 'travel_type',
-    purpose: 'purpose', status: 'status', submitted_at: 'submitted_at',
+    id: 'tr.id', requestorName: 'COALESCE(tr.requestor_name, tr.external_full_name)', travelType: 'tr.travel_type',
+    purpose: 'tr.purpose', status: 'tr.status', submitted_at: 'tr.submitted_at',
   };
-  const dbSortColumn = allowedSortColumns[sortBy] || 'submitted_at';
+  const dbSortColumn = allowedSortColumns[sortBy] || 'tr.submitted_at';
   const dbSortOrder = sortOrder.toLowerCase() === 'desc' ? sql`DESC` : sql`ASC`;
 
   try {
     console.log("API_TRF_GET (PostgreSQL): Attempting to query TRFs.");
     const trfsQuery = sql`
       SELECT 
-        id, 
-        COALESCE(requestor_name, external_full_name) AS "requestorName", 
-        travel_type AS "travelType", 
-        purpose, 
-        status, 
-        submitted_at AS "submittedAt"
-      FROM travel_requests
+        tr.id, 
+        COALESCE(tr.requestor_name, tr.external_full_name) AS "requestorName", 
+        tr.travel_type AS "travelType", 
+        tr.purpose, 
+        tr.status, 
+        tr.submitted_at AS "submittedAt",
+        tr.staff_id AS "staffId",
+        tr.department,
+        tr.start_date AS "startDate",
+        tr.end_date AS "endDate", 
+        tr.destination,
+        tr.notes,
+        COALESCE(u.gender, 'Male') AS gender
+      FROM travel_requests tr
+      LEFT JOIN users u ON tr.staff_id = u.id
       ${whereClause}
       ORDER BY ${sql(dbSortColumn)} ${dbSortOrder} NULLS LAST
       LIMIT ${BigInt(limit)} OFFSET ${BigInt(offset)}
@@ -903,7 +911,8 @@ export const GET = withAuth(async function(request: NextRequest) {
 
     const countQuery = sql`
       SELECT COUNT(*) AS count
-      FROM travel_requests
+      FROM travel_requests tr
+      LEFT JOIN users u ON tr.staff_id = u.id
       ${whereClause}
     `;
     const totalCountResult = await countQuery;

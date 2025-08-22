@@ -1,7 +1,8 @@
 // src/app/api/visa/[visaId]/documents/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
-import { hasPermission } from '@/lib/permissions';
+import { withAuth } from '@/lib/api-protection';
+import { hasAnyPermission } from '@/lib/session-utils';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { existsSync } from 'fs';
@@ -18,12 +19,14 @@ async function ensureUploadDir() {
 }
 
 // GET: List all documents for a visa application
-export async function GET(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
+export const GET = withAuth(async function(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
   const { visaId } = await params;
   console.log(`API_VISA_DOCUMENTS_GET: Fetching documents for visa ${visaId}`);
 
+  const session = (request as any).user;
+  
   // Check permissions
-  if (!await hasPermission('process_visa_applications') && !await hasPermission('view_visa_applications')) {
+  if (!hasAnyPermission(session, ['process_visa_applications', 'view_visa_applications', 'create_trf'])) {
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
 
@@ -46,11 +49,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       SELECT 
         id,
         document_type as "documentType",
-        file_name as "fileName",
-        file_path as "filePath",
+        document_name as "fileName",
+        document_path as "filePath",
         uploaded_at as "uploadedAt"
       FROM visa_documents 
-      WHERE visa_application_id = ${visaId}
+      WHERE visa_id = ${visaId}
       ORDER BY uploaded_at DESC
     `;
 
@@ -59,15 +62,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.error('API_VISA_DOCUMENTS_GET_ERROR:', error);
     return NextResponse.json({ error: 'Failed to fetch documents', details: error.message }, { status: 500 });
   }
-}
+});
 
 // POST: Upload a document for a visa application
-export async function POST(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
+export const POST = withAuth(async function(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
   const { visaId } = await params;
   console.log(`API_VISA_DOCUMENTS_POST: Uploading document for visa ${visaId}`);
 
+  const session = (request as any).user;
+  
   // Check permissions
-  if (!await hasPermission('process_visa_applications') && !await hasPermission('create_trf')) {
+  if (!hasAnyPermission(session, ['process_visa_applications', 'create_trf'])) {
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
 
@@ -122,20 +127,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Save document record to database
     const [newDocument] = await sql`
       INSERT INTO visa_documents (
-        visa_application_id,
+        visa_id,
         document_type,
-        file_name,
-        file_path,
-        uploaded_at,
-        created_at,
-        updated_at
+        document_name,
+        document_path,
+        uploaded_at
       ) VALUES (
         ${visaId},
         ${documentType},
         ${file.name},
         ${filePath},
-        NOW(),
-        NOW(),
         NOW()
       )
       RETURNING *
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       document: {
         id: newDocument.id,
         documentType: newDocument.document_type,
-        fileName: newDocument.file_name,
+        fileName: newDocument.document_name,
         uploadedAt: newDocument.uploaded_at
       }
     }, { status: 201 });
@@ -157,4 +158,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     console.error('API_VISA_DOCUMENTS_POST_ERROR:', error);
     return NextResponse.json({ error: 'Failed to upload document', details: error.message }, { status: 500 });
   }
-}
+});

@@ -85,11 +85,11 @@ export const POST = withAuth(async function(request: NextRequest) {
     // Add initial approval step
     await sql`
         INSERT INTO visa_approval_steps (
-          visa_application_id, step_number, step_role, step_name, 
+          visa_id, step_role, step_name, 
           status, step_date, comments, created_at, updated_at
         )
         VALUES (
-          ${newVisaApp.id}, 1, 'Applicant', ${data.applicantName || 'Applicant'}, 
+          ${newVisaApp.id}, 'Applicant', ${data.applicantName || 'Applicant'}, 
           'Submitted', NOW(), 'Initial submission.', NOW(), NOW()
         )
     `;

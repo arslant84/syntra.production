@@ -94,7 +94,6 @@ interface AdminTrfForAccommodation {
   id: string;
   accommodationId?: string;
   requestorName: string;
-  requestorId?: string;
   staffId?: string;
   location?: string;
   department?: string;
@@ -247,7 +246,6 @@ export default function AccommodationAdminPage() {
         return {
           id: trf.id,
           requestorName: trf.requestorName || 'Unknown',
-          requestorId: trf.requestorId,
           staffId: trf.staffId,
           location: trf.destination || accommodationDetails.location,
           department: trf.department,
@@ -292,7 +290,6 @@ export default function AccommodationAdminPage() {
         id: req.id,
         accommodationId: req.accommodationId,
         requestorName: req.requestorName,
-        requestorId: req.staffId,
         staffId: req.staffId,
         department: req.department,
         gender: req.gender || 'Male',
@@ -832,7 +829,7 @@ export default function AccommodationAdminPage() {
       const bookingData = {
         staffHouseId: String(staffHouse.id),
         roomId: String(room.id),
-        staffId: String(selectedTRF.staffId || selectedTRF.requestorId || ''),
+        staffId: String(selectedTRF.staffId || ''),
         checkInDate: format(dateRange.from, 'yyyy-MM-dd'),
         checkOutDate: format(dateRange.to, 'yyyy-MM-dd'),
         status: "Confirmed",
@@ -1241,6 +1238,76 @@ Do you want to continue?`;
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
+
+      {/* Dashboard Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
+            <BedDouble className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{bookings?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Current month: {bookings?.filter(b => {
+                const bookingDate = new Date(b.bookingDate || b.date);
+                const currentDate = new Date();
+                return bookingDate.getMonth() === currentDate.getMonth() && 
+                       bookingDate.getFullYear() === currentDate.getFullYear();
+              }).length || 0}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Bookings</CardTitle>
+            <UserCheck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {bookings?.filter(b => b.status === 'Confirmed' || b.status === 'Active').length || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Confirmed accommodations
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
+            <CalendarPlus className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pendingAccommodationTRFs?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Awaiting assignment
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Occupancy Rate</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {(() => {
+                const totalRooms = staffHouses?.reduce((sum, house) => sum + (house.rooms?.length || 0), 0) || 1;
+                const occupiedRooms = bookings?.filter(b => 
+                  b.status === 'Confirmed' || b.status === 'Active'
+                ).length || 0;
+                return Math.round((occupiedRooms / totalRooms) * 100);
+              })()}%
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Current utilization
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Main Layout - Two Column Grid */}
       <div className="grid md:grid-cols-3 gap-6">

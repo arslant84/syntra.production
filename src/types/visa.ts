@@ -11,24 +11,52 @@ export type VisaStatus =
   | 'Cancelled'
   | '';
 
+export interface VisaProcessingDetails {
+  paymentMethod?: string;
+  bankTransferReference?: string;
+  chequeNumber?: string;
+  paymentDate?: string | Date;
+  applicationFee?: number;
+  processingFee?: number;
+  totalFee?: number;
+  visaNumber?: string;
+  visaValidFrom?: string | Date;
+  visaValidTo?: string | Date;
+  processingNotes?: string;
+  verifiedBy?: string;
+  authorizedBy?: string;
+}
+
 export interface VisaApplication {
   id: string;
   userId: string;
   applicantName: string;
+  requestorName?: string;
   employeeId: string;
+  staffId?: string;
+  department?: string;
+  position?: string;
+  email?: string;
   nationality?: string; // Optional since it doesn't exist in database
   travelPurpose: VisaPurpose;
+  destination?: string;
+  visaType?: string;
   tripStartDate: Date | null;
   tripEndDate: Date | null;
   passportNumber: string;
   passportExpiryDate: Date | null;
   itineraryDetails: string;
+  additionalComments?: string;
   supportingDocumentsNotes?: string;
+  passportCopy?: any;
   status: string;
   submittedDate: Date;
   lastUpdatedDate: Date;
   approvalWorkflow?: VisaApprovalStep[];
   approvalHistory?: VisaApprovalStep[]; // Keep for backward compatibility
+  processingDetails?: VisaProcessingDetails | null;
+  processingStartedAt?: Date | null;
+  processingCompletedAt?: Date | null;
 }
 
 export interface VisaApprovalStep {

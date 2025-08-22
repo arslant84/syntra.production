@@ -169,6 +169,14 @@ export default function AdminTransportRequestsPage() {
             <p className="text-muted-foreground">Manage and review all transport requests</p>
           </div>
         </div>
+        <div className="flex gap-2">
+          <Button asChild>
+            <Link href="/admin/transport/processing">
+              <Truck className="h-4 w-4 mr-2" />
+              Transport Processing
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

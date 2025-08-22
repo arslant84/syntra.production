@@ -4,6 +4,17 @@ export type StaffType = "PERMANENT STAFF" | "CONTRACT STAFF" | "";
 export type ExecutiveStatus = "EXECUTIVE" | "NON-EXECUTIVE" | "";
 export type MedicalClaimApplicable = "Inpatient" | "Outpatient" | "" | undefined;
 
+export type ClaimStatus = 
+  | 'Pending Verification'
+  | 'Pending Department Focal' 
+  | 'Pending Line Manager' 
+  | 'Pending HOD' 
+  | 'Approved'
+  | 'Processing with Claims Admin'
+  | 'Processed'
+  | 'Rejected' 
+  | 'Cancelled';
+
 export interface ClaimHeaderDetails {
   documentType: DocumentType;
   documentNumber: string;
@@ -68,6 +79,19 @@ export interface ClaimDeclaration {
   date: Date | null;
 }
 
+export interface ReimbursementDetails {
+  paymentMethod?: string; // Bank Transfer, Cheque, etc.
+  bankTransferReference?: string;
+  chequeNumber?: string;
+  paymentDate?: string;
+  amountPaid?: number;
+  taxDeducted?: number;
+  netAmount?: number;
+  processingNotes?: string;
+  verifiedBy?: string;
+  authorizedBy?: string;
+}
+
 export interface ExpenseClaim {
   id?: string; // For later use, e.g., when saving/fetching
   headerDetails: ClaimHeaderDetails;
@@ -80,7 +104,13 @@ export interface ExpenseClaim {
   financialSummary: ClaimFinancialSummary;
   declaration: ClaimDeclaration;
   // Status information
-  status?: string; // e.g., 'Pending Verification', 'Approved', 'Rejected'
+  status?: ClaimStatus;
   submittedAt?: string; // ISO date string
+  // Claims Admin processing fields
+  reimbursementDetails?: ReimbursementDetails;
+  processingStartedAt?: string;
+  reimbursementCompletedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
   // Fields for "Verified By", "Approved By" are typically handled post-submission
 }

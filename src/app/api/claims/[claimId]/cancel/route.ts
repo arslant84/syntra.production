@@ -11,21 +11,39 @@ export async function POST(request: Request, { params }: { params: Promise<{ cla
   }
 
   try {
-    const result = await sql`
-      UPDATE expense_claims
-      SET status = 'Cancelled',
-          updated_at = NOW()
-      WHERE id = ${claimId} AND (status = 'Pending Verification' OR status = 'Pending Approval')
-      RETURNING id;
-    `;
+    // Parse request body to get cancellation details
+    const body = await request.json().catch(() => ({}));
+    const { comments = "Cancelled by user.", cancelledBy = "User" } = body;
 
-    if (result.count === 0) {
-      console.warn(`API_CLAIMS_CANCEL_POST (PostgreSQL): Claim ${claimId} not found or not in cancellable status.`);
-      return NextResponse.json({ error: 'Claim not found or cannot be cancelled (status must be Pending Verification or Pending Approval).' }, { status: 404 });
-    }
+    const result = await sql.begin(async tx => {
+      // Update claim status to cancelled
+      const [updatedClaim] = await tx`
+        UPDATE expense_claims
+        SET status = 'Cancelled',
+            updated_at = NOW()
+        WHERE id = ${claimId} AND (status = 'Pending Verification' OR status = 'Pending Approval' OR status = 'Pending Department Focal' OR status = 'Pending Line Manager' OR status = 'Pending HOD')
+        RETURNING *;
+      `;
+
+      if (!updatedClaim) {
+        throw new Error('Claim not found or cannot be cancelled');
+      }
+
+      // Add cancellation step to approval workflow
+      await tx`
+        INSERT INTO claims_approval_steps (claim_id, step_role, step_name, status, step_date, comments)
+        VALUES (${claimId}, 'Cancelled By', ${cancelledBy}, 'Cancelled', NOW(), ${comments})
+      `;
+
+      return updatedClaim;
+    });
 
     console.log(`API_CLAIMS_CANCEL_POST (PostgreSQL): Claim ${claimId} cancelled successfully.`);
-    return NextResponse.json({ message: 'Claim cancelled successfully.', claimId: result[0].id });
+    return NextResponse.json({ 
+      message: 'Claim cancelled successfully.', 
+      claim: result,
+      claimId: result.id 
+    });
   } catch (error: any) {
     console.error("API_CLAIMS_CANCEL_POST_ERROR (PostgreSQL): Failed to cancel claim.", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to cancel claim.', details: error.message }, { status: 500 });

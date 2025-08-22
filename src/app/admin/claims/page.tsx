@@ -4,7 +4,7 @@
 export const dynamic = 'force-dynamic';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ReceiptText, ListFilter, Search, AlertCircle, CheckCircle, XCircle, Clock, FileText, Eye, Upload } from "lucide-react";
+import { ReceiptText, ListFilter, Search, AlertCircle, CheckCircle, XCircle, Clock, FileText, Eye, Upload, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,7 +24,9 @@ import { StatusBadge } from '@/lib/status-utils';
 
 type Claim = {
   id: string;
+  documentNumber: string;
   requestor: string;
+  department: string;
   purpose: string;
   amount: number;
   status: string;
@@ -59,22 +61,35 @@ export default function AdminClaimsPage() {
       
       try {
         setLoading(true);
-        console.log('Fetching claims from API for admin...');
-        const response = await fetch('/api/claims');
+        console.log('Fetching claims from admin API...');
+        const response = await fetch('/api/admin/claims');
         
         if (!response.ok) {
           throw new Error(`Error fetching claims: ${response.statusText}`);
         }
         
         const data = await response.json();
-        console.log('Fetched claims data:', data);
+        console.log('Fetched admin claims data:', data);
         
-        // Handle both array response and nested claims property
+        // Handle the admin API response format
         const claimsData = Array.isArray(data) ? data : data.claims;
         
         if (claimsData && Array.isArray(claimsData)) {
+          // Map the admin API response to the expected format
+          const mappedClaims = claimsData.map((claim: any) => ({
+            id: claim.id,
+            documentNumber: claim.documentNumber || claim.document_number,
+            requestor: claim.requestorName || claim.staff_name || 'N/A',
+            department: claim.department || claim.department_code || 'N/A',
+            purpose: claim.purpose || claim.purpose_of_claim || 'General Claim',
+            amount: Number(claim.totalAdvanceClaimAmount || claim.total_advance_claim_amount || claim.balanceClaimRepayment || claim.balance_claim_repayment || 0),
+            status: claim.status,
+            submittedDate: claim.submittedAt || claim.created_at,
+            trfId: claim.trf_id
+          }));
+          
           // Apply role-based filtering for personal vs admin view using client-side logic
-          const filteredClaims = claimsData.filter(claim =>
+          const filteredClaims = mappedClaims.filter(claim =>
             shouldShowRequest(role, { ...claim, itemType: 'claim' }, userId)
           );
           setClaims(filteredClaims);
@@ -234,6 +249,64 @@ export default function AdminClaimsPage() {
             Review, verify, and process staff expense claims.
           </p>
         </div>
+        <div className="flex gap-2">
+          <Button asChild>
+            <Link href="/admin/claims/processing">
+              <ReceiptText className="h-4 w-4 mr-2" />
+              Claims Processing
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Claims</CardTitle>
+            <ReceiptText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{claims.length}</div>
+            <p className="text-xs text-muted-foreground">All submitted claims</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {claims.filter(claim => claim.status.toLowerCase().includes('pending')).length}
+            </div>
+            <p className="text-xs text-muted-foreground">Awaiting approval</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Approved</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {claims.filter(claim => claim.status.toLowerCase().includes('approved')).length}
+            </div>
+            <p className="text-xs text-muted-foreground">Approved claims</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Processing</CardTitle>
+            <Settings className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {claims.filter(claim => ['Processing with Claims Admin', 'Reimbursement Completed'].includes(claim.status)).length}
+            </div>
+            <p className="text-xs text-muted-foreground">In progress</p>
+          </CardContent>
+        </Card>
       </div>
       
       <Card>
@@ -260,9 +333,14 @@ export default function AdminClaimsPage() {
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="pending verification">Pending Verification</SelectItem>
-                <SelectItem value="pending approval">Pending Approval</SelectItem>
+                <SelectItem value="pending department focal">Pending Department Focal</SelectItem>
+                <SelectItem value="pending line manager">Pending Line Manager</SelectItem>
+                <SelectItem value="pending hod">Pending HOD</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="processing with claims admin">Processing with Claims Admin</SelectItem>
+                <SelectItem value="reimbursement completed">Reimbursement Completed</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
             <Button 
@@ -296,34 +374,28 @@ export default function AdminClaimsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Claim ID</TableHead>
-                  <TableHead>TRF ID</TableHead>
                   <TableHead>Requestor</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Purpose</TableHead>
                   <TableHead>Amount</TableHead>
-                  <TableHead>Submitted</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Submitted</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredClaims.map((claim) => (
                   <TableRow key={claim.id}>
-                    <TableCell className="font-medium">{claim.id.substring(0, 8)}</TableCell>
-                    <TableCell>
-                      {claim.trfId ? (
-                        <Link href={`/trf/view/${claim.trfId}`} className="text-primary hover:underline">
-                          {claim.trfId}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">N/A</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{claim.requestor}</TableCell>
-                    <TableCell>${claim.amount.toFixed(2)} USD</TableCell>
-                    <TableCell>
-                      {claim.submittedDate ? format(new Date(claim.submittedDate), 'dd MMM yyyy') : '-'}
-                    </TableCell>
+                    <TableCell className="font-medium">{claim.documentNumber}</TableCell>
+                    <TableCell>{claim.requestor || 'N/A'}</TableCell>
+                    <TableCell>{claim.department || 'N/A'}</TableCell>
+                    <TableCell className="max-w-xs truncate">{claim.purpose || 'General Claim'}</TableCell>
+                    <TableCell>RM {(Number(claim.amount) || 0).toFixed(2)}</TableCell>
                     <TableCell>
                       <StatusBadge status={claim.status} showIcon={true} />
+                    </TableCell>
+                    <TableCell>
+                      {claim.submittedDate ? format(new Date(claim.submittedDate), 'dd MMM yyyy') : '-'}
                     </TableCell>
                     <TableCell className="space-x-1 text-center">
                       <Button variant="outline" size="sm" asChild>

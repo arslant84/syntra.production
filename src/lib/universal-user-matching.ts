@@ -88,8 +88,9 @@ export function generateUniversalUserFilter(
   // Handle the "Arslan" vs "Arslan Tekayev" case
   if (session.name === 'Arslan Tekayev') {
     conditions.push(`${prefix}${nameField} = 'Arslan'`);
-    // Also check the old staff_id that might have been used
+    // Also check the old staff_id variations that might have been used
     conditions.push(`${prefix}${staffIdField} = '10496081'`);
+    conditions.push(`${prefix}${staffIdField} = '1049681'`);
   }
   
   // Remove any empty conditions
@@ -172,6 +173,7 @@ export function generateUniversalUserFilterSQL(
   if (session.name === 'Arslan Tekayev') {
     conditions.push(sql.unsafe(`${prefix}${nameField} = 'Arslan'`));
     conditions.push(sql.unsafe(`${prefix}${staffIdField} = '10496081'`));
+    conditions.push(sql.unsafe(`${prefix}${staffIdField} = '1049681'`));
   }
   
   if (conditions.length === 0) {

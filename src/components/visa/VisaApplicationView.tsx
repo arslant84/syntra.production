@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from '@/components/ui/badge';
 import { format, isValid } from "date-fns";
 import { cn } from "@/lib/utils";
-import { UserCircle, Briefcase, Plane, Paperclip, CalendarDays, Globe, Flag, FileBadge, Link2, Mail, MapPin, FileText, Info, CreditCard } from "lucide-react";
+import { UserCircle, Briefcase, Plane, Paperclip, CalendarDays, Globe, Flag, FileBadge, Link2, Mail, MapPin, FileText, Info, CreditCard, CheckCircle } from "lucide-react";
 import ApprovalWorkflow from "../trf/ApprovalWorkflow";
 import VisaDocuments from "./VisaDocuments";
 import { StatusBadge } from "@/lib/status-utils";
@@ -46,7 +46,8 @@ export default function VisaApplicationView({ visaData, canManageDocuments = fal
     id, userId, applicantName, travelPurpose, destination, employeeId,
     tripStartDate, tripEndDate, itineraryDetails, status, submittedDate, lastUpdatedDate, 
     approvalWorkflow, approvalHistory, requestorName, staffId, department, position, email, visaType,
-    passportNumber, passportExpiryDate, additionalComments, supportingDocumentsNotes
+    passportNumber, passportExpiryDate, additionalComments, supportingDocumentsNotes,
+    processingDetails, processingStartedAt, processingCompletedAt
   } = visaData;
 
   // Removed getStatusBadgeVariant function - now using standardized StatusBadge component
@@ -104,6 +105,70 @@ export default function VisaApplicationView({ visaData, canManageDocuments = fal
               <DetailItem label="Passport Expiry Date" value={formatDateSafe(passportExpiryDate)} />
             </div>
           </section>
+
+          {/* Processing Details (for processed visas) */}
+          {(status === 'Visa Issued' || status === 'Approved') && (
+            <section className="print:break-inside-avoid">
+              <Separator className="my-2 print:hidden" />
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+                <CheckCircle className="print:hidden" /> Processing Details
+              </h3>
+              {processingDetails ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0 bg-green-50 border border-green-200">
+                  {processingDetails.paymentMethod && (
+                    <DetailItem label="Payment Method" value={processingDetails.paymentMethod} />
+                  )}
+                  {processingDetails.paymentDate && (
+                    <DetailItem label="Payment Date" value={formatDateSafe(processingDetails.paymentDate)} />
+                  )}
+                  {processingDetails.applicationFee && (
+                    <DetailItem label="Application Fee" value={`$${processingDetails.applicationFee}`} />
+                  )}
+                  {processingDetails.processingFee && (
+                    <DetailItem label="Processing Fee" value={`$${processingDetails.processingFee}`} />
+                  )}
+                  {processingDetails.totalFee && (
+                    <DetailItem label="Total Fee" value={`$${processingDetails.totalFee}`} />
+                  )}
+                  {processingDetails.visaNumber && (
+                    <DetailItem label="Visa Number" value={processingDetails.visaNumber} />
+                  )}
+                  {processingDetails.visaValidFrom && (
+                    <DetailItem label="Visa Valid From" value={formatDateSafe(processingDetails.visaValidFrom)} />
+                  )}
+                  {processingDetails.visaValidTo && (
+                    <DetailItem label="Visa Valid To" value={formatDateSafe(processingDetails.visaValidTo)} />
+                  )}
+                  {processingDetails.bankTransferReference && (
+                    <DetailItem label="Bank Transfer Reference" value={processingDetails.bankTransferReference} fullWidth />
+                  )}
+                  {processingDetails.chequeNumber && (
+                    <DetailItem label="Cheque Number" value={processingDetails.chequeNumber} fullWidth />
+                  )}
+                  {processingDetails.verifiedBy && (
+                    <DetailItem label="Verified By" value={processingDetails.verifiedBy} />
+                  )}
+                  {processingDetails.authorizedBy && (
+                    <DetailItem label="Authorized By" value={processingDetails.authorizedBy} />
+                  )}
+                  {processingDetails.processingNotes && (
+                    <DetailItem label="Processing Notes" value={processingDetails.processingNotes} fullWidth />
+                  )}
+                  {processingStartedAt && (
+                    <DetailItem label="Processing Started" value={formatDateSafe(processingStartedAt)} />
+                  )}
+                  {processingCompletedAt && (
+                    <DetailItem label="Processing Completed" value={formatDateSafe(processingCompletedAt)} />
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-700 font-medium">✅ This visa has been processed and completed.</p>
+                  <p className="text-xs text-green-600 mt-1">Processing details are being finalized. Please contact Visa Admin for specific processing information.</p>
+                </div>
+              )}
+            </section>
+          )}
 
           {supportingDocumentsNotes && (
             <section className="print:break-inside-avoid">

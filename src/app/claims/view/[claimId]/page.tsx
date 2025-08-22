@@ -7,8 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format, isValid, formatISO } from "date-fns";
-import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info, ArrowLeft, Edit, Ban, Printer, Loader2 } from "lucide-react";
-import ApprovalWorkflow from "@/components/trf/ApprovalWorkflow";
+import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info, ArrowLeft, Edit, Ban, Printer, Loader2, AlertTriangle } from "lucide-react";
 import { StatusBadge } from "@/lib/status-utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -417,16 +416,54 @@ export default function ClaimViewPage() {
               <Building className="print:hidden" /> Financial Summary
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2">
-              <DetailItem label="Total Advance Claim Amount" value={`USD ${formatNumberSafe(financialSummary?.totalAdvanceClaimAmount)}`} />
-              <DetailItem label="Less Advance Taken" value={`USD ${formatNumberSafe(financialSummary?.lessAdvanceTaken)}`} />
-              <DetailItem label="Less Corporate Credit Card Payment" value={`USD ${formatNumberSafe(financialSummary?.lessCorporateCreditCardPayment)}`} />
-              <DetailItem label="Balance Claim/Repayment" value={`USD ${formatNumberSafe(financialSummary?.balanceClaimRepayment)}`} />
+              <DetailItem label="Total Advance Claim Amount" value={formatNumberSafe(financialSummary?.totalAdvanceClaimAmount)} />
+              <DetailItem label="Less Advance Taken" value={formatNumberSafe(financialSummary?.lessAdvanceTaken)} />
+              <DetailItem label="Less Corporate Credit Card Payment" value={formatNumberSafe(financialSummary?.lessCorporateCreditCardPayment)} />
+              <DetailItem label="Balance Claim/Repayment" value={formatNumberSafe(financialSummary?.balanceClaimRepayment)} />
               <div className="sm:col-span-2 flex justify-between items-center">
                 <div className="font-medium text-xs text-muted-foreground uppercase tracking-wider print:text-[8pt] print:font-semibold">Cheque/Receipt No.</div>
                 <div className="text-sm text-foreground break-words mt-0.5 print:text-[9pt]">{financialSummary?.chequeReceiptNo || ""}</div>
               </div>
             </div>
           </section>
+
+          {/* Reimbursement Details (for processed claims) */}
+          {claim?.status === 'Processed' && (
+            <section>
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+                <CheckCircle className="print:hidden" /> Reimbursement Details
+              </h3>
+              {claim?.reimbursementDetails ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2 bg-green-50 p-4 rounded-lg border border-green-200">
+                  <DetailItem label="Payment Method" value={claim.reimbursementDetails.paymentMethod} />
+                  <DetailItem label="Payment Date" value={claim.reimbursementDetails.paymentDate} />
+                  <DetailItem label="Amount Paid" value={formatNumberSafe(claim.reimbursementDetails.amountPaid)} />
+                  <DetailItem label="Tax Deducted" value={formatNumberSafe(claim.reimbursementDetails.taxDeducted)} />
+                  <DetailItem label="Net Amount" value={formatNumberSafe(claim.reimbursementDetails.netAmount)} />
+                  {claim.reimbursementDetails.bankTransferReference && (
+                    <DetailItem label="Bank Transfer Reference" value={claim.reimbursementDetails.bankTransferReference} fullWidth />
+                  )}
+                  {claim.reimbursementDetails.chequeNumber && (
+                    <DetailItem label="Cheque Number" value={claim.reimbursementDetails.chequeNumber} fullWidth />
+                  )}
+                  {claim.reimbursementDetails.verifiedBy && (
+                    <DetailItem label="Verified By" value={claim.reimbursementDetails.verifiedBy} />
+                  )}
+                  {claim.reimbursementDetails.authorizedBy && (
+                    <DetailItem label="Authorized By" value={claim.reimbursementDetails.authorizedBy} />
+                  )}
+                  {claim.reimbursementDetails.processingNotes && (
+                    <DetailItem label="Processing Notes" value={claim.reimbursementDetails.processingNotes} fullWidth />
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-700 font-medium">✅ This claim has been processed and completed.</p>
+                  <p className="text-xs text-green-600 mt-1">Reimbursement details are being finalized. Please contact Claims Admin for specific payment information.</p>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Declaration */}
           <section>
@@ -458,7 +495,38 @@ export default function ClaimViewPage() {
               <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
                 <CheckCircle className="print:hidden" /> Approval Workflow
               </h3>
-              <ApprovalWorkflow steps={claim.approvalWorkflow} />
+              <div className="space-y-4">
+                {claim.approvalWorkflow.map((step: any, index: number) => (
+                  <div key={index} className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      step.status === 'Approved' || step.status === 'Submitted' ? 'bg-green-100 text-green-600' :
+                      step.status === 'Rejected' ? 'bg-red-100 text-red-600' :
+                      step.status === 'Cancelled' ? 'bg-orange-100 text-orange-600' :
+                      step.status === 'Current' ? 'bg-blue-100 text-blue-600' :
+                      step.status === 'Pending' ? 'bg-yellow-100 text-yellow-600' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {step.status === 'Approved' || step.status === 'Submitted' ? <CheckCircle className="h-4 w-4" /> :
+                       step.status === 'Rejected' ? <XCircle className="h-4 w-4" /> :
+                       step.status === 'Cancelled' ? <Ban className="h-4 w-4" /> :
+                       step.status === 'Current' ? <AlertTriangle className="h-4 w-4" /> :
+                       step.status === 'Pending' ? <Clock className="h-4 w-4" /> :
+                       <div className="w-2 h-2 rounded-full bg-gray-400" />}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">{step.role}</p>
+                      <p className="text-sm text-muted-foreground">{step.name !== 'TBD' ? step.name : 'To be assigned'}</p>
+                      {step.date && (
+                        <p className="text-xs text-muted-foreground">{formatDateSafe(step.date)}</p>
+                      )}
+                      {step.comments && step.comments !== 'Request submitted' && (
+                        <p className="text-sm text-muted-foreground mt-1">{step.comments}</p>
+                      )}
+                    </div>
+                    <StatusBadge status={step.status} showIcon />
+                  </div>
+                ))}
+              </div>
             </section>
           )}
         </CardContent>

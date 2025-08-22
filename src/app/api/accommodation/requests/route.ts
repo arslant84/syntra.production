@@ -233,16 +233,29 @@ export const GET = withAuth(async function(request: NextRequest) {
         requests = await sql.unsafe(`
           SELECT DISTINCT ON (tr.id)
             tr.id,
-            NULL as "trfId",
+            CASE 
+              WHEN tr.travel_type = 'Accommodation' THEN NULL 
+              ELSE tr.id 
+            END as "trfId",
             tr.requestor_name as "requestorName",
             tr.staff_id as "requestorId",
-            'Male' as "requestorGender", 
+            COALESCE(u.gender, 'Male') as "requestorGender", 
             tr.department,
             tad.location,
             tad.check_in_date as "requestedCheckInDate",
             tad.check_out_date as "requestedCheckOutDate",
             tad.accommodation_type as "requestedRoomType",
-            tr.status,
+            COALESCE(
+              (SELECT CASE 
+                WHEN COUNT(CASE WHEN tas.status = 'Rejected' THEN 1 END) > 0 THEN 'Rejected'
+                WHEN COUNT(CASE WHEN tas.status = 'Cancelled' THEN 1 END) > 0 THEN 'Cancelled'
+                WHEN tr.status IN ('Approved', 'Processing', 'Completed', 'Processing Accommodation', 'TRF Processed', 'Awaiting Visa') THEN tr.status
+                ELSE tr.status
+              END
+              FROM trf_approval_steps tas 
+              WHERE tas.trf_id = tr.id),
+              tr.status
+            ) as status,
             NULL as "assignedRoomName",
             NULL as "assignedStaffHouseName",
             tr.submitted_at as "submittedDate",
@@ -254,6 +267,8 @@ export const GET = withAuth(async function(request: NextRequest) {
             travel_requests tr
           INNER JOIN 
             trf_accommodation_details tad ON tad.trf_id = tr.id
+          LEFT JOIN 
+            users u ON tr.staff_id = u.id
           WHERE tr.status IN (${statuses.map(s => `'${s}'`).join(', ')})
             AND tr.id IS NOT NULL
             ${userFilterCondition}
@@ -273,13 +288,23 @@ export const GET = withAuth(async function(request: NextRequest) {
             END as "trfId",
             tr.requestor_name as "requestorName",
             tr.staff_id as "requestorId",
-            'Male' as "requestorGender", 
+            COALESCE(u.gender, 'Male') as "requestorGender", 
             tr.department,
             tad.location,
             tad.check_in_date as "requestedCheckInDate",
             tad.check_out_date as "requestedCheckOutDate",
             tad.accommodation_type as "requestedRoomType",
-            tr.status,
+            COALESCE(
+              (SELECT CASE 
+                WHEN COUNT(CASE WHEN tas.status = 'Rejected' THEN 1 END) > 0 THEN 'Rejected'
+                WHEN COUNT(CASE WHEN tas.status = 'Cancelled' THEN 1 END) > 0 THEN 'Cancelled'
+                WHEN tr.status IN ('Approved', 'Processing', 'Completed', 'Processing Accommodation', 'TRF Processed', 'Awaiting Visa') THEN tr.status
+                ELSE tr.status
+              END
+              FROM trf_approval_steps tas 
+              WHERE tas.trf_id = tr.id),
+              tr.status
+            ) as status,
             NULL as "assignedRoomName",
             NULL as "assignedStaffHouseName",
             tr.submitted_at as "submittedDate",
@@ -291,6 +316,8 @@ export const GET = withAuth(async function(request: NextRequest) {
             travel_requests tr
           INNER JOIN 
             trf_accommodation_details tad ON tad.trf_id = tr.id
+          LEFT JOIN 
+            users u ON tr.staff_id = u.id
           WHERE 
             tr.id IS NOT NULL
             ${userFilterCondition}

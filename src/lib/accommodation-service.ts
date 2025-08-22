@@ -69,13 +69,23 @@ export async function getAccommodationRequests(userId?: string, statuses?: strin
         END as "trfId",
         tr.requestor_name as "requestorName",
         tr.staff_id as "requestorId",
-        'Male' as "requestorGender",
+        COALESCE(u.gender, 'Male') as "requestorGender",
         tr.department,
         tad.location,
         tad.check_in_date as "requestedCheckInDate",
         tad.check_out_date as "requestedCheckOutDate",
         tad.accommodation_type as "requestedRoomType",
-        tr.status,
+        COALESCE(
+          (SELECT CASE 
+            WHEN COUNT(CASE WHEN tas.status = 'Rejected' THEN 1 END) > 0 THEN 'Rejected'
+            WHEN COUNT(CASE WHEN tas.status = 'Cancelled' THEN 1 END) > 0 THEN 'Cancelled'
+            WHEN tr.status IN ('Approved', 'Processing', 'Completed', 'Processing Accommodation', 'TRF Processed', 'Awaiting Visa') THEN tr.status
+            ELSE tr.status
+          END
+          FROM trf_approval_steps tas 
+          WHERE tas.trf_id = tr.id),
+          tr.status
+        ) as status,
         NULL as "assignedRoomName",
         NULL as "assignedStaffHouseName",
         tr.submitted_at as "submittedDate",
@@ -87,6 +97,8 @@ export async function getAccommodationRequests(userId?: string, statuses?: strin
         travel_requests tr
       INNER JOIN 
         trf_accommodation_details tad ON tad.trf_id = tr.id
+      LEFT JOIN 
+        users u ON tr.staff_id = u.id
       WHERE 
         ${whereClause}
       ORDER BY 
@@ -145,13 +157,23 @@ export async function getAccommodationRequestById(requestId: string): Promise<(A
         END as "trfId",
         tr.requestor_name as "requestorName",
         tr.staff_id as "requestorId",
-        'Male' as "requestorGender", -- Default value as it's not in the schema
+        COALESCE(u.gender, 'Male') as "requestorGender",
         tr.department,
         tad.location,
         tad.check_in_date as "requestedCheckInDate",
         tad.check_out_date as "requestedCheckOutDate",
         tad.accommodation_type as "requestedRoomType",
-        tr.status,
+        COALESCE(
+          (SELECT CASE 
+            WHEN COUNT(CASE WHEN tas.status = 'Rejected' THEN 1 END) > 0 THEN 'Rejected'
+            WHEN COUNT(CASE WHEN tas.status = 'Cancelled' THEN 1 END) > 0 THEN 'Cancelled'
+            WHEN tr.status IN ('Approved', 'Processing', 'Completed', 'Processing Accommodation', 'TRF Processed', 'Awaiting Visa') THEN tr.status
+            ELSE tr.status
+          END
+          FROM trf_approval_steps tas 
+          WHERE tas.trf_id = tr.id),
+          tr.status
+        ) as status,
         NULL as "assignedRoomName",
         NULL as "assignedStaffHouseName",
         tr.submitted_at as "submittedDate",
@@ -163,6 +185,8 @@ export async function getAccommodationRequestById(requestId: string): Promise<(A
         trf_accommodation_details tad
       LEFT JOIN 
         travel_requests tr ON tad.trf_id = tr.id
+      LEFT JOIN 
+        users u ON tr.staff_id = u.id
       WHERE 
         tr.id = ${bookingId}
     `;
@@ -377,7 +401,7 @@ function generateFullApprovalWorkflow(
       // Use the completed step data
       fullWorkflow.push({
         role: completedStep.role || expectedStep.role,
-        name: completedStep.name || completedStep.approver_name || expectedStep.name,
+        name: completedStep.name || completedStep.step_name || expectedStep.name,
         status: completedStep.status as "Current" | "Pending" | "Approved" | "Rejected" | "Not Started" | "Cancelled" | "Submitted",
         date: completedStep.step_date ? new Date(completedStep.step_date) : undefined,
         comments: completedStep.comments || undefined
@@ -392,9 +416,10 @@ function generateFullApprovalWorkflow(
       } else if (currentStatus === `Pending ${expectedStep.role}`) {
         stepStatus = 'Current'; // Current pending step
       } else if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
-        stepStatus = 'Pending'; // Keep as Pending for not-yet-reached steps
+        stepStatus = 'Not Started'; // Keep as Not Started for not-yet-reached steps
       } else if (currentStatus === 'Approved') {
-        stepStatus = 'Pending'; // Pending steps that weren't recorded
+        // For approved requests, missing steps should be marked as approved
+        stepStatus = 'Approved';
       } else {
         stepStatus = 'Pending';
       }

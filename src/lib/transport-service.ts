@@ -218,6 +218,23 @@ export class TransportService {
         transportRequest.requestor_name
       );
 
+      // Parse booking details if they exist
+      let bookingDetails = null;
+      if (transportRequest.booking_details) {
+        try {
+          // If it's already an object (JSONB from PostgreSQL), use it directly
+          if (typeof transportRequest.booking_details === 'object') {
+            bookingDetails = transportRequest.booking_details;
+          } else {
+            // If it's a string, parse it
+            bookingDetails = JSON.parse(transportRequest.booking_details);
+          }
+          console.log('Transport service - parsed booking details:', bookingDetails);
+        } catch (e) {
+          console.error('Error parsing booking details:', e);
+        }
+      }
+
       return {
         id: transportRequest.id,
         requestorName: transportRequest.requestor_name,
@@ -245,7 +262,8 @@ export class TransportService {
         submittedAt: transportRequest.created_at,
         updatedAt: transportRequest.updated_at,
         createdBy: transportRequest.created_by,
-        updatedBy: transportRequest.updated_by
+        updatedBy: transportRequest.updated_by,
+        bookingDetails: bookingDetails
       };
     } catch (error) {
       console.error(`Error fetching transport request by ID ${id}:`, error);
@@ -709,7 +727,8 @@ export class TransportService {
       { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
       { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
       { role: 'Line Manager', name: 'TBD', status: 'Pending' as const },
-      { role: 'HOD', name: 'TBD', status: 'Pending' as const }
+      { role: 'HOD', name: 'TBD', status: 'Pending' as const },
+      { role: 'Transport Admin', name: 'TBD', status: 'Pending' as const }
     ];
 
     // Map completed steps by role for easy lookup
@@ -739,8 +758,13 @@ export class TransportService {
         
         if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
           stepStatus = 'Not Started';
-        } else if (currentStatus === 'Approved') {
-          // If approved, all pending steps should show as not started unless they were actually completed
+        } else if (currentStatus === 'Approved' && expectedStep.role === 'Transport Admin') {
+          // If approved and we're at Transport Admin step, it should be current
+          stepStatus = 'Current';
+        } else if (currentStatus === 'Processing with Transport Admin' && expectedStep.role === 'Transport Admin') {
+          stepStatus = 'Current';
+        } else if (currentStatus === 'Completed') {
+          // All steps completed
           stepStatus = 'Not Started';
         } else if (currentStatus === `Pending ${expectedStep.role}`) {
           stepStatus = 'Current';

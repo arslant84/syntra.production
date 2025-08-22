@@ -169,7 +169,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         date: claim.declaration_date
       },
       status: claim.status,
-      submittedAt: claim.submitted_at
+      submittedAt: claim.submitted_at,
+      reimbursementDetails: claim.reimbursement_details ? 
+        (typeof claim.reimbursement_details === 'object' ? 
+          claim.reimbursement_details : 
+          JSON.parse(claim.reimbursement_details)) : null
     };
 
     // Get approval steps for this claim
@@ -255,22 +259,62 @@ function generateFullClaimApprovalWorkflow(
         stepStatus = 'Current';
       } else if (currentStatus === 'Pending Finance Approval' && expectedStep.role === 'Finance') {
         stepStatus = 'Current';
-      } else if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
+      } else if (currentStatus === 'Rejected') {
         stepStatus = 'Pending'; // Keep as Pending for not-yet-reached steps
+      } else if (currentStatus === 'Cancelled') {
+        stepStatus = 'Cancelled'; // Mark all steps as cancelled for cancelled claims
       } else if (currentStatus === 'Approved' || currentStatus === 'Processed') {
-        stepStatus = 'Pending'; // Pending steps that weren't recorded
+        // For approved/processed claims, all approval steps should be marked as approved
+        // since the claim went through the full approval process to reach this status
+        if (expectedStep.role !== 'Requestor') {
+          stepStatus = 'Approved';
+        } else {
+          stepStatus = 'Submitted';
+        }
       } else {
         stepStatus = 'Pending';
       }
 
+      // For approved/processed claims, provide more realistic names instead of "To be assigned"
+      let stepName = expectedStep.name;
+      if (stepName === 'TBD' && (currentStatus === 'Approved' || currentStatus === 'Processed')) {
+        switch (expectedStep.role) {
+          case 'Department Focal':
+            stepName = 'Department Focal';
+            break;
+          case 'HOD':
+            stepName = 'Head of Department';
+            break;
+          case 'Finance':
+            stepName = 'Finance Department';
+            break;
+          default:
+            stepName = 'To be assigned';
+        }
+      } else if (stepName === 'TBD') {
+        stepName = 'To be assigned';
+      }
+
       fullWorkflow.push({
         role: expectedStep.role,
-        name: expectedStep.name !== 'TBD' ? expectedStep.name : 'To be assigned',
+        name: stepName,
         status: stepStatus,
         date: undefined,
-        comments: undefined
+        comments: stepStatus === 'Approved' ? 'Approved during workflow processing' : undefined
       });
     }
+  }
+
+  // Add any cancellation steps to the end of the workflow
+  const cancellationSteps = completedSteps.filter(step => step.stepRole === 'Cancelled By');
+  for (const cancelStep of cancellationSteps) {
+    fullWorkflow.push({
+      role: cancelStep.stepRole,
+      name: cancelStep.stepName || 'User',
+      status: 'Cancelled',
+      date: cancelStep.stepDate ? new Date(cancelStep.stepDate) : undefined,
+      comments: cancelStep.comments || 'Claim was cancelled'
+    });
   }
 
   return fullWorkflow;

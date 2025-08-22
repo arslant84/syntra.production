@@ -4,10 +4,10 @@ export type TransportRequestStatus =
   | 'Pending Line Manager' 
   | 'Pending HOD' 
   | 'Approved' 
+  | 'Processing with Transport Admin'
+  | 'Completed'
   | 'Rejected' 
-  | 'Cancelled'
-  | 'Processing'
-  | 'Completed';
+  | 'Cancelled';
 
 export type TransportType = 'Local' | 'Intercity' | 'Airport Transfer' | 'Charter' | 'Other';
 
@@ -57,6 +57,7 @@ export interface TransportRequestForm extends TransportRequestData, TransportApp
   updatedAt?: Date | string;
   createdBy?: string;
   updatedBy?: string;
+  bookingDetails?: TransportBookingDetails;
 }
 
 export interface TransportApprovalStep {
@@ -67,6 +68,18 @@ export interface TransportApprovalStep {
   comments?: string;
 }
 
+export interface TransportBookingDetails {
+  vehicleType?: string;
+  vehicleNumber?: string;
+  driverName?: string;
+  driverContact?: string;
+  pickupTime?: string;
+  dropoffTime?: string;
+  actualRoute?: string;
+  bookingReference?: string;
+  additionalNotes?: string;
+}
+
 export interface TransportRequestSummary {
   id: string;
   requestorName: string;
@@ -75,4 +88,5 @@ export interface TransportRequestSummary {
   status: TransportRequestStatus;
   submittedAt?: Date | string;
   tsrReference?: string;
+  bookingDetails?: TransportBookingDetails;
 } 

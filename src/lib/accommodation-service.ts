@@ -145,7 +145,7 @@ export async function getAccommodationRequests(userId?: string, statuses?: strin
  * @param bookingId The ID of the accommodation request
  * @returns The accommodation request details or null if not found
  */
-export async function getAccommodationRequestById(requestId: string): Promise<(AccommodationRequestDetails & { approvalWorkflow?: AccommodationApprovalStep[] }) | null> {
+export async function getAccommodationRequestById(requestId: string): Promise<(AccommodationRequestDetails & { approvalWorkflow?: AccommodationApprovalStep[]; bookingDetails?: any[] }) | null> {
   const bookingId = requestId; // Alias for parameter consistency
   try {
     const [request] = await sql`
@@ -195,6 +195,42 @@ export async function getAccommodationRequestById(requestId: string): Promise<(A
       return null;
     }
 
+    // Fetch actual booking details from accommodation_bookings table
+    let bookingDetails: any[] = [];
+    try {
+      bookingDetails = await sql`
+        SELECT 
+          ab.id,
+          ab.staff_id as "staffId",
+          ab.date as "bookingDate",
+          ab.status as "bookingStatus",
+          ab.notes as "bookingNotes",
+          ar.name as "roomName",
+          ash.name as "staffHouseName",
+          ash.location,
+          ar.room_type as "roomType",
+          ar.capacity,
+          u.name as "guestName",
+          COALESCE(sg.gender, u.gender) as gender
+        FROM 
+          accommodation_bookings ab
+        LEFT JOIN 
+          accommodation_rooms ar ON ab.room_id = ar.id
+        LEFT JOIN 
+          accommodation_staff_houses ash ON ab.staff_house_id = ash.id
+        LEFT JOIN 
+          users u ON ab.staff_id = u.id
+        LEFT JOIN 
+          staff_guests sg ON ab.staff_id = sg.id
+        WHERE 
+          ab.trf_id = ${bookingId}
+        ORDER BY ab.date
+      `;
+    } catch (bookingError) {
+      console.warn('Could not fetch booking details:', bookingError);
+      // Continue without booking details if the table doesn't exist or query fails
+    }
+
     // Fetch approval workflow steps
     const approvalResult = await sql`
       SELECT * FROM trf_approval_steps WHERE trf_id = ${bookingId} ORDER BY step_date
@@ -206,6 +242,11 @@ export async function getAccommodationRequestById(requestId: string): Promise<(A
       approvalResult,
       request.requestorName
     );
+
+    // Get assigned room and staff house from booking details if available
+    const firstBooking = bookingDetails.length > 0 ? bookingDetails[0] : null;
+    const assignedRoomName = firstBooking?.roomName || request.assignedRoomName;
+    const assignedStaffHouseName = firstBooking?.staffHouseName || request.assignedStaffHouseName;
 
     // Format dates and ensure proper typing
     return {
@@ -220,14 +261,15 @@ export async function getAccommodationRequestById(requestId: string): Promise<(A
       requestedCheckOutDate: new Date(request.requestedCheckOutDate).toISOString(),
       requestedRoomType: request.requestedRoomType,
       status: request.status as BookingStatus,
-      assignedRoomName: request.assignedRoomName,
-      assignedStaffHouseName: request.assignedStaffHouseName,
+      assignedRoomName,
+      assignedStaffHouseName,
       submittedDate: new Date(request.submittedDate).toISOString(),
       lastUpdatedDate: request.lastUpdatedDate ? new Date(request.lastUpdatedDate).toISOString() : new Date(request.submittedDate).toISOString(),
       specialRequests: request.specialRequests,
       flightArrivalTime: request.flightArrivalTime,
       flightDepartureTime: request.flightDepartureTime,
-      approvalWorkflow: fullApprovalWorkflow
+      approvalWorkflow: fullApprovalWorkflow,
+      bookingDetails
     };
   } catch (error) {
     console.error(`Error fetching accommodation request with ID ${bookingId}:`, error);

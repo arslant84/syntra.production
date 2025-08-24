@@ -12,7 +12,10 @@ import { StatusBadge } from "@/lib/status-utils";
 import Link from 'next/link';
 
 interface AccommodationRequestDetailsViewProps {
-  requestData: AccommodationRequestDetails;
+  requestData: AccommodationRequestDetails & { 
+    bookingDetails?: any[]; 
+    approvalWorkflow?: any[];
+  };
 }
 
 const formatDateSafe = (date: Date | string | null | undefined, dateFormat = "PPP") => {
@@ -43,8 +46,19 @@ export default function AccommodationRequestDetailsView({ requestData }: Accommo
     location, requestedCheckInDate, requestedCheckOutDate, requestedRoomType,
     status, assignedRoomName, assignedStaffHouseName,
     specialRequests, notes, submittedDate, lastUpdatedDate,
-    flightArrivalTime, flightDepartureTime, approvalWorkflow
+    flightArrivalTime, flightDepartureTime, approvalWorkflow, bookingDetails
   } = requestData;
+
+  // Extract accommodation assignment details from approval workflow and notes
+  const accommodationAssignmentStep = approvalWorkflow?.find(
+    (step: any) => step.role === 'Accommodation Admin' && step.status === 'Accommodation Assigned'
+  );
+
+  const assignmentDetails = accommodationAssignmentStep?.comments || 
+    (notes?.includes('Accommodation Assigned:') ? 
+      notes.split('Accommodation Assigned:')[1]?.split('\n')[0]?.trim() : null);
+
+  const hasAssignmentInfo = assignedRoomName || assignedStaffHouseName || accommodationAssignmentStep || assignmentDetails;
 
   return (
     <div className="space-y-6">
@@ -86,16 +100,108 @@ export default function AccommodationRequestDetailsView({ requestData }: Accommo
         </CardContent>
       </Card>
       
-      {status === 'Confirmed' && (
-        <Card className="shadow-md border-green-500 bg-green-50/50">
+      {/* Show assignment details for any status where accommodation is assigned */}
+      {hasAssignmentInfo && (
+        <Card className={cn("shadow-md", 
+          status === 'Confirmed' ? "border-green-500 bg-green-50/50" : 
+          status === 'Processing' || status === 'Completed' ? "border-blue-500 bg-blue-50/50" :
+          "border-yellow-500 bg-yellow-50/50"
+        )}>
           <CardHeader>
-            <CardTitle className="text-xl flex items-center gap-2 text-green-700">
-              <CheckCircle2 className="w-5 h-5" /> Assignment Confirmed
+            <CardTitle className={cn("text-xl flex items-center gap-2", 
+              status === 'Confirmed' ? "text-green-700" :
+              status === 'Processing' || status === 'Completed' ? "text-blue-700" :
+              "text-yellow-700"
+            )}>
+              <Bed className="w-5 h-5" /> 
+              {status === 'Confirmed' ? 'Assignment Confirmed' : 
+               status === 'Processing' ? 'Accommodation Processing' :
+               status === 'Completed' ? 'Assignment Completed' :
+               status === 'Checked-in' ? 'Checked In' :
+               status === 'Checked-out' ? 'Checked Out' :
+               'Accommodation Assigned'}
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 pt-4">
-            <DetailItem label="Assigned Staff House" value={assignedStaffHouseName || 'N/A'} />
-            <DetailItem label="Assigned Room/Unit" value={assignedRoomName || 'N/A'} />
+          <CardContent className="pt-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
+              <DetailItem label="Assigned Staff House" value={assignedStaffHouseName || 'N/A'} />
+              <DetailItem label="Assigned Room/Unit" value={assignedRoomName || 'N/A'} />
+              {accommodationAssignmentStep?.date && (
+                <DetailItem label="Assignment Date" value={formatDateSafe(accommodationAssignmentStep.date, "PPP")} />
+              )}
+              {status === 'Checked-in' && (
+                <DetailItem label="Check-in Status" value={<Badge variant="default" className="bg-green-600">Checked In</Badge>} />
+              )}
+              {status === 'Checked-out' && (
+                <DetailItem label="Check-out Status" value={<Badge variant="outline" className="border-gray-600">Checked Out</Badge>} />
+              )}
+            </div>
+            {assignmentDetails && (
+              <div className="pt-2 border-t border-muted">
+                <DetailItem 
+                  label="Assignment Details" 
+                  value={
+                    <div className="p-3 bg-muted/30 rounded-md">
+                      <p className="text-sm whitespace-pre-wrap">{assignmentDetails.replace(/^Assigned:\s*/, '')}</p>
+                    </div>
+                  } 
+                  fullWidth 
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Room Booking Details */}
+      {bookingDetails && bookingDetails.length > 0 && (
+        <Card className="shadow-md border-blue-500 bg-blue-50/50">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center gap-2 text-blue-700">
+              <Bed className="w-5 h-5" /> Room Booking Details
+            </CardTitle>
+            <CardDescription>
+              Detailed booking information for your accommodation
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="space-y-4">
+              {bookingDetails.map((booking, index) => (
+                <div key={booking.id || index} className="border rounded-lg p-4 bg-white">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h4 className="font-semibold text-lg">
+                        {booking.guestName || requestorName}
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {booking.gender || requestorGender} • {formatDateSafe(booking.bookingDate)}
+                      </p>
+                    </div>
+                    <StatusBadge status={booking.bookingStatus} showIcon />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
+                    <DetailItem label="Room" value={booking.roomName || 'N/A'} />
+                    <DetailItem label="Staff House" value={booking.staffHouseName || 'N/A'} />
+                    <DetailItem label="Room Type" value={booking.roomType || 'N/A'} />
+                    <DetailItem label="Capacity" value={booking.capacity || 'N/A'} />
+                    <DetailItem label="Location" value={booking.location || 'N/A'} />
+                  </div>
+                  {booking.bookingNotes && (
+                    <div className="mt-3 pt-3 border-t">
+                      <DetailItem 
+                        label="Booking Notes" 
+                        value={
+                          <div className="p-2 bg-muted/30 rounded">
+                            <p className="text-sm whitespace-pre-wrap">{booking.bookingNotes}</p>
+                          </div>
+                        } 
+                        fullWidth 
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -137,7 +243,7 @@ export default function AccommodationRequestDetailsView({ requestData }: Accommo
           </CardHeader>
           <CardContent className="pt-4">
             <div className="space-y-4">
-              {approvalWorkflow.map((step, index) => (
+              {approvalWorkflow.map((step: any, index: number) => (
                 <div key={index} className="flex items-center gap-4">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                     step.status === 'Approved' || step.status === 'Submitted' ? 'bg-green-100 text-green-600' :

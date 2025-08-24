@@ -39,7 +39,7 @@ export async function GET() {
         accommodation_bookings ab ON ab.trf_id = tr.id 
           AND ab.status IN ('Confirmed', 'Checked-in', 'Checked-out')
       WHERE 
-        tr.status IN ('Approved', 'Pending')
+        tr.status = 'Approved'
         AND ab.id IS NULL
       ORDER BY 
         tad.created_at DESC

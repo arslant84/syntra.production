@@ -758,16 +758,16 @@ export const GET = withAuth(async function(request: NextRequest) {
         
         if (userId) {
           // Use comprehensive user filtering for summary
-          whereConditions.push('(staff_id = $3 OR requestor_name ILIKE $4)');
+          whereConditions.push('(tr.staff_id = $3 OR tr.requestor_name ILIKE $4)');
           params.push(userId);
           params.push(`%${session.name || ''}%`);
         }
         
         allTrfs = await sql.unsafe(`
-          SELECT status, submitted_at 
-          FROM travel_requests 
+          SELECT tr.status, tr.submitted_at 
+          FROM travel_requests tr
           WHERE ${whereConditions.join(' AND ')}
-          ORDER BY submitted_at DESC
+          ORDER BY tr.submitted_at DESC
         `, params);
       } else {
         // Fetch all TRFs
@@ -775,9 +775,9 @@ export const GET = withAuth(async function(request: NextRequest) {
           // Use comprehensive user filtering for non-date-range summary
           allTrfs = await sql`
             SELECT status, submitted_at 
-            FROM travel_requests 
-            WHERE (staff_id = ${userId} OR requestor_name ILIKE ${`%${session.name || ''}%`})
-            ORDER BY submitted_at DESC
+            FROM travel_requests tr
+            WHERE (tr.staff_id = ${userId} OR tr.requestor_name ILIKE ${`%${session.name || ''}%`})
+            ORDER BY tr.submitted_at DESC
           `;
         } else {
           allTrfs = await sql`
@@ -833,7 +833,7 @@ export const GET = withAuth(async function(request: NextRequest) {
   } else {
     // Use universal user filtering - works for ALL users regardless of role
     console.log(`API_TRF_GET (PostgreSQL): User ${session.role} viewing own TRFs with universal filtering`);
-    const userFilter = generateUniversalUserFilterSQL(session, sql, '', {
+    const userFilter = generateUniversalUserFilterSQL(session, sql, 'tr', {
       staffIdField: 'staff_id',
       nameField: 'requestor_name', 
       emailField: 'email',
@@ -895,13 +895,9 @@ export const GET = withAuth(async function(request: NextRequest) {
         tr.submitted_at AS "submittedAt",
         tr.staff_id AS "staffId",
         tr.department,
-        tr.start_date AS "startDate",
-        tr.end_date AS "endDate", 
-        tr.destination,
-        tr.notes,
         COALESCE(u.gender, 'Male') AS gender
       FROM travel_requests tr
-      LEFT JOIN users u ON tr.staff_id = u.id
+      LEFT JOIN users u ON tr.staff_id = u.staff_id
       ${whereClause}
       ORDER BY ${sql(dbSortColumn)} ${dbSortOrder} NULLS LAST
       LIMIT ${BigInt(limit)} OFFSET ${BigInt(offset)}
@@ -912,7 +908,7 @@ export const GET = withAuth(async function(request: NextRequest) {
     const countQuery = sql`
       SELECT COUNT(*) AS count
       FROM travel_requests tr
-      LEFT JOIN users u ON tr.staff_id = u.id
+      LEFT JOIN users u ON tr.staff_id = u.staff_id
       ${whereClause}
     `;
     const totalCountResult = await countQuery;

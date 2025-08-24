@@ -185,6 +185,7 @@ const formatDateRange = (startDate: string | Date | null | undefined, endDate: s
 
 export default function AccommodationAdminPage() {
   const [pendingAccommodationTRFs, setPendingAccommodationTRFs] = useState<AdminTrfForAccommodation[]>([]);
+  const [allAccommodationRequests, setAllAccommodationRequests] = useState<any[]>([]);
   const [staffHouses, setStaffHouses] = useState<StaffHouseData[]>([]);
   const [bookings, setBookings] = useState<ExtendedBookingData[]>([]);
   const [selectedTRF, setSelectedTRF] = useState<AdminTrfForAccommodation | null>(null);
@@ -276,9 +277,17 @@ export default function AccommodationAdminPage() {
   const fetchPendingTRFs = async () => {
     try {
       // Fetch pending accommodation requests from the dedicated API endpoint
+      console.log('Fetching pending accommodation requests...');
       const pendingRequestsResponse = await fetch(`/api/trf/pending-accommodation`);
-      if (!pendingRequestsResponse.ok) throw new Error('Failed to fetch pending accommodation requests');
+      console.log('Pending requests response status:', pendingRequestsResponse.status);
+      
+      if (!pendingRequestsResponse.ok) {
+        const errorData = await pendingRequestsResponse.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Failed to fetch pending accommodation requests:', errorData);
+        throw new Error(errorData.error || 'Failed to fetch pending accommodation requests');
+      }
       const pendingRequestsData = await pendingRequestsResponse.json();
+      console.log('Pending requests data:', pendingRequestsData);
       
       // Apply role-based filtering for personal vs admin view using client-side logic
       const filteredRequests = (pendingRequestsData.requests || []).filter(req =>
@@ -314,6 +323,18 @@ export default function AccommodationAdminPage() {
         description: err.message || 'Failed to load accommodation requests',
         variant: 'destructive',
       });
+    }
+  };
+
+  // Function to fetch all accommodation requests for dashboard statistics
+  const fetchAllAccommodationRequests = async () => {
+    try {
+      const response = await fetch('/api/accommodation/requests');
+      if (!response.ok) throw new Error('Failed to fetch accommodation requests');
+      const data = await response.json();
+      setAllAccommodationRequests(data.accommodationRequests || []);
+    } catch (err: any) {
+      console.error('Error fetching all accommodation requests:', err);
     }
   };
 
@@ -369,6 +390,9 @@ export default function AccommodationAdminPage() {
       
       // Fetch pending accommodation requests using the dedicated function
       await fetchPendingTRFs();
+      
+      // Fetch all accommodation requests for dashboard statistics
+      await fetchAllAccommodationRequests();
     } catch (err: any) {
       console.error('Error fetching accommodation data:', err);
       setError(err.message || 'Failed to load accommodation data');
@@ -1243,67 +1267,58 @@ Do you want to continue?`;
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
             <BedDouble className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{bookings?.length || 0}</div>
+            <div className="text-2xl font-bold">{allAccommodationRequests?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
-              Current month: {bookings?.filter(b => {
-                const bookingDate = new Date(b.bookingDate || b.date);
-                const currentDate = new Date();
-                return bookingDate.getMonth() === currentDate.getMonth() && 
-                       bookingDate.getFullYear() === currentDate.getFullYear();
-              }).length || 0}
+              All accommodation requests
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Bookings</CardTitle>
+            <CardTitle className="text-sm font-medium">Approved Requests</CardTitle>
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {bookings?.filter(b => b.status === 'Confirmed' || b.status === 'Active').length || 0}
+              {allAccommodationRequests?.filter(r => r.status === 'Approved').length || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Confirmed accommodations
+              Ready for assignment
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
+            <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
             <CalendarPlus className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {allAccommodationRequests?.filter(r => 
+                r.status?.includes('Pending') || r.status === 'Draft'
+              ).length || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Awaiting approval
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Awaiting Assignment</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{pendingAccommodationTRFs?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
-              Awaiting assignment
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Occupancy Rate</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {(() => {
-                const totalRooms = staffHouses?.reduce((sum, house) => sum + (house.rooms?.length || 0), 0) || 1;
-                const occupiedRooms = bookings?.filter(b => 
-                  b.status === 'Confirmed' || b.status === 'Active'
-                ).length || 0;
-                return Math.round((occupiedRooms / totalRooms) * 100);
-              })()}%
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Current utilization
+              Approved, need accommodation
             </p>
           </CardContent>
         </Card>

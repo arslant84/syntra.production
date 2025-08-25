@@ -1,6 +1,6 @@
 // src/lib/auth-service.ts
 import { getServerSession } from 'next-auth';
-import { sql } from '@vercel/postgres';
+import { sql } from '@/lib/db';
 
 // Define type for session user
 type SessionUser = {

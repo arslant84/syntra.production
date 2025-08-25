@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plane, FileText, CheckCircle, XCircle, Clock, Settings, Ticket } from "lucide-react";
+import { Plane, FileText, CheckCircle, XCircle, Clock, Settings, Ticket, Eye } from "lucide-react";
 import { useSessionPermissions } from '@/hooks/use-session-permissions';
 import { shouldShowRequest } from '@/lib/client-rbac-utils';
 
@@ -53,9 +53,9 @@ export default function FlightsAdminPage() {
       
       // Calculate statistics from API response
       const newStats = {
-        total: apiStats.total_flight_requests || 0,
-        pending: apiStats.pending_bookings || 0,
-        booked: apiStats.booked_flights || 0,
+        total: apiStats.total || 0,
+        pending: apiStats.pending || 0,
+        booked: apiStats.booked || 0,
         completed: apiStats.completed || 0,
         rejected: apiStats.rejected || 0
       };
@@ -73,46 +73,26 @@ export default function FlightsAdminPage() {
     
     try {
       setIsLoading(true);
-      // Fetch TRFs that require flights (Overseas, Home Leave Passage)
-      const statusesToFetch = ["Approved", "Awaiting Visa", "TRF Processed", "Rejected"].join(',');
-      const response = await fetch(`/api/trf?statuses=${encodeURIComponent(statusesToFetch)}&limit=50`);
+      // Fetch all TSRs that require flights from the admin flight endpoint
+      const response = await fetch('/api/admin/flights');
       if (!response.ok) {
         throw new Error('Failed to fetch flight applications');
       }
       
       const data = await response.json();
       
-      // Apply role-based filtering and filter for flight-required travel types
-      // Only show actual TSRs (not auto-generated accommodation requests)
-      const flightRequiredTrfs = (data.trfs || [])
-        .filter(trf => trf.id && trf.id.startsWith('TSR-')) // Only TSR-prefixed requests
-        .filter(trf => ['Overseas', 'Home Leave Passage'].includes(trf.travelType))
-        .filter(trf => shouldShowRequest(role, { ...trf, itemType: 'trf' }, userId));
-      
-      const formattedApplications = flightRequiredTrfs.map((trf: any) => {
-        let destinationSummary = '';
-        
-        if (trf.overseasTravelDetails?.itinerary?.length) {
-          destinationSummary = trf.overseasTravelDetails.itinerary
-            .map((s: any) => `${s.from_location || s.from} > ${s.to_location || s.to}`)
-            .join(', ');
-        } else if (trf.externalPartiesTravelDetails?.itinerary?.length) {
-          destinationSummary = trf.externalPartiesTravelDetails.itinerary
-            .map((s: any) => `${s.from_location || s.from} > ${s.to_location || s.to}`)
-            .join(', ');
-        }
-        
-        return {
-          id: trf.id,
-          requestorName: trf.requestorName || trf.externalPartyRequestorInfo?.externalFullName || 'N/A',
-          department: trf.department || 'N/A',
-          purpose: trf.purpose || 'N/A',
-          status: trf.status,
-          travelType: trf.travelType,
-          submittedAt: trf.submittedAt,
-          destinationSummary
-        };
-      });
+      // Format the TSR data for display (all TSRs regardless of approval status)
+      const formattedApplications = (data.trfs || []).map((trf: any) => ({
+        id: trf.id,
+        requestorName: trf.requestorName || 'N/A',
+        department: trf.department || 'N/A',
+        purpose: trf.purpose || 'N/A',
+        status: trf.status,
+        travelType: trf.travelType,
+        submittedAt: trf.submittedAt,
+        hasFlightBooking: trf.hasFlightBooking,
+        flightDetails: trf.flightDetails
+      }));
       
       setApplications(formattedApplications);
     } catch (error) {
@@ -169,8 +149,8 @@ export default function FlightsAdminPage() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
@@ -178,7 +158,7 @@ export default function FlightsAdminPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">All flight requests</p>
+            <p className="text-xs text-muted-foreground">All submitted requests</p>
           </CardContent>
         </Card>
         <Card>
@@ -188,37 +168,27 @@ export default function FlightsAdminPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.pending}</div>
-            <p className="text-xs text-muted-foreground">Awaiting flight booking</p>
+            <p className="text-xs text-muted-foreground">Approved TSRs awaiting booking</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Booked</CardTitle>
-            <Ticket className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.booked}</div>
-            <p className="text-xs text-muted-foreground">Flights confirmed</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
+            <CardTitle className="text-sm font-medium">Booked Flights</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.completed}</div>
-            <p className="text-xs text-muted-foreground">Processing complete</p>
+            <div className="text-2xl font-bold">{stats.booked}</div>
+            <p className="text-xs text-muted-foreground">Flights booked for all users</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rejected</CardTitle>
-            <XCircle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">No Flights Available</CardTitle>
+            <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.rejected}</div>
-            <p className="text-xs text-muted-foreground">Declined requests</p>
+            <p className="text-xs text-muted-foreground">No flights available</p>
           </CardContent>
         </Card>
       </div>
@@ -324,16 +294,8 @@ export default function FlightsAdminPage() {
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/trf/view/${application.id}`}>
+                            <Eye className="h-4 w-4 mr-1" />
                             View Details
-                          </Link>
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          asChild
-                          disabled={application.status !== 'Approved'}
-                        >
-                          <Link href="/admin/flights/processing">
-                            Process Flight
                           </Link>
                         </Button>
                       </div>

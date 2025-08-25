@@ -65,6 +65,10 @@ const AccommodationProcessingPage = () => {
   const [selectedStaffHouseForBooking, setSelectedStaffHouseForBooking] = useState<string>("");
   const [selectedRoomForBooking, setSelectedRoomForBooking] = useState<string>("");
   
+  // Booking Details Modal State
+  const [isBookingDetailsOpen, setIsBookingDetailsOpen] = useState(false);
+  const [selectedBookingDetails, setSelectedBookingDetails] = useState<BookingData | null>(null);
+  
   const { toast } = useToast();
   const { role, userId, isLoading: sessionLoading } = useSessionPermissions();
 
@@ -380,6 +384,28 @@ const AccommodationProcessingPage = () => {
     return { isOccupied: false, status: null, guestName: null, booking: null };
   };
 
+  // Handle double-click on booking cell to show details
+  const handleBookingCellDoubleClick = (date: Date, roomId: string) => {
+    const bookingInfo = getDateBookingInfo(date, roomId);
+    if (bookingInfo.isOccupied && bookingInfo.booking) {
+      // Find the staff house and room names
+      const staffHouse = staffHouses.find(h => h.rooms.some(r => r.id === roomId));
+      const room = staffHouse?.rooms.find(r => r.id === roomId);
+      
+      // Enhance booking details with house and room names
+      const enhancedBooking = {
+        ...bookingInfo.booking,
+        staffHouseName: staffHouse?.name || 'Unknown Staff House',
+        roomName: room?.name || 'Unknown Room',
+        dateFormatted: format(date, 'EEEE, MMMM do, yyyy'),
+        totalBookingsForDate: bookingInfo.totalBookings
+      };
+      
+      setSelectedBookingDetails(enhancedBooking);
+      setIsBookingDetailsOpen(true);
+    }
+  };
+
   // Check for booking conflicts in selected date range
   const checkBookingConflicts = (dateRange: DateRange, roomId: string) => {
     if (!dateRange?.from || !dateRange?.to || !roomId) return [];
@@ -654,6 +680,31 @@ const AccommodationProcessingPage = () => {
                 </Select>
               </div>
 
+              {/* Calendar Legend */}
+              <div className="flex items-center justify-between mb-4 p-3 bg-gray-50 rounded-lg border">
+                <div className="flex items-center gap-6 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-white border border-gray-200 rounded"></div>
+                    <span>Available</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-green-200 border border-green-300 rounded flex items-center justify-center text-green-800">
+                      <div className="w-1.5 h-1.5 bg-green-800 rounded-full"></div>
+                    </div>
+                    <span>Occupied</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-red-200 border border-red-300 rounded flex items-center justify-center text-red-800">
+                      <div className="w-1.5 h-1.5 bg-red-800 rounded-full"></div>
+                    </div>
+                    <span>Blocked</span>
+                  </div>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Double-click on occupied/blocked cells for details
+                </div>
+              </div>
+
               {/* Calendar Grid */}
               <div className="overflow-x-auto">
                 <div className="min-w-[1200px]">
@@ -705,7 +756,8 @@ const AccommodationProcessingPage = () => {
                                         : "bg-green-200 text-green-800 border-green-300"
                                       : "bg-white border-gray-200 hover:bg-gray-100"
                                   )}
-                                  title={bookingInfo.isOccupied ? `${bookingInfo.guestName} (${bookingInfo.status})` : 'Available'}
+                                  title={bookingInfo.isOccupied ? `${bookingInfo.guestName} (${bookingInfo.status}) - Double-click for details` : 'Available'}
+                                  onDoubleClick={() => bookingInfo.isOccupied && handleBookingCellDoubleClick(date, room.id)}
                                 >
                                   {bookingInfo.isOccupied ? '●' : ''}
                                 </div>
@@ -972,6 +1024,108 @@ const AccommodationProcessingPage = () => {
         </Card>
       </TabsContent>
     </Tabs>
+
+      {/* Booking Details Modal */}
+      <Dialog open={isBookingDetailsOpen} onOpenChange={setIsBookingDetailsOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BedDouble className="h-5 w-5" />
+              Booking Details
+            </DialogTitle>
+            <DialogDescription>
+              Detailed information about this accommodation booking
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedBookingDetails && (
+            <div className="space-y-4">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Date</Label>
+                  <p className="text-sm font-medium">{(selectedBookingDetails as any).dateFormatted}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      selectedBookingDetails.status === 'Blocked' ? "bg-red-500" : "bg-green-500"
+                    )}></div>
+                    <Badge variant={selectedBookingDetails.status === 'Blocked' ? 'destructive' : 'default'}>
+                      {selectedBookingDetails.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Location Info */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground">Location</Label>
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <p className="font-medium text-sm">
+                    📍 {(selectedBookingDetails as any).staffHouseName}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    🚪 {(selectedBookingDetails as any).roomName}
+                  </p>
+                </div>
+              </div>
+
+              {/* Guest Info */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground">Guest Information</Label>
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <p className="font-medium text-sm">
+                    👤 {selectedBookingDetails.guestName}
+                  </p>
+                  {selectedBookingDetails.gender && (
+                    <p className="text-sm text-muted-foreground">
+                      Gender: {selectedBookingDetails.gender}
+                    </p>
+                  )}
+                  {(selectedBookingDetails as any).totalBookingsForDate > 1 && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      ⚠️ {(selectedBookingDetails as any).totalBookingsForDate} guests booked for this date
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Additional Details */}
+              {selectedBookingDetails.reason && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Notes</Label>
+                  <div className="bg-muted/50 p-3 rounded-lg">
+                    <p className="text-sm">{selectedBookingDetails.reason}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* TRF Reference */}
+              {selectedBookingDetails.trfId && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Related Request</Label>
+                  <div className="bg-muted/50 p-3 rounded-lg">
+                    <Button variant="link" className="p-0 h-auto" asChild>
+                      <Link href={`/accommodation/view/${selectedBookingDetails.trfId}`} className="text-sm">
+                        📄 {selectedBookingDetails.trfId}
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBookingDetailsOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

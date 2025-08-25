@@ -70,7 +70,7 @@ export async function getUserPermissions(userId: string): Promise<string[]> {
       ORDER BY p.name
     `;
     
-    return result.rows.map((row) => row.name as string);
+    return result.rows.map((row: any) => row.name as string);
   } catch (error) {
     console.error('Error getting user permissions:', error);
     return [];
@@ -94,7 +94,7 @@ export async function getUserRoles(userId: string): Promise<string[]> {
       ORDER BY r.name
     `;
     
-    return result.rows.map((row) => row.name as string);
+    return result.rows.map((row: any) => row.name as string);
   } catch (error) {
     console.error('Error getting user roles:', error);
     return [];

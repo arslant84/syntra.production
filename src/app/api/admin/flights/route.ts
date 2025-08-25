@@ -21,77 +21,76 @@ export const GET = withAuth(async function(request: NextRequest) {
 
   try {
     if (stats) {
-      // Fetch statistics for flights
+      // Fetch statistics for ALL TSRs and flight bookings
       const flightStats = await sql`
         SELECT 
-          COUNT(CASE WHEN tr.travel_type IN ('Overseas', 'Home Leave Passage') AND tr.status = 'Approved' THEN 1 END) as pending_bookings,
-          COUNT(CASE WHEN tfb.id IS NOT NULL THEN 1 END) as booked_flights,
-          COUNT(CASE WHEN tr.travel_type IN ('Overseas', 'Home Leave Passage') AND tr.status IN ('Awaiting Visa', 'TRF Processed') THEN 1 END) as completed,
-          COUNT(CASE WHEN tr.travel_type IN ('Overseas', 'Home Leave Passage') AND tr.status = 'Rejected' THEN 1 END) as rejected,
-          COUNT(CASE WHEN tr.travel_type IN ('Overseas', 'Home Leave Passage') THEN 1 END) as total_flight_requests
+          COUNT(tr.id) as total,
+          COUNT(CASE WHEN tr.status = 'Approved' AND tfb.id IS NULL THEN 1 END) as pending,
+          COUNT(CASE WHEN tfb.id IS NOT NULL THEN 1 END) as booked,
+          COUNT(CASE WHEN tr.status = 'Rejected' THEN 1 END) as rejected
         FROM travel_requests tr
         LEFT JOIN trf_flight_bookings tfb ON tr.id = tfb.trf_id
-        WHERE tr.travel_type IN ('Overseas', 'Home Leave Passage')
-          AND tr.submitted_at >= NOW() - INTERVAL '6 months'
       `;
 
       const stats = flightStats[0] || {
-        pending_bookings: 0,
-        booked_flights: 0,
-        completed: 0,
-        rejected: 0,
-        total_flight_requests: 0
+        total: 0,
+        pending: 0,
+        booked: 0,
+        rejected: 0
       };
 
       return NextResponse.json({ stats });
     }
 
-    // Fetch flight bookings with TRF details
-    const flights = await sql`
+    // Fetch ALL TSRs with booking details if available
+    const allTrfs = await sql`
       SELECT 
-        tfb.id,
-        tfb.trf_id,
+        tr.id,
+        tr.requestor_name,
+        tr.external_full_name,
+        tr.travel_type,
+        tr.department,
+        tr.purpose,
+        tr.status,
+        tr.submitted_at,
+        tfb.id as flight_booking_id,
         tfb.flight_number,
         tfb.departure_location,
         tfb.arrival_location,
         tfb.departure_date,
         tfb.arrival_date,
         tfb.booking_reference,
-        tfb.status,
-        tfb.remarks,
-        tfb.created_at,
-        tr.requestor_name,
-        tr.external_full_name,
-        tr.travel_type,
-        tr.department,
-        tr.purpose,
-        tr.status as trf_status
-      FROM trf_flight_bookings tfb
-      JOIN travel_requests tr ON tfb.trf_id = tr.id
-      ORDER BY tfb.created_at DESC
+        tfb.status as flight_status,
+        tfb.remarks
+      FROM travel_requests tr
+      LEFT JOIN trf_flight_bookings tfb ON tr.id = tfb.trf_id
+      ORDER BY tr.submitted_at DESC
       LIMIT ${limit}
     `;
 
-    const formattedFlights = flights.map(flight => ({
-      id: flight.id,
-      trfId: flight.trf_id,
-      flightNumber: flight.flight_number,
-      departureLocation: flight.departure_location,
-      arrivalLocation: flight.arrival_location,
-      departureDate: flight.departure_date,
-      arrivalDate: flight.arrival_date,
-      bookingReference: flight.booking_reference,
-      status: flight.status,
-      remarks: flight.remarks,
-      requestorName: flight.requestor_name || flight.external_full_name,
-      travelType: flight.travel_type,
-      department: flight.department,
-      purpose: flight.purpose,
-      trfStatus: flight.trf_status,
-      createdAt: flight.created_at
+    const formattedTrfs = allTrfs.map(trf => ({
+      id: trf.id,
+      requestorName: trf.requestor_name || trf.external_full_name,
+      travelType: trf.travel_type,
+      department: trf.department,
+      purpose: trf.purpose,
+      status: trf.status,
+      submittedAt: trf.submitted_at,
+      hasFlightBooking: !!trf.flight_booking_id,
+      flightDetails: trf.flight_booking_id ? {
+        id: trf.flight_booking_id,
+        flightNumber: trf.flight_number,
+        departureLocation: trf.departure_location,
+        arrivalLocation: trf.arrival_location,
+        departureDate: trf.departure_date,
+        arrivalDate: trf.arrival_date,
+        bookingReference: trf.booking_reference,
+        status: trf.flight_status,
+        remarks: trf.remarks
+      } : null
     }));
 
-    return NextResponse.json({ flights: formattedFlights });
+    return NextResponse.json({ trfs: formattedTrfs });
 
   } catch (error: any) {
     console.error('Error fetching flight data:', error);

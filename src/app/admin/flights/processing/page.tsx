@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plane, Search, Filter, Ticket, UserCheck, AlertCircle, Loader2, AlertTriangleIcon, Eye, CalendarIcon, ArrowLeft } from "lucide-react";
+import { Plane, Search, Filter, Ticket, UserCheck, AlertCircle, Loader2, AlertTriangleIcon, Eye, CalendarIcon, ArrowLeft, XCircle, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type { TravelRequestForm, TrfStatus, TravelType, ItinerarySegment } from '@/types/trf';
 import { useToast } from "@/hooks/use-toast";
@@ -151,7 +151,25 @@ export default function FlightsProcessingPage() {
       const response = await fetch('/api/admin/flights?limit=50');
       if (response.ok) {
         const data = await response.json();
-        setBookedFlights(data.flights || []);
+        // Filter TSRs that have flight bookings and format for booked flights display
+        const bookedFlightsData = (data.trfs || [])
+          .filter((trf: any) => trf.hasFlightBooking && trf.flightDetails)
+          .map((trf: any) => ({
+            id: trf.flightDetails.id,
+            trfId: trf.id,
+            flightNumber: trf.flightDetails.flightNumber,
+            departureLocation: trf.flightDetails.departureLocation,
+            arrivalLocation: trf.flightDetails.arrivalLocation,
+            departureDate: trf.flightDetails.departureDate,
+            arrivalDate: trf.flightDetails.arrivalDate,
+            bookingReference: trf.flightDetails.bookingReference,
+            status: trf.flightDetails.status,
+            remarks: trf.flightDetails.remarks,
+            requestorName: trf.requestorName,
+            travelType: trf.travelType,
+            department: trf.department
+          }));
+        setBookedFlights(bookedFlightsData);
       }
     } catch (err: any) {
       console.error('Failed to fetch booked flights:', err);
@@ -219,6 +237,88 @@ export default function FlightsProcessingPage() {
       setIsProcessingAction(false);
     }
   };
+
+  const handleNoFlightsAvailable = async (trfId: string) => {
+    if (!selectedTrf || selectedTrf.id !== trfId || selectedTrf.status !== 'Approved') {
+      toast({ 
+        title: "Action Not Allowed", 
+        description: "This action can only be performed on 'Approved' TRFs.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    setIsProcessingAction(true);
+    try {
+      const response = await fetch(`/api/trf/${trfId}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reject',
+          approverRole: 'Flight Admin',
+          approverName: 'Flight Administrator',
+          comments: 'No flights available for requested travel dates and destinations. Request cancelled by Flight Admin.'
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || "Failed to cancel request.");
+      }
+      
+      toast({
+        title: "Request Cancelled",
+        description: `TRF ${trfId} has been cancelled due to no available flights.`,
+      });
+      
+      fetchPendingTrfs(); 
+      fetchBookedFlights();
+      setSelectedTrf(null); 
+      resetFormFields();
+    } catch (err: any) {
+      toast({ 
+        title: "Error Cancelling Request", 
+        description: err.message, 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  const handleCancelBooking = async (flightId: string, trfId: string) => {
+    setIsProcessingAction(true);
+    try {
+      const response = await fetch(`/api/flights/bookings/${flightId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: 'Booking cancelled by Flight Admin'
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || "Failed to cancel booking.");
+      }
+      
+      toast({
+        title: "Booking Cancelled",
+        description: `Flight booking for TRF ${trfId} has been cancelled successfully.`,
+      });
+      
+      fetchPendingTrfs(); 
+      fetchBookedFlights();
+    } catch (err: any) {
+      toast({ 
+        title: "Error Cancelling Booking", 
+        description: err.message, 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
   
   const loadTrfDetailsForView = async (trfItem: AdminTrfListItemForFlights) => {
       if (trfItem.id) {
@@ -266,14 +366,68 @@ export default function FlightsProcessingPage() {
                 purpose: purpose,
                 itinerary: itinerary,
             });
+
+            // Auto-populate flight dates from TSR itinerary
+            if (itinerary && itinerary.length > 0) {
+                const firstSegment = itinerary[0];
+                const lastSegment = itinerary[itinerary.length - 1];
+                
+                // Set departure location and date from first segment
+                if (firstSegment.from_location || firstSegment.from) {
+                    setDepartureAirport(firstSegment.from_location || firstSegment.from);
+                }
+                if (firstSegment.departure_date || firstSegment.date) {
+                    const departureDate = parseISO(firstSegment.departure_date || firstSegment.date);
+                    if (isValid(departureDate)) {
+                        setDepartureDate(departureDate);
+                    }
+                }
+                
+                // Set arrival location and date from last segment  
+                if (lastSegment.to_location || lastSegment.to) {
+                    setArrivalAirport(lastSegment.to_location || lastSegment.to);
+                }
+                if (lastSegment.arrival_date || lastSegment.date) {
+                    const arrivalDate = parseISO(lastSegment.arrival_date || lastSegment.date);
+                    if (isValid(arrivalDate)) {
+                        setArrivalDate(arrivalDate);
+                    }
+                }
+            }
         } catch (err) {
             toast({title: "Error", description: "Could not load full TRF details.", variant: "destructive"});
             setSelectedTrf(trfItem); // Fallback to list item data
         }
       } else {
           setSelectedTrf(trfItem);
+          // Auto-populate from list item if available
+          if (trfItem.itinerary && trfItem.itinerary.length > 0) {
+              const firstSegment = trfItem.itinerary[0];
+              const lastSegment = trfItem.itinerary[trfItem.itinerary.length - 1];
+              
+              if (firstSegment.from_location || firstSegment.from) {
+                  setDepartureAirport(firstSegment.from_location || firstSegment.from);
+              }
+              if (firstSegment.departure_date || firstSegment.date) {
+                  const departureDate = parseISO(firstSegment.departure_date || firstSegment.date);
+                  if (isValid(departureDate)) {
+                      setDepartureDate(departureDate);
+                  }
+              }
+              
+              if (lastSegment.to_location || lastSegment.to) {
+                  setArrivalAirport(lastSegment.to_location || lastSegment.to);
+              }
+              if (lastSegment.arrival_date || lastSegment.date) {
+                  const arrivalDate = parseISO(lastSegment.arrival_date || lastSegment.date);
+                  if (isValid(arrivalDate)) {
+                      setArrivalDate(arrivalDate);
+                  }
+              }
+          }
       }
-      resetFormFields();
+      // Don't reset form fields since we want to keep auto-populated data
+      // resetFormFields();
   };
 
   const getDestinationSummaryDisplay = (trf: AdminTrfListItemForFlights | TravelRequestForm | null): string => {
@@ -546,9 +700,14 @@ export default function FlightsProcessingPage() {
                           {isProcessingAction ? <LoadingSpinner size="sm" className="mr-2" /> : <UserCheck className="mr-2 h-4 w-4" />}
                           Confirm Flight Booking
                         </Button>
-                        <Button variant="outline" className="w-full" disabled={isProcessingAction}>
-                          <AlertCircle className="mr-2 h-4 w-4" /> 
-                          No Flights Available
+                        <Button 
+                          variant="destructive" 
+                          className="w-full" 
+                          onClick={() => handleNoFlightsAvailable(selectedTrf.id)} 
+                          disabled={isProcessingAction || selectedTrf.status !== 'Approved'}
+                        >
+                          {isProcessingAction ? <LoadingSpinner size="sm" className="mr-2" /> : <XCircle className="mr-2 h-4 w-4" />}
+                          No Flights Available - Cancel Request
                         </Button>
                     </div>
                   </>
@@ -600,11 +759,23 @@ export default function FlightsProcessingPage() {
                           </span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Button variant="outline" size="icon" asChild className="h-8 w-8">
-                            <Link href={`/trf/view/${flight.trfId}`} title="View TRF Details">
-                              <Eye className="h-4 w-4" />
-                            </Link>
-                          </Button>
+                          <div className="flex gap-2 justify-center">
+                            <Button variant="outline" size="icon" asChild className="h-8 w-8">
+                              <Link href={`/trf/view/${flight.trfId}`} title="View TRF Details">
+                                <Eye className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleCancelBooking(flight.id, flight.trfId)}
+                              disabled={isProcessingAction}
+                              title="Cancel Booking"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

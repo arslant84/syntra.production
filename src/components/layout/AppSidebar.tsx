@@ -235,37 +235,6 @@ export default function AppSidebar() {
           );
         })()}
 
-        <SidebarSeparator />
-
-        <div className="mt-2">
-            <Link href="/profile">
-                <SidebarMenuButton
-                    tooltip={userProfile?.name || session?.user?.name || "User"}
-                    className={cn(
-                        "h-auto p-2 group-data-[state=collapsed]:w-auto group-data-[state=collapsed]:justify-center"
-                    )}
-                >
-                    <Avatar className="h-8 w-8">
-                        <AvatarImage 
-                            src={userProfile?.profile_photo || undefined} 
-                            alt={userProfile?.name || session?.user?.name || "User"} 
-                        />
-                        <AvatarFallback>
-                            {userProfile?.name ? getInitials(userProfile.name) : 
-                             session?.user?.name ? getInitials(session.user.name) : "U"}
-                        </AvatarFallback>
-                    </Avatar>
-                    <div className="group-data-[state=collapsed]:hidden ml-2 flex-grow min-w-0">
-                        <p className="text-sm font-medium truncate">
-                            {userProfile?.name || session?.user?.name || "User"}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                            {userProfile?.email || session?.user?.email || ""}
-                        </p>
-                    </div>
-                </SidebarMenuButton>
-            </Link>
-        </div>
       </SidebarFooter>
     </Sidebar>
   );

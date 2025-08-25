@@ -56,7 +56,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const requestorEmailVal = currentTrf.email || (currentTrf.travel_type === 'External Parties' ? `${currentTrf.external_full_name}@external.com` : `${currentTrf.requestor_name}@example.com`);
 
 
-    if (terminalOrProcessingStatuses.includes(currentTrfStatus)) {
+    // Allow flight admin to reject approved TSRs when no flights are available
+    const isFlightAdminRejectingApproved = action === "reject" && currentTrfStatus === "Approved" && approverRole === "Flight Admin";
+    
+    if (terminalOrProcessingStatuses.includes(currentTrfStatus) && !isFlightAdminRejectingApproved) {
         console.log(`API_TRF_ACTION_POST (PostgreSQL): TRF ${trfId} is already in a terminal/processing state: ${currentTrfStatus}. No action taken.`);
         return NextResponse.json({ error: `TRF is already in a terminal or processing state: ${currentTrfStatus}. No further actions allowed.` }, { status: 400 });
     }

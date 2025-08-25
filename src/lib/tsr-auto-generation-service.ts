@@ -52,6 +52,10 @@ export class TSRAutoGenerationService {
           const accommodationRequestId = await this.generateAccommodationRequest(tsrData, accommodationDetail, userId);
           if (accommodationRequestId) {
             generatedRequests.accommodationRequests.push(accommodationRequestId);
+            
+            // After successfully creating ACCOM request, remove accommodation details from original TSR
+            // to avoid confusion and duplication
+            await this.removeAccommodationDetailsFromTSR(tsrData.id, accommodationDetail.id);
           }
         }
       }
@@ -444,6 +448,34 @@ export class TSRAutoGenerationService {
     } catch (error) {
       console.error(`TSR_AUTO_GEN_ERROR: Failed to get auto-generated requests for TSR ${tsrId}:`, error);
       return { transportRequests: [], accommodationRequests: [] };
+    }
+  }
+
+  /**
+   * Remove accommodation details from TSR after successful ACCOM request generation
+   * This ensures clean separation between TSR and accommodation requests
+   */
+  private static async removeAccommodationDetailsFromTSR(tsrId: string, accommodationDetailId: string) {
+    try {
+      console.log(`TSR_AUTO_GEN: Removing accommodation details (ID: ${accommodationDetailId}) from TSR ${tsrId}`);
+      
+      // Delete the accommodation details from the original TSR
+      await sql`
+        DELETE FROM trf_accommodation_details 
+        WHERE trf_id = ${tsrId} AND id = ${accommodationDetailId}
+      `;
+      
+      // Update TSR's additional comments to indicate accommodation was moved to separate request
+      await sql`
+        UPDATE travel_requests
+        SET additional_comments = COALESCE(additional_comments, '') || E'\n\n[System] Accommodation details moved to separate ACCOM request for proper processing.'
+        WHERE id = ${tsrId}
+      `;
+
+      console.log(`TSR_AUTO_GEN: Successfully removed accommodation details from TSR ${tsrId}`);
+    } catch (error) {
+      console.error(`TSR_AUTO_GEN_ERROR: Failed to remove accommodation details from TSR ${tsrId}:`, error);
+      // Don't throw error here as this is cleanup - the ACCOM request was already created successfully
     }
   }
 }

@@ -463,40 +463,49 @@ export async function POST(request: Request) {
 
     console.log('POST booking - extracted data:', { staffHouseId, roomId, staffId, date, checkInDate, checkOutDate, status, notes, blockReason, trfId, forceBlock });
 
-    // For TRF bookings, validate staff_id exists in users table if provided
+    // For TRF bookings, validate staff_id exists and resolve to proper user ID
     // For regular bookings, validate against staff_guests table
     let validatedStaffId = staffId;
     let guestGender = null;
     
-    if (staffId) {
-      if (trfId) {
-        // For TRF bookings, check users table and get gender information
-        const userExists = await sql`
-          SELECT u.id, u.gender 
-          FROM users u
-          WHERE u.id = ${staffId}
-        `;
-        
-        if (userExists.length === 0) {
-          console.log(`Staff ID ${staffId} not found in users table for TRF booking, setting to null`);
-          validatedStaffId = null; // Set to null if not found
-        } else {
-          guestGender = userExists[0].gender;
-        }
+    if (trfId) {
+      // For TRF bookings, get the staff_id from the TRF and resolve to user UUID
+      const trfData = await sql`
+        SELECT tr.staff_id as trf_staff_id, tr.requestor_name, u.id as user_id, u.gender
+        FROM travel_requests tr
+        LEFT JOIN users u ON tr.staff_id = u.staff_id
+        WHERE tr.id = ${trfId}
+        LIMIT 1
+      `;
+      
+      if (trfData.length > 0 && trfData[0].user_id) {
+        validatedStaffId = trfData[0].user_id;
+        guestGender = trfData[0].gender;
+        console.log(`TRF booking: resolved staff_id ${trfData[0].trf_staff_id} to user_id ${validatedStaffId}`);
       } else {
-        // For regular bookings, check staff_guests table
-        const staffExists = await sql`
-          SELECT id, gender FROM staff_guests WHERE id = ${staffId}
-        `;
+        console.log(`TRF ${trfId} staff not found in users table, using staff_id from TRF if available`);
+        if (trfData.length > 0) {
+          validatedStaffId = trfData[0].trf_staff_id; // Fall back to staff_id number
+        }
+      }
+    } else if (staffId) {
+      // For regular bookings, check staff_guests table first, then users table
+      let staffExists = await sql`SELECT id, gender FROM staff_guests WHERE id = ${staffId}`;
         
-        if (staffExists.length === 0) {
+      if (staffExists.length === 0) {
+        // Try users table as fallback
+        const userExists = await sql`SELECT id, gender FROM users WHERE id = ${staffId} OR staff_id = ${staffId}`;
+        if (userExists.length === 0) {
           return NextResponse.json(
-            { error: `Staff ID ${staffId} does not exist in the staff_guests table` },
+            { error: `Staff ID ${staffId} does not exist in staff_guests or users table` },
             { status: 400 }
           );
         } else {
-          guestGender = staffExists[0].gender;
+          validatedStaffId = userExists[0].id; // Use user UUID
+          guestGender = userExists[0].gender;
         }
+      } else {
+        guestGender = staffExists[0].gender;
       }
     }
 

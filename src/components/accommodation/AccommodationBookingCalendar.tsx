@@ -50,11 +50,25 @@ export default function AccommodationBookingCalendar({ staffHouses, staffGuests,
   const bookingsMap = useMemo(() => {
     const map = new Map<string, CalendarCellData>();
     bookings.forEach(booking => {
-      const guest = staffGuests.find(g => g.id === booking.staffId);
+      // Try to find guest by staff_id first, then by id
+      let guest = staffGuests.find(g => g.id === booking.staffId);
+      
+      // If not found and booking has staffName/staffGender, create a temporary guest
+      if (!guest && booking.staffName) {
+        guest = {
+          id: booking.staffId,
+          name: booking.staffName,
+          gender: (booking.staffGender as 'Male' | 'Female') || 'Male',
+          initials: booking.staffName.substring(0, 2).toUpperCase()
+        };
+      }
+      
       if (guest) {
-        const key = `${booking.staffHouseId}-${booking.roomId}-${booking.date}`;
+        const dateKey = booking.date instanceof Date ? format(booking.date, 'yyyy-MM-dd') : booking.date;
+        const key = `${booking.staffHouseId}-${booking.roomId}-${dateKey}`;
         const calendarData: CalendarCellData = {
           ...booking,
+          date: dateKey,
           guest
         };
         map.set(key, calendarData);

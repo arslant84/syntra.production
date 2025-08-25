@@ -37,30 +37,32 @@ interface AccommodationApprovalStep {
  */
 export async function getAccommodationRequests(userId?: string, statuses?: string[]): Promise<AccommodationRequestDetails[]> {
   try {
-    // Build the WHERE conditions
-    const whereConditions = ['tr.id IS NOT NULL'];
+    let whereConditions = [sql`tad.trf_id IS NOT NULL`];
     
     if (userId) {
-      // Check if userId looks like a UUID (user.id) or staff number (staff_id)
       const isUUID = userId.includes('-');
       if (isUUID) {
-        // Query by user UUID - need to join with users table
-        whereConditions.push(`tr.staff_id IN (SELECT staff_id FROM users WHERE id = '${userId}')`);
+        whereConditions.push(sql`tr.staff_id IN (SELECT staff_id FROM users WHERE id = ${userId})`);
       } else {
-        // Query by staff_id directly
-        whereConditions.push(`tr.staff_id = '${userId}'`);
+        whereConditions.push(sql`tr.staff_id = ${userId}`);
       }
     }
     
     if (statuses && statuses.length > 0) {
-      const statusCondition = `tr.status IN (${statuses.map(s => `'${s}'`).join(', ')})`;
-      whereConditions.push(statusCondition);
+      whereConditions.push(sql`tr.status IN ${sql(statuses)}`);
     }
     
-    const whereClause = whereConditions.join(' AND ');
+    // Construct WHERE clause
+    let whereClause = sql``;
+    if (whereConditions.length > 0) {
+      whereClause = sql`WHERE ${ whereConditions[0] }`;
+      for (let i = 1; i < whereConditions.length; i++) {
+        whereClause = sql`${whereClause} AND ${whereConditions[i]}`;
+      }
+    }
     
-    // Build the complete query
-    const query = sql.unsafe(`
+    // Optimized query without complex subquery
+    const query = sql`
       SELECT DISTINCT ON (tr.id)
         tr.id,
         CASE 
@@ -75,17 +77,26 @@ export async function getAccommodationRequests(userId?: string, statuses?: strin
         tad.check_in_date as "requestedCheckInDate",
         tad.check_out_date as "requestedCheckOutDate",
         tad.accommodation_type as "requestedRoomType",
-        COALESCE(
-          (SELECT CASE 
-            WHEN COUNT(CASE WHEN tas.status = 'Rejected' THEN 1 END) > 0 THEN 'Rejected'
-            WHEN COUNT(CASE WHEN tas.status = 'Cancelled' THEN 1 END) > 0 THEN 'Cancelled'
-            WHEN tr.status IN ('Approved', 'Processing', 'Completed', 'Processing Accommodation', 'TRF Processed', 'Awaiting Visa') THEN tr.status
-            ELSE tr.status
-          END
-          FROM trf_approval_steps tas 
-          WHERE tas.trf_id = tr.id),
-          tr.status
-        ) as status,
+        CASE 
+          WHEN tr.travel_type != 'Accommodation' THEN
+            -- For TSRs, determine status based on approval workflow completion
+            CASE 
+              WHEN tr.status = 'Processing Accommodation' THEN 
+                -- Check if core approvals are complete for TSR accommodation
+                CASE 
+                  WHEN (
+                    SELECT COUNT(*)
+                    FROM trf_approval_steps tas 
+                    WHERE tas.trf_id = tr.id 
+                    AND tas.step_role IN ('Department Focal', 'Line Manager', 'HOD')
+                    AND tas.status = 'Approved'
+                  ) >= 3 THEN 'Approved'  -- TSR accommodation should inherit approval status
+                  ELSE tr.status
+                END
+              ELSE tr.status
+            END
+          ELSE tr.status  -- Pure accommodation requests keep their original status
+        END as status,
         NULL as "assignedRoomName",
         NULL as "assignedStaffHouseName",
         tr.submitted_at as "submittedDate",
@@ -94,16 +105,15 @@ export async function getAccommodationRequests(userId?: string, statuses?: strin
         tad.check_in_time as "flightArrivalTime",
         tad.check_out_time as "flightDepartureTime"
       FROM 
-        travel_requests tr
+        trf_accommodation_details tad
       INNER JOIN 
-        trf_accommodation_details tad ON tad.trf_id = tr.id
+        travel_requests tr ON tr.id = tad.trf_id
       LEFT JOIN 
-        users u ON tr.staff_id = u.id
-      WHERE 
-        ${whereClause}
+        users u ON u.staff_id = tr.staff_id
+      ${whereClause}
       ORDER BY 
         tr.id, tr.submitted_at DESC
-    `);
+    `;
 
     const results = await query;
     
@@ -163,17 +173,37 @@ export async function getAccommodationRequestById(requestId: string): Promise<(A
         tad.check_in_date as "requestedCheckInDate",
         tad.check_out_date as "requestedCheckOutDate",
         tad.accommodation_type as "requestedRoomType",
-        COALESCE(
-          (SELECT CASE 
-            WHEN COUNT(CASE WHEN tas.status = 'Rejected' THEN 1 END) > 0 THEN 'Rejected'
-            WHEN COUNT(CASE WHEN tas.status = 'Cancelled' THEN 1 END) > 0 THEN 'Cancelled'
-            WHEN tr.status IN ('Approved', 'Processing', 'Completed', 'Processing Accommodation', 'TRF Processed', 'Awaiting Visa') THEN tr.status
-            ELSE tr.status
-          END
-          FROM trf_approval_steps tas 
-          WHERE tas.trf_id = tr.id),
-          tr.status
-        ) as status,
+        CASE 
+          WHEN tr.travel_type != 'Accommodation' THEN
+            -- For TSRs, check approval workflow and override status if needed
+            CASE 
+              WHEN tr.status = 'Processing Accommodation' THEN 
+                -- Check if core approvals are complete for TSR accommodation
+                CASE 
+                  WHEN (
+                    SELECT COUNT(*)
+                    FROM trf_approval_steps tas 
+                    WHERE tas.trf_id = tr.id 
+                    AND tas.step_role IN ('Department Focal', 'Line Manager', 'HOD')
+                    AND tas.status = 'Approved'
+                  ) >= 3 THEN 'Approved'  -- TSR accommodation should inherit approval status
+                  ELSE tr.status
+                END
+              ELSE tr.status
+            END
+          ELSE 
+            -- For pure accommodation requests, use original complex logic
+            COALESCE(
+              (SELECT CASE 
+                WHEN COUNT(CASE WHEN tas.status = 'Rejected' THEN 1 END) > 0 THEN 'Rejected'
+                WHEN COUNT(CASE WHEN tas.status = 'Cancelled' THEN 1 END) > 0 THEN 'Cancelled'
+                ELSE tr.status
+              END
+              FROM trf_approval_steps tas 
+              WHERE tas.trf_id = tr.id),
+              tr.status
+            )
+        END as status,
         NULL as "assignedRoomName",
         NULL as "assignedStaffHouseName",
         tr.submitted_at as "submittedDate",
@@ -308,10 +338,10 @@ export async function getStaffHouses(): Promise<StaffHouseData[]> {
     `;
 
     // Map rooms to their respective staff houses
-    const staffHousesWithRooms = staffHouses.map(house => {
+    const staffHousesWithRooms = staffHouses.map((house: { id: string; name: string; location: string }) => {
       const houseRooms = rooms
-        .filter(room => room.staffHouseId === house.id)
-        .map(room => ({
+        .filter((room: any) => room.staffHouseId === house.id)
+        .map((room: any) => ({
           id: room.id,
           name: room.name,
           staff_house_id: room.staffHouseId
@@ -333,32 +363,54 @@ export async function getStaffHouses(): Promise<StaffHouseData[]> {
 }
 
 /**
- * Fetches all staff guests from the database
+ * Fetches all staff guests from the database (includes both staff_guests and users tables)
  * @returns Array of staff guest data
  */
 export async function getStaffGuests(): Promise<StaffGuest[]> {
   try {
-    const staffGuests = await sql`
-      SELECT 
-        id, 
-        name, 
-        gender,
-        SUBSTRING(name, 1, 2) as "initials"
-      FROM 
-        staff_guests
-      ORDER BY 
-        name
-    `;
+    // Try to get from staff_guests table first, then fall back to users table
+    let staffGuests: any[] = [];
+    
+    try {
+      staffGuests = await sql`
+        SELECT 
+          id, 
+          name, 
+          gender,
+          SUBSTRING(name, 1, 2) as "initials"
+        FROM 
+          staff_guests
+        ORDER BY 
+          name
+      `;
+    } catch (staffGuestsError) {
+      console.log('staff_guests table not available, using users table');
+    }
+    
+    // If staff_guests table is empty or doesn't exist, get from users table
+    if (staffGuests.length === 0) {
+      staffGuests = await sql`
+        SELECT 
+          staff_id as id, 
+          name, 
+          COALESCE(gender, 'Male') as gender,
+          SUBSTRING(name, 1, 2) as "initials"
+        FROM 
+          users
+        WHERE staff_id IS NOT NULL
+        ORDER BY 
+          name
+      `;
+    }
 
-    return staffGuests.map(guest => ({
+    return staffGuests.map((guest: any) => ({
       id: guest.id,
       name: guest.name,
       gender: guest.gender,
-      initials: guest.initials || guest.name.substring(0, 2).toUpperCase()
+      initials: guest.initials || guest.name?.substring(0, 2).toUpperCase() || 'UN'
     }));
   } catch (error) {
     console.error('Error fetching staff guests:', error);
-    // Return empty array to avoid breaking the UI
     return [];
   }
 }
@@ -378,31 +430,32 @@ export async function getAccommodationBookings(year: number, month: number): Pro
         ab.room_id as "roomId",
         ab.date,
         ab.staff_id as "staffId",
-        sg.name as "staffName",
-        sg.gender as "staffGender"
+        ab.status,
+        COALESCE(sg.name, u.name, 'Unknown Guest') as "staffName",
+        COALESCE(sg.gender, u.gender, 'Male') as "staffGender"
       FROM 
         accommodation_bookings ab
-      LEFT JOIN
-        staff_guests sg ON ab.staff_id = sg.id
+      LEFT JOIN staff_guests sg ON ab.staff_id = sg.id
+      LEFT JOIN users u ON ab.staff_id = u.staff_id
       WHERE 
         EXTRACT(YEAR FROM ab.date) = ${year}
         AND EXTRACT(MONTH FROM ab.date) = ${month}
+        AND ab.status NOT IN ('Cancelled')
       ORDER BY
-        ab.date
+        ab.date, ab.staff_house_id, ab.room_id
     `;
 
-    return bookings.map(booking => ({
+    return bookings.map((booking: any) => ({
       id: booking.id,
       staffHouseId: booking.staffHouseId,
       roomId: booking.roomId,
-      date: booking.date,
+      date: booking.date instanceof Date ? booking.date.toISOString().split('T')[0] : booking.date,
       staffId: booking.staffId,
       staffName: booking.staffName,
       staffGender: booking.staffGender
     }));
   } catch (error) {
     console.error(`Error fetching bookings for ${year}-${month}:`, error);
-    // Return empty array to avoid breaking the UI
     return [];
   }
 }
@@ -419,17 +472,38 @@ function generateFullApprovalWorkflow(
   completedSteps: any[],
   requestorName?: string
 ): AccommodationApprovalStep[] {
-  // Define the expected workflow sequence
-  const expectedWorkflow = [
-    { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
-    { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
-    { role: 'Line Manager', name: 'TBD', status: 'Pending' as const },
-    { role: 'HOD', name: 'TBD', status: 'Pending' as const }
-  ];
+  // Check if this is a TSR (has Ticketing Admin step) vs pure accommodation request
+  const isTransportRequest = completedSteps.some(step => 
+    ['Ticketing Admin', 'Transport Admin'].includes(step.step_role)
+  );
+  
+  // Define the expected workflow sequence based on request type
+  let expectedWorkflow;
+  
+  if (isTransportRequest) {
+    // TSR workflow with transport/accommodation components
+    expectedWorkflow = [
+      { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
+      { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
+      { role: 'Line Manager', name: 'TBD', status: 'Pending' as const },
+      { role: 'HOD', name: 'TBD', status: 'Pending' as const },
+      { role: 'Ticketing Admin', name: 'TBD', status: 'Pending' as const },
+      { role: 'Accommodation Admin', name: 'TBD', status: 'Pending' as const }
+    ];
+  } else {
+    // Pure accommodation request workflow
+    expectedWorkflow = [
+      { role: 'Requestor', name: requestorName || 'System', status: 'Submitted' as const },
+      { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
+      { role: 'Line Manager', name: 'TBD', status: 'Pending' as const },
+      { role: 'HOD', name: 'TBD', status: 'Pending' as const },
+      { role: 'Accommodation Admin', name: 'TBD', status: 'Pending' as const }
+    ];
+  }
 
   // Map completed steps by role for easy lookup
   const completedByRole = completedSteps.reduce((acc: any, step: any) => {
-    acc[step.role] = step;
+    acc[step.step_role] = step;
     return acc;
   }, {});
 
@@ -442,8 +516,8 @@ function generateFullApprovalWorkflow(
     if (completedStep) {
       // Use the completed step data
       fullWorkflow.push({
-        role: completedStep.role || expectedStep.role,
-        name: completedStep.name || completedStep.step_name || expectedStep.name,
+        role: completedStep.step_role || expectedStep.role,
+        name: completedStep.step_name || expectedStep.name,
         status: completedStep.status as "Current" | "Pending" | "Approved" | "Rejected" | "Not Started" | "Cancelled" | "Submitted",
         date: completedStep.step_date ? new Date(completedStep.step_date) : undefined,
         comments: completedStep.comments || undefined
@@ -457,13 +531,33 @@ function generateFullApprovalWorkflow(
         stepStatus = 'Submitted';
       } else if (currentStatus === `Pending ${expectedStep.role}`) {
         stepStatus = 'Current'; // Current pending step
-      } else if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
-        stepStatus = 'Not Started'; // Keep as Not Started for not-yet-reached steps
-      } else if (currentStatus === 'Approved') {
-        // For approved requests, missing steps should be marked as approved
-        stepStatus = 'Approved';
+      } else if (currentStatus === 'Processing Accommodation' && expectedStep.role === 'Accommodation Admin') {
+        stepStatus = 'Current'; // TSR is waiting for accommodation admin
       } else {
-        stepStatus = 'Pending';
+        // Determine status based on request completion state
+        const isCompleted = ['TRF Processed', 'Accommodation Assigned', 'Completed'].includes(currentStatus);
+        const isInProgress = ['Approved', 'Processing Accommodation', 'Finance Approved'].includes(currentStatus);
+        const isRejected = ['Rejected', 'Cancelled'].includes(currentStatus);
+        
+        if (isRejected) {
+          stepStatus = 'Not Started';
+        } else if (isCompleted || isInProgress) {
+          // For completed/in-progress requests, mark prior approvers as approved
+          if (['Department Focal', 'Line Manager', 'HOD', 'Ticketing Admin'].includes(expectedStep.role)) {
+            stepStatus = 'Approved';
+          } else if (expectedStep.role === 'Accommodation Admin') {
+            // Accommodation admin status based on actual completion
+            if (isCompleted) {
+              stepStatus = 'Approved';
+            } else {
+              stepStatus = 'Current';
+            }
+          } else {
+            stepStatus = 'Pending';
+          }
+        } else {
+          stepStatus = 'Pending';
+        }
       }
 
       fullWorkflow.push({

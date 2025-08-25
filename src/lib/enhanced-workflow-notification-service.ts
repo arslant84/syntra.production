@@ -292,7 +292,7 @@ export class EnhancedWorkflowNotificationService {
       console.log(`🔍 ENHANCED_WORKFLOW: Query: ${query}`);
       console.log(`🔍 ENHANCED_WORKFLOW: Query params:`, queryParams);
       
-      let users;
+      let users: any[];
       try {
         console.log(`🔍 ENHANCED_WORKFLOW: Executing database query...`);
         users = await sql.unsafe(query, queryParams);
@@ -376,7 +376,7 @@ export class EnhancedWorkflowNotificationService {
       console.log(`🔍 ENHANCED_WORKFLOW: Executing query with params:`, queryParams);
       console.log(`🔍 ENHANCED_WORKFLOW: Query: ${query}`);
 
-      const users = await sql.unsafe(query, queryParams);
+      const users: any[] = await sql.unsafe(query, queryParams);
       
       console.log(`🔍 ENHANCED_WORKFLOW: Query returned ${users.length} users:`, users.map(u => `${u.name} (${u.email}) - Role: ${u.role_name}, Dept: ${u.department}`));
       
@@ -408,7 +408,7 @@ export class EnhancedWorkflowNotificationService {
       // Only TSR approved requests need further processing
       if (params.entityType === 'trf' && params.newStatus === 'Approved') {
         // Get System Admins for flight/accommodation booking
-        const systemAdmins = await sql`
+        const systemAdmins: any[] = await sql`
           SELECT DISTINCT u.id, u.name, u.email, r.name as role_name
           FROM users u
           INNER JOIN roles r ON u.role_id = r.id
@@ -443,9 +443,11 @@ export class EnhancedWorkflowNotificationService {
       let user = null;
       
       if (params.requestorId) {
-        [user] = await sql`SELECT id, name, email FROM users WHERE id = ${params.requestorId} AND status = 'Active'`;
+        const users: any[] = await sql`SELECT id, name, email FROM users WHERE id = ${params.requestorId} AND status = 'Active'`;
+        user = users[0];
       } else if (params.requestorEmail) {
-        [user] = await sql`SELECT id, name, email FROM users WHERE email = ${params.requestorEmail} AND status = 'Active'`;
+        const users: any[] = await sql`SELECT id, name, email FROM users WHERE email = ${params.requestorEmail} AND status = 'Active'`;
+        user = users[0];
       }
 
       if (user && user.email) {
@@ -600,7 +602,7 @@ export class EnhancedWorkflowNotificationService {
             <strong>Request ID:</strong> ${params.entityId}<br>
             <strong>Requestor:</strong> ${params.requestorName}<br>
             <strong>Previous Approver:</strong> ${params.approverName}<br>
-            <strong>Current Status:</strong> ${this.getStatusDisplayText(params.newStatus)}
+            <strong>Current Status:</strong> ${this.getStatusDisplayText(params.newStatus || 'Unknown')}
           </div>
         `;
         if (params.comments) {
@@ -614,7 +616,7 @@ export class EnhancedWorkflowNotificationService {
           <p>Your ${entityDisplayName} has been approved by <strong>${params.approverName}</strong>.</p>
           <div style="background: #d4edda; padding: 15px; border-radius: 4px; margin: 15px 0; border-left: 4px solid #28a745;">
             <strong>Request ID:</strong> ${params.entityId}<br>
-            <strong>Status:</strong> ${this.getStatusDisplayText(params.newStatus)}<br>
+            <strong>Status:</strong> ${this.getStatusDisplayText(params.newStatus || 'Unknown')}<br>
             <strong>Approved By:</strong> ${params.approverName}
           </div>
         `;
@@ -629,7 +631,7 @@ export class EnhancedWorkflowNotificationService {
           <p>Your ${entityDisplayName} has been rejected by <strong>${params.approverName}</strong>.</p>
           <div style="background: #f8d7da; padding: 15px; border-radius: 4px; margin: 15px 0; border-left: 4px solid #dc3545;">
             <strong>Request ID:</strong> ${params.entityId}<br>
-            <strong>Status:</strong> ${this.getStatusDisplayText(params.newStatus)}<br>
+            <strong>Status:</strong> ${this.getStatusDisplayText(params.newStatus || 'Unknown')}<br>
             <strong>Rejected By:</strong> ${params.approverName}
           </div>
         `;
@@ -645,7 +647,7 @@ export class EnhancedWorkflowNotificationService {
           <div style="background: #fff3cd; padding: 15px; border-radius: 4px; margin: 15px 0; border-left: 4px solid #ffc107;">
             <strong>Request ID:</strong> ${params.entityId}<br>
             <strong>Requestor:</strong> ${params.requestorName}<br>
-            <strong>Status:</strong> ${this.getStatusDisplayText(params.newStatus)}<br>
+            <strong>Status:</strong> ${this.getStatusDisplayText(params.newStatus || 'Unknown')}<br>
             <strong>Final Approver:</strong> ${params.approverName}
           </div>
         `;
@@ -684,7 +686,7 @@ export class EnhancedWorkflowNotificationService {
 
   // Helper methods for permission mapping
   private static getDepartmentFocalPermission(entityType: string): string {
-    const permissionMap = {
+    const permissionMap: Record<string, string> = {
       'trf': 'approve_trf_focal',
       'transport': 'approve_transport_requests', // Use the actual transport permission  
       'accommodation': 'approve_accommodation_requests', // Department Focals approve accommodation
@@ -695,7 +697,7 @@ export class EnhancedWorkflowNotificationService {
   }
 
   private static getLineManagerPermission(entityType: string): string {
-    const permissionMap = {
+    const permissionMap: Record<string, string> = {
       'trf': 'approve_trf_manager',
       'transport': 'approve_transport_requests', 
       'accommodation': 'approve_accommodation_requests',
@@ -706,7 +708,7 @@ export class EnhancedWorkflowNotificationService {
   }
 
   private static getHODPermission(entityType: string): string {
-    const permissionMap = {
+    const permissionMap: Record<string, string> = {
       'trf': 'approve_trf_hod',
       'transport': 'approve_transport_requests',
       'accommodation': 'approve_accommodation_requests', 
@@ -717,7 +719,7 @@ export class EnhancedWorkflowNotificationService {
   }
 
   private static getEntityDisplayName(entityType: string): string {
-    const displayNames = {
+    const displayNames: Record<string, string> = {
       'trf': 'Travel & Service Request (TSR)',
       'transport': 'Transport Request',
       'accommodation': 'Accommodation Request',
@@ -741,7 +743,7 @@ export class EnhancedWorkflowNotificationService {
    * Convert technical status to user-friendly display text
    */
   private static getStatusDisplayText(status: string): string {
-    const statusDisplayMap = {
+    const statusDisplayMap: Record<string, string> = {
       'Pending Department Focal': 'Pending Department Focal Approval',
       'Pending Line Manager': 'Pending Line Manager Approval', 
       'Pending HOD': 'Pending HOD Approval',

@@ -40,10 +40,16 @@ export interface StaffHouseData {
 
 export interface BookingData {
   id: string; // Unique booking ID
-  roomId: string;
+  guestName: string; // Name of the guest
   staffHouseId: string;
-  date: string; // YYYY-MM-DD
-  staffId: string; // ID of the StaffGuest
+  staffHouseName?: string;
+  roomId: string;
+  roomName?: string;
+  bookingDate: string | Date; // YYYY-MM-DD
+  gender: 'Male' | 'Female';
+  status: 'Active' | 'Blocked';
+  reason?: string;
+  trfId?: string;
 }
 
 // Represents the structure for the calendar display

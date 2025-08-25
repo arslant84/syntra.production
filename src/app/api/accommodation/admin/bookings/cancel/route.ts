@@ -102,7 +102,60 @@ export const POST = withAuth(async function(request: NextRequest) {
 
     const bookingsToCancel = await bookingsToCancelQuery;
 
-    if (bookingsToCancel.length === 0) {
+    // If no bookings found but we have a trfId, check if this is a TSR in Processing Accommodation status
+    if (bookingsToCancel.length === 0 && trfId) {
+      const trfStatus = await sql`
+        SELECT tr.status, tr.travel_type, tr.requestor_name
+        FROM travel_requests tr
+        WHERE tr.id = ${trfId}
+      `;
+      
+      if (trfStatus.length > 0 && trfStatus[0].status === 'Processing Accommodation') {
+        console.log(`No bookings found for TRF ${trfId}, but it's in Processing Accommodation status - reverting to Approved`);
+        
+        // Revert TSR status back to Approved so it can be re-processed
+        await sql`
+          UPDATE travel_requests 
+          SET status = 'Approved'
+          WHERE id = ${trfId}
+        `;
+
+        // Send notification to user
+        try {
+          const userDetails = await sql`
+            SELECT u.id, u.name, u.email, tr.requestor_name, tr.department, tr.purpose
+            FROM travel_requests tr
+            LEFT JOIN users u ON tr.staff_id = u.staff_id
+            WHERE tr.id = ${trfId}
+          `;
+
+          if (userDetails.length > 0) {
+            const user = userDetails[0];
+            await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
+              entityType: 'accommodation',
+              entityId: trfId,
+              requestorName: user.name || user.requestor_name || 'User',
+              requestorEmail: user.email,
+              requestorId: user.id,
+              department: user.department || 'Unknown',
+              purpose: user.purpose || 'Travel/Accommodation Request',
+              newStatus: 'Approved',
+              approverName: 'Accommodation Administrator',
+              comments: 'Accommodation processing has been cancelled. Your request has been reverted to Approved status and can be re-processed.'
+            });
+          }
+        } catch (notificationError) {
+          console.error('Failed to send cancellation notification:', notificationError);
+        }
+
+        return NextResponse.json({
+          message: 'TSR accommodation processing cancelled successfully. Request reverted to Approved status.',
+          cancelledCount: 0,
+          cancelledBookingIds: [],
+          revertedTrfIds: [trfId]
+        }, { status: 200 });
+      }
+      
       return NextResponse.json(
         { message: 'No active bookings found matching the criteria' },
         { status: 200 }
@@ -147,17 +200,35 @@ export const POST = withAuth(async function(request: NextRequest) {
 
         // Only revert to pending if ALL bookings for this TRF are cancelled
         if (remainingBookings.length === 0) {
-          // Update TRF status back to approved so it appears in pending accommodation requests
-          await sql`
-            UPDATE travel_requests 
-            SET status = 'Approved'
-            WHERE id = ${trfId}
+          // Check if this is a TSR or pure accommodation request
+          const trfDetails = await sql`
+            SELECT tr.travel_type, tr.status
+            FROM travel_requests tr
+            WHERE tr.id = ${trfId}
           `;
+          
+          if (trfDetails.length > 0) {
+            if (trfDetails[0].travel_type === 'Accommodation') {
+              // Pure accommodation request - revert to appropriate status
+              await sql`
+                UPDATE travel_requests 
+                SET status = 'Pending Accommodation Admin'
+                WHERE id = ${trfId}
+              `;
+              console.log(`Reverted accommodation request ${trfId} status to 'Pending Accommodation Admin'`);
+            } else {
+              // TSR request - revert to Approved so it can go through accommodation processing again
+              await sql`
+                UPDATE travel_requests 
+                SET status = 'Approved'
+                WHERE id = ${trfId}
+              `;
+              console.log(`Reverted TSR ${trfId} status to 'Approved' for re-processing`);
+            }
+          }
 
           // Note: Accommodation assignment info is stored in additional_comments 
           // and doesn't need to be cleared when bookings are cancelled
-
-          console.log(`Reverted TRF ${trfId} status to 'Approved' due to booking cancellation`);
         }
       }
 

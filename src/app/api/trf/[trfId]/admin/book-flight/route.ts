@@ -25,13 +25,13 @@ const bookFlightSchema = z.object({
     flightNotes: z.string().optional().nullable(),
 });
 
-function getNextStatusAfterFlightBooking(trf: { travel_type?: string | null, has_accommodation_request?: boolean }): string { // Assuming has_accommodation_request is a boolean indicating if accomm details were part of TRF
-    if (trf.has_accommodation_request) {
-        return "Processing Accommodation";
-    }
+function getNextStatusAfterFlightBooking(trf: { travel_type?: string | null, has_accommodation_request?: boolean }): string { 
+    // After flight booking, TSRs should remain in approved status for accommodation assignment
+    // The accommodation workflow should inherit the TSR's approval status, not start a new process
     if (trf.travel_type === 'Overseas' || trf.travel_type === 'Home Leave Passage') {
         return "Awaiting Visa";
     }
+    // Keep TSRs in approved status even if they have accommodation - accommodation inherits this status
     return "TRF Processed";
 }
 

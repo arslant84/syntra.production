@@ -89,9 +89,10 @@ export default function AdminTransportRequestsPage() {
       if (Array.isArray(data)) {
         // Non-paginated response (current format)
         // Apply role-based filtering for personal vs admin view using client-side logic
-        const filteredRequests = data.filter(request => 
-          shouldShowRequest(role, { ...request, itemType: 'transport' }, userId)
-        );
+        // Also filter to show only actual transport requests (not auto-generated ones)
+        const filteredRequests = data
+          .filter(request => request.id && (request.id.startsWith('TRN-') || request.id.startsWith('TSR-'))) // Only transport-related requests
+          .filter(request => shouldShowRequest(role, { ...request, itemType: 'transport' }, userId));
         setTransportRequests(filteredRequests);
         setTotalRequests(filteredRequests.length);
         setTotalPages(1);
@@ -99,9 +100,10 @@ export default function AdminTransportRequestsPage() {
       } else {
         // Paginated response (future format)
         // Apply role-based filtering for personal vs admin view using client-side logic
-        const filteredRequests = (data.transportRequests || []).filter(request =>
-          shouldShowRequest(role, { ...request, itemType: 'transport' }, userId)
-        );
+        // Also filter to show only actual transport requests (not auto-generated ones)
+        const filteredRequests = (data.transportRequests || [])
+          .filter(request => request.id && (request.id.startsWith('TRN-') || request.id.startsWith('TSR-'))) // Only transport-related requests
+          .filter(request => shouldShowRequest(role, { ...request, itemType: 'transport' }, userId));
         setTransportRequests(filteredRequests);
         setTotalRequests(data.totalCount || 0);
         setTotalPages(data.totalPages || 1);

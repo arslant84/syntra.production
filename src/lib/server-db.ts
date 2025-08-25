@@ -112,29 +112,35 @@ export async function getServerAccommodationBookings(year: number, month: number
         ab.id,
         ab.staff_house_id as "staffHouseId",
         ab.room_id as "roomId",
-        ab.date,
+        ab.date as "bookingDate",
         ab.staff_id as "staffId",
-        sg.name as "staffName",
-        sg.gender as "staffGender"
+        ab.status,
+        ab.notes as "reason",
+        ab.trf_id as "trfId",
+        COALESCE(sg.name, u.name, 'Unknown Guest') as "guestName",
+        COALESCE(sg.gender, u.gender, 'Male') as "gender"
       FROM 
         accommodation_bookings ab
-      LEFT JOIN
-        staff_guests sg ON ab.staff_id = sg.id
+      LEFT JOIN staff_guests sg ON ab.staff_id = sg.id
+      LEFT JOIN users u ON ab.staff_id = u.staff_id
       WHERE 
         EXTRACT(YEAR FROM ab.date) = ${year}
         AND EXTRACT(MONTH FROM ab.date) = ${month}
+        AND ab.status NOT IN ('Cancelled')
       ORDER BY
-        ab.date
+        ab.date, ab.staff_house_id, ab.room_id
     `;
 
     return bookings.map(booking => ({
       id: booking.id,
+      guestName: booking.guestName,
       staffHouseId: booking.staffHouseId,
       roomId: booking.roomId,
-      date: booking.date,
-      staffId: booking.staffId,
-      staffName: booking.staffName,
-      staffGender: booking.staffGender
+      bookingDate: booking.bookingDate,
+      gender: booking.gender as 'Male' | 'Female',
+      status: booking.status === 'Blocked' ? 'Blocked' : 'Active',
+      reason: booking.reason,
+      trfId: booking.trfId
     }));
   } catch (error) {
     console.error(`Error fetching bookings for ${year}-${month}:`, error);

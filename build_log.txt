@@ -1,0 +1,256 @@
+
+> nextn@0.1.0 build
+> next build
+
+   ▲ Next.js 15.4.4
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ⚠ Compiled with warnings in 14.0s
+
+./src/app/api/admin/workflows/executions/[executionId]/route.ts
+Attempted import error: 'authOptions' is not exported from '@/lib/auth' (imported as 'authOptions').
+
+Import trace for requested module:
+./src/app/api/admin/workflows/executions/[executionId]/route.ts
+
+./src/app/api/admin/workflows/executions/[executionId]/route.ts
+Attempted import error: 'authOptions' is not exported from '@/lib/auth' (imported as 'authOptions').
+
+Import trace for requested module:
+./src/app/api/admin/workflows/executions/[executionId]/route.ts
+
+./src/app/api/admin/workflows/executions/route.ts
+Attempted import error: 'authOptions' is not exported from '@/lib/auth' (imported as 'authOptions').
+
+Import trace for requested module:
+./src/app/api/admin/workflows/executions/route.ts
+
+./src/app/api/admin/workflows/executions/route.ts
+Attempted import error: 'authOptions' is not exported from '@/lib/auth' (imported as 'authOptions').
+
+Import trace for requested module:
+./src/app/api/admin/workflows/executions/route.ts
+
+./src/app/api/admin/workflows/migration/route.ts
+Attempted import error: 'authOptions' is not exported from '@/lib/auth' (imported as 'authOptions').
+
+Import trace for requested module:
+./src/app/api/admin/workflows/migration/route.ts
+
+./src/app/api/admin/workflows/migration/route.ts
+Attempted import error: 'authOptions' is not exported from '@/lib/auth' (imported as 'authOptions').
+
+Import trace for requested module:
+./src/app/api/admin/workflows/migration/route.ts
+
+./src/app/api/admin/workflows/migration/route.ts
+Attempted import error: 'authOptions' is not exported from '@/lib/auth' (imported as 'authOptions').
+
+Import trace for requested module:
+./src/app/api/admin/workflows/migration/route.ts
+
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+   Generating static pages (0/103) ...
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+   Generating static pages (25/103) 
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+   Generating static pages (51/103) 
+DB_LIB: Initializing PostgreSQL client...
+DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database: syntra
+   Generating static pages (77/103) 
+ ✓ Generating static pages (103/103)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                                    Size  First Load JS
+┌ ○ /                                                       5.35 kB         118 kB
+├ ○ /_not-found                                               999 B         101 kB
+├ ○ /accommodation                                          1.88 kB         153 kB
+├ ƒ /accommodation/edit/[requestId]                         4.65 kB         142 kB
+├ ○ /accommodation/request                                  4.67 kB         188 kB
+├ ƒ /accommodation/view/[requestId]                         9.18 kB         140 kB
+├ ○ /admin/accommodation                                    19.6 kB         194 kB
+├ ○ /admin/approvals                                        12.2 kB         152 kB
+├ ○ /admin/claims                                           5.96 kB         169 kB
+├ ○ /admin/claims/processing                                11.7 kB         171 kB
+├ ƒ /admin/claims/view/[claimId]                            12.1 kB         128 kB
+├ ○ /admin/flights                                          8.47 kB         180 kB
+├ ○ /admin/settings                                         12.2 kB         188 kB
+├ ○ /admin/settings/notifications                            6.8 kB         147 kB
+├ ○ /admin/settings/notifications/events                    9.63 kB         147 kB
+├ ○ /admin/settings/workflows                                193 kB         330 kB
+├ ○ /admin/transport                                         8.6 kB         165 kB
+├ ○ /admin/transport/processing                             10.6 kB         152 kB
+├ ○ /admin/users                                            7.97 kB         189 kB
+├ ○ /admin/visa                                             4.69 kB         165 kB
+├ ○ /admin/visa/processing                                  5.56 kB         160 kB
+├ ƒ /api/accommodation                                        355 B         100 kB
+├ ƒ /api/accommodation/admin/assign/[requestId]               355 B         100 kB
+├ ƒ /api/accommodation/admin/block-room                       355 B         100 kB
+├ ƒ /api/accommodation/admin/bookings                         355 B         100 kB
+├ ƒ /api/accommodation/admin/bookings/cancel                  355 B         100 kB
+├ ƒ /api/accommodation/admin/locations                        355 B         100 kB
+├ ƒ /api/accommodation/admin/rooms                            355 B         100 kB
+├ ƒ /api/accommodation/calendar                               355 B         100 kB
+├ ƒ /api/accommodation/requests                               355 B         100 kB
+├ ƒ /api/accommodation/requests/[requestId]                   355 B         100 kB
+├ ƒ /api/accommodation/requests/[requestId]/action            355 B         100 kB
+├ ƒ /api/accommodation/summary                                355 B         100 kB
+├ ƒ /api/admin/claims                                         355 B         100 kB
+├ ƒ /api/admin/debug/notification-events                      355 B         100 kB
+├ ƒ /api/admin/migrate-claims-status                          355 B         100 kB
+├ ƒ /api/admin/notification-events                            355 B         100 kB
+├ ƒ /api/admin/notification-events/[eventId]                  355 B         100 kB
+├ ƒ /api/admin/notification-subscriptions                     355 B         100 kB
+├ ƒ /api/admin/notification-subscriptions/[subscriptionId]    355 B         100 kB
+├ ƒ /api/admin/notification-templates                         355 B         100 kB
+├ ƒ /api/admin/notification-templates/[id]                    355 B         100 kB
+├ ƒ /api/admin/settings/application                           355 B         100 kB
+├ ƒ /api/admin/settings/notifications                         355 B         100 kB
+├ ƒ /api/admin/settings/permissions                           355 B         100 kB
+├ ƒ /api/admin/settings/roles                                 355 B         100 kB
+├ ƒ /api/admin/settings/workflows                             355 B         100 kB
+├ ƒ /api/admin/setup-notifications                            355 B         100 kB
+├ ƒ /api/admin/setup-transport-notifications                  355 B         100 kB
+├ ƒ /api/admin/transport                                      355 B         100 kB
+├ ƒ /api/admin/visa                                           355 B         100 kB
+├ ƒ /api/admin/visa-reports                                   355 B         100 kB
+├ ƒ /api/admin/workflows                                      355 B         100 kB
+├ ƒ /api/admin/workflows/executions                           355 B         100 kB
+├ ƒ /api/admin/workflows/executions/[executionId]             355 B         100 kB
+├ ƒ /api/admin/workflows/migration                            355 B         100 kB
+├ ƒ /api/admin/workflows/validate                             355 B         100 kB
+├ ƒ /api/auth/[...nextauth]                                   355 B         100 kB
+├ ƒ /api/auth/test                                            355 B         100 kB
+├ ƒ /api/claims                                               355 B         100 kB
+├ ƒ /api/claims/[claimId]                                     355 B         100 kB
+├ ƒ /api/claims/[claimId]/action                              355 B         100 kB
+├ ƒ /api/claims/[claimId]/cancel                              355 B         100 kB
+├ ƒ /api/claims/admin/process/[claimId]                       355 B         100 kB
+├ ƒ /api/dashboard/activities                                 355 B         100 kB
+├ ƒ /api/dashboard/summary                                    355 B         100 kB
+├ ƒ /api/debug/focal-notifications                            355 B         100 kB
+├ ƒ /api/debug/login                                          355 B         100 kB
+├ ƒ /api/debug/my-notifications                               355 B         100 kB
+├ ƒ /api/debug/notification-schema                            355 B         100 kB
+├ ƒ /api/debug/session                                        355 B         100 kB
+├ ƒ /api/debug/test-focal-notification                        355 B         100 kB
+├ ƒ /api/expense-claim/summary                                355 B         100 kB
+├ ƒ /api/navigation                                           355 B         100 kB
+├ ƒ /api/notifications                                        355 B         100 kB
+├ ƒ /api/notifications/actions                                355 B         100 kB
+├ ƒ /api/notifications/counts                                 355 B         100 kB
+├ ƒ /api/notifications/create-test                            355 B         100 kB
+├ ƒ /api/notifications/stream                                 355 B         100 kB
+├ ƒ /api/notifications/trigger-missing                        355 B         100 kB
+├ ƒ /api/notifications/websocket                              355 B         100 kB
+├ ƒ /api/permissions                                          355 B         100 kB
+├ ƒ /api/roles                                                355 B         100 kB
+├ ƒ /api/roles/[roleId]                                       355 B         100 kB
+├ ƒ /api/sidebar-counts                                       355 B         100 kB
+├ ƒ /api/test-db                                              355 B         100 kB
+├ ƒ /api/test/notification-events                             355 B         100 kB
+├ ƒ /api/test/template-body                                   355 B         100 kB
+├ ƒ /api/test/workflow-notification                           355 B         100 kB
+├ ƒ /api/transport                                            355 B         100 kB
+├ ƒ /api/transport/[transportId]                              355 B         100 kB
+├ ƒ /api/transport/[transportId]/action                       355 B         100 kB
+├ ƒ /api/transport/admin/process/[transportId]                355 B         100 kB
+├ ƒ /api/trf                                                  355 B         100 kB
+├ ƒ /api/trf/[trfId]                                          355 B         100 kB
+├ ƒ /api/trf/[trfId]/action                                   355 B         100 kB
+├ ƒ /api/trf/[trfId]/admin/assign-accommodation               355 B         100 kB
+├ ƒ /api/trf/[trfId]/admin/book-flight                        355 B         100 kB
+├ ƒ /api/trf/[trfId]/auto-generated                           355 B         100 kB
+├ ƒ /api/trf/pending-accommodation                            355 B         100 kB
+├ ƒ /api/trf/status-summary                                   355 B         100 kB
+├ ƒ /api/user-activity/summary                                355 B         100 kB
+├ ƒ /api/user-details                                         355 B         100 kB
+├ ƒ /api/user-profile                                         355 B         100 kB
+├ ƒ /api/users                                                355 B         100 kB
+├ ƒ /api/users/[userId]                                       355 B         100 kB
+├ ƒ /api/users/[userId]/role                                  355 B         100 kB
+├ ƒ /api/users/[userId]/status                                355 B         100 kB
+├ ƒ /api/visa                                                 355 B         100 kB
+├ ƒ /api/visa/[visaId]                                        355 B         100 kB
+├ ƒ /api/visa/[visaId]/action                                 355 B         100 kB
+├ ƒ /api/visa/[visaId]/documents                              355 B         100 kB
+├ ƒ /api/visa/[visaId]/documents/[documentId]                 355 B         100 kB
+├ ƒ /api/visa/[visaId]/process                                355 B         100 kB
+├ ƒ /api/visa/summary                                         355 B         100 kB
+├ ƒ /api/workflows/instances                                  355 B         100 kB
+├ ○ /claims                                                 4.11 kB         164 kB
+├ ƒ /claims/edit/[claimId]                                  4.99 kB         190 kB
+├ ○ /claims/new                                             1.61 kB         191 kB
+├ ƒ /claims/view/[claimId]                                  9.97 kB         141 kB
+├ ○ /login                                                  2.79 kB         117 kB
+├ ○ /profile                                                6.28 kB         116 kB
+├ ○ /reports                                                 111 kB         266 kB
+├ ○ /test-events                                            1.37 kB         101 kB
+├ ○ /transport                                              7.25 kB         154 kB
+├ ƒ /transport/edit/[transportId]                           5.13 kB         142 kB
+├ ○ /transport/new                                          5.67 kB         152 kB
+├ ƒ /transport/view/[transportId]                           8.34 kB         129 kB
+├ ○ /trf                                                    7.79 kB         164 kB
+├ ○ /trf/new                                                  165 B         104 kB
+├ ○ /trf/new/domestic                                       8.22 kB         204 kB
+├ ○ /trf/new/external-parties                               9.67 kB         202 kB
+├ ○ /trf/new/home-leave                                     2.99 kB         204 kB
+├ ○ /trf/new/overseas                                       2.96 kB         204 kB
+├ ƒ /trf/view/[trfId]                                       11.9 kB         139 kB
+├ ○ /visa                                                   2.59 kB         153 kB
+├ ƒ /visa/edit/[visaId]                                     5.14 kB         190 kB
+├ ○ /visa/new                                               1.73 kB         190 kB
+└ ƒ /visa/view/[visaId]                                     11.5 kB         139 kB
++ First Load JS shared by all                                100 kB
+  ├ chunks/4bd1b696-cc729d47eba2cee4.js                     54.1 kB
+  ├ chunks/5964-4f12b6422f73cb12.js                         43.9 kB
+  └ other shared chunks (total)                             2.07 kB
+
+
+ƒ Middleware                                                53.9 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

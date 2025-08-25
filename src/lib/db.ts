@@ -1,8 +1,8 @@
 // src/lib/db.ts
-import postgres, { type Sql } from 'postgres';
+const postgres = require('postgres');
 import { DATABASE_HOST, DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD, validateEnv } from './env';
 
-let sql: Sql<{}> | null = null;
+let sql: any = null;
 
 console.log("DB_LIB: Initializing PostgreSQL client...");
 
@@ -48,7 +48,7 @@ function initializeDatabase() {
 }
 
 // Export a function that ensures the database is initialized
-export function getSql(): Sql<{}> {
+export function getSql(): any {
   if (!sql) {
     sql = initializeDatabase();
   }

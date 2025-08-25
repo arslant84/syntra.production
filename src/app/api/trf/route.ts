@@ -611,9 +611,9 @@ export const POST = withAuth(async function(request: NextRequest) {
         id: resultTrfId,
         travelType: validatedData.travelType,
         requestorName: requestorNameVal || 'Unknown',
-        staffId: validatedData.requestorInfo?.staffId,
-        department: validatedData.requestorInfo?.department,
-        position: validatedData.requestorInfo?.position,
+        staffId: validatedData.travelType === "External Parties" ? null : (validatedData as any).requestorInfo?.staffId,
+        department: validatedData.travelType === "External Parties" ? null : (validatedData as any).requestorInfo?.department,
+        position: validatedData.travelType === "External Parties" ? null : (validatedData as any).requestorInfo?.position,
         purpose: purposeVal,
         domesticTravelDetails: validatedData.domesticTravelDetails,
         externalPartiesTravelDetails: validatedData.externalPartiesTravelDetails,
@@ -828,7 +828,7 @@ export const GET = withAuth(async function(request: NextRequest) {
     console.log(`API_TRF_GET (PostgreSQL): Admin ${session.role} viewing approval queue - no user filter`);
     // Admins viewing approval queue see all requests with specified statuses
     if (statusesToFetch && statusesToFetch.length > 0) {
-      whereClauses.push(sql`status IN ${sql(statusesToFetch)}`);
+      whereClauses.push(sql`tr.status IN ${sql(statusesToFetch)}`);
     }
   } else {
     // Use universal user filtering - works for ALL users regardless of role
@@ -843,7 +843,7 @@ export const GET = withAuth(async function(request: NextRequest) {
     
     // If there are status filters for personal pages, apply them too
     if (statusesToFetch && statusesToFetch.length > 0) {
-      whereClauses.push(sql`status IN ${sql(statusesToFetch)}`);
+      whereClauses.push(sql`tr.status IN ${sql(statusesToFetch)}`);
     }
   }
   

@@ -68,6 +68,8 @@ export default function TSRPage() {
     }
 
     try {
+      // Exclude accommodation requests from TSR list
+      params.append('excludeTravelType', 'Accommodation');
       console.log(`TSRPage: Fetching TSRs with params: ${params.toString()}`);
       const response = await fetch(`/api/trf?${params.toString()}`);
       if (!response.ok) {

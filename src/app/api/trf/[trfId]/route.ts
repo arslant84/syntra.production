@@ -313,16 +313,41 @@ export async function GET(
   }
 
   try {
+    // Validate that the request ID is for a TSR, not accommodation or other request types
+    if (trfId.startsWith('ACCOM-')) {
+      console.log(`API_TRF_TRFID_GET (PostgreSQL): Rejecting accommodation request ${trfId}.`);
+      return NextResponse.json(
+        { 
+          error: "This is an accommodation request, not a TSR.", 
+          details: "Accommodation requests should be accessed through the accommodation API, not the TSR API.",
+          redirectTo: `/accommodation/view/${trfId}`
+        }, 
+        { status: 400 }
+      );
+    }
+
     // Wrap the main query in a try-catch to provide more specific error information
     let mainTrfData;
     try {
       const result =
-        await sql`SELECT * FROM travel_requests WHERE id = ${trfId}`;
+        await sql`SELECT * FROM travel_requests WHERE id = ${trfId} AND travel_type IN ('Domestic', 'Overseas', 'Home Leave Passage', 'External Parties')`;
       [mainTrfData] = result;
       if (!mainTrfData) {
-        return NextResponse.json({ error: "TRF not found" }, { status: 404 });
+        // Check if it exists in the table but is not a valid TSR type
+        const checkResult = await sql`SELECT id, travel_type FROM travel_requests WHERE id = ${trfId}`;
+        if (checkResult.length > 0) {
+          const record = checkResult[0];
+          return NextResponse.json(
+            { 
+              error: `Invalid request type: ${record.travel_type}`, 
+              details: `This API only handles TSR (Travel Service Request) records. Request type '${record.travel_type}' is not supported.`,
+            }, 
+            { status: 400 }
+          );
+        }
+        return NextResponse.json({ error: "TSR not found" }, { status: 404 });
       }
-      console.log("API_TRF_TRFID_GET (PostgreSQL): Main TRF data fetched.");
+      console.log("API_TRF_TRFID_GET (PostgreSQL): Main TSR data fetched.");
     } catch (dbError: any) {
       console.error(
         `API_TRF_TRFID_GET_DB_ERROR (PostgreSQL): Error fetching main TRF data:`,
@@ -469,7 +494,7 @@ export async function GET(
         // Check if the table exists first to avoid errors
         const tableExists = await sql`
           SELECT EXISTS (
-            SELECT FROM information_schema.tables 
+            SELECT 1 FROM information_schema.tables 
             WHERE table_schema = 'public' 
             AND table_name = 'trf_meal_provisions'
           ) as exists
@@ -529,6 +554,54 @@ export async function GET(
             ];
       console.log(`API_TRF_TRFID_GET (PostgreSQL): Domestic meal provision data length: ${mealProvisionData.length}, Final meal provision:`, mealProvision);
       
+      // Fetch daily meal selections if they exist
+      let dailyMealSelections: any[] = [];
+      try {
+        const dailyMealTableExists = await sql`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'trf_daily_meal_selections'
+          ) as exists
+        `;
+
+        if (dailyMealTableExists[0]?.exists) {
+          dailyMealSelections = await sql`
+            SELECT 
+              id,
+              trf_id,
+              meal_date,
+              breakfast,
+              lunch,
+              dinner,
+              supper,
+              refreshment
+            FROM trf_daily_meal_selections 
+            WHERE trf_id = ${trfId}
+            ORDER BY meal_date ASC
+          `;
+          console.log(`API_TRF_TRFID_GET (PostgreSQL): Fetched ${dailyMealSelections.length} daily meal selections.`);
+        }
+      } catch (dbError: any) {
+        console.error(`API_TRF_TRFID_GET_DB_ERROR (PostgreSQL): Error fetching daily meal selections:`, dbError);
+      }
+
+      // Add daily meal selections to meal provision if they exist
+      if (dailyMealSelections.length > 0) {
+        mealProvision.dailyMealSelections = dailyMealSelections.map((selection) => ({
+          id: selection.id,
+          trf_id: selection.trf_id,
+          meal_date: selection.meal_date,
+          breakfast: Boolean(selection.breakfast),
+          lunch: Boolean(selection.lunch),
+          dinner: Boolean(selection.dinner),
+          supper: Boolean(selection.supper),
+          refreshment: Boolean(selection.refreshment)
+        }));
+      } else {
+        mealProvision.dailyMealSelections = [];
+      }
+      
       // If meal provision data is empty and TRF is approved, try to generate from itinerary
       if (mealProvisionData.length === 0 && mainTrfData.status === 'Approved' && itinerary.length > 0) {
         console.log(`API_TRF_TRFID_GET (PostgreSQL): Generating meal provision data for approved TRF from itinerary`);
@@ -555,12 +628,6 @@ export async function GET(
           other_type_description as "otherTypeDescription",
           location,
           remarks,
-          from_date as "fromDate",
-          to_date as "toDate",
-          from_location as "fromLocation",
-          to_location as "toLocation",
-          bt_no_required as "btNoRequired",
-          accommodation_type_n as "accommodationTypeN",
           address,
           place_of_stay as "placeOfStay",
           estimated_cost_per_night as "estimatedCostPerNight"
@@ -589,7 +656,7 @@ export async function GET(
         // Check if the table exists first to avoid errors
         const tableExists = await sql`
           SELECT EXISTS (
-            SELECT FROM information_schema.tables 
+            SELECT 1 FROM information_schema.tables 
             WHERE table_schema = 'public' 
             AND table_name = 'trf_company_transport_details'
           ) as exists
@@ -723,7 +790,7 @@ export async function GET(
         // Check if the table exists first to avoid errors
         const bankTableExists = await sql`
           SELECT EXISTS (
-            SELECT FROM information_schema.tables 
+            SELECT 1 FROM information_schema.tables 
             WHERE table_schema = 'public' 
             AND table_name = 'trf_advance_bank_details'
           ) as exists
@@ -816,7 +883,7 @@ export async function GET(
         // Check if the table exists first to avoid errors
         const tableExists = await sql`
           SELECT EXISTS (
-            SELECT FROM information_schema.tables 
+            SELECT 1 FROM information_schema.tables 
             WHERE table_schema = 'public' 
             AND table_name = 'trf_advance_amount_requested_items'
           ) as exists
@@ -1055,7 +1122,7 @@ export async function GET(
         // Check if the table exists first to avoid errors
         const tableExists = await sql`
           SELECT EXISTS (
-            SELECT FROM information_schema.tables 
+            SELECT 1 FROM information_schema.tables 
             WHERE table_schema = 'public' 
             AND table_name = 'trf_meal_provisions'
           ) as exists
@@ -1114,6 +1181,54 @@ export async function GET(
               },
             ];
       console.log(`API_TRF_TRFID_GET (PostgreSQL): External parties meal provision data length: ${mealProvisionData.length}, Final meal provision:`, mealProvision);
+      
+      // Fetch daily meal selections if they exist for External Parties
+      let dailyMealSelections: any[] = [];
+      try {
+        const dailyMealTableExists = await sql`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'trf_daily_meal_selections'
+          ) as exists
+        `;
+
+        if (dailyMealTableExists[0]?.exists) {
+          dailyMealSelections = await sql`
+            SELECT 
+              id,
+              trf_id,
+              meal_date,
+              breakfast,
+              lunch,
+              dinner,
+              supper,
+              refreshment
+            FROM trf_daily_meal_selections 
+            WHERE trf_id = ${trfId}
+            ORDER BY meal_date ASC
+          `;
+          console.log(`API_TRF_TRFID_GET (PostgreSQL): Fetched ${dailyMealSelections.length} daily meal selections for external parties.`);
+        }
+      } catch (dbError: any) {
+        console.error(`API_TRF_TRFID_GET_DB_ERROR (PostgreSQL): Error fetching daily meal selections for external parties:`, dbError);
+      }
+
+      // Add daily meal selections to meal provision if they exist
+      if (dailyMealSelections.length > 0) {
+        mealProvision.dailyMealSelections = dailyMealSelections.map((selection) => ({
+          id: selection.id,
+          trf_id: selection.trf_id,
+          meal_date: selection.meal_date,
+          breakfast: Boolean(selection.breakfast),
+          lunch: Boolean(selection.lunch),
+          dinner: Boolean(selection.dinner),
+          supper: Boolean(selection.supper),
+          refreshment: Boolean(selection.refreshment)
+        }));
+      } else {
+        mealProvision.dailyMealSelections = [];
+      }
       
       // If meal provision data is empty and TRF is approved, try to generate from itinerary
       if (mealProvisionData.length === 0 && mainTrfData.status === 'Approved' && itinerary.length > 0) {
@@ -1649,11 +1764,22 @@ export async function PUT(
       // Clear and re-insert related details
       await tx`DELETE FROM trf_itinerary_segments WHERE trf_id = ${trfId}`;
       await tx`DELETE FROM trf_meal_provisions WHERE trf_id = ${trfId}`;
+      // Delete daily meal selections if table exists
+      const dailyMealTableExists = await tx`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'trf_daily_meal_selections'
+        ) as exists
+      `;
+      if (dailyMealTableExists[0]?.exists) {
+        await tx`DELETE FROM trf_daily_meal_selections WHERE trf_id = ${trfId}`;
+      }
       await tx`DELETE FROM trf_accommodation_details WHERE trf_id = ${trfId}`;
       // Check if trf_company_transport_details table exists first
       const tableExists = await tx`
         SELECT EXISTS (
-          SELECT FROM information_schema.tables 
+          SELECT 1 FROM information_schema.tables 
           WHERE table_schema = 'public' 
           AND table_name = 'trf_company_transport_details'
         ) as exists
@@ -1729,6 +1855,36 @@ export async function PUT(
           ${Number(mealProvisionData.refreshment || 0)}
         )`;
         console.log("API_TRF_TRFID_PUT (PostgreSQL): Successfully inserted meal provisions.");
+
+        // Insert daily meal selections if they exist and table is available
+        if (mealProvisionData.dailyMealSelections && mealProvisionData.dailyMealSelections.length > 0) {
+          if (dailyMealTableExists[0]?.exists) {
+            console.log("API_TRF_TRFID_PUT (PostgreSQL): Inserting daily meal selections for TRF ID:", trfId);
+            
+            for (const selection of mealProvisionData.dailyMealSelections) {
+              await tx`INSERT INTO trf_daily_meal_selections (
+                trf_id,
+                meal_date,
+                breakfast,
+                lunch,
+                dinner,
+                supper,
+                refreshment
+              ) VALUES (
+                ${trfId},
+                ${selection.meal_date ? formatISO(selection.meal_date, { representation: "date" }) : null},
+                ${Boolean(selection.breakfast)},
+                ${Boolean(selection.lunch)},
+                ${Boolean(selection.dinner)},
+                ${Boolean(selection.supper)},
+                ${Boolean(selection.refreshment)}
+              )`;
+            }
+            console.log(`API_TRF_TRFID_PUT (PostgreSQL): Successfully inserted ${mealProvisionData.dailyMealSelections.length} daily meal selections.`);
+          } else {
+            console.log("API_TRF_TRFID_PUT (PostgreSQL): trf_daily_meal_selections table does not exist. Skipping daily meal selections insert.");
+          }
+        }
       }
 
       // Re-insert type-specific details
@@ -1750,23 +1906,13 @@ export async function PUT(
               ? formatISO(acc.checkOutDate, { representation: "date" })
               : null,
             check_out_time: acc.checkOutTime || null,
-            location: acc.location || null, // Add location
+            location: acc.location || null,
             remarks: acc.remarks || null,
             estimated_cost_per_night: Number(acc.estimatedCostPerNight || 0),
-            from_date: acc.fromDate
-              ? formatISO(acc.fromDate, { representation: "date" })
-              : null,
-            to_date: acc.toDate
-              ? formatISO(acc.toDate, { representation: "date" })
-              : null,
-            from_location: acc.fromLocation || null,
-            to_location: acc.toLocation || null,
-            bt_no_required: acc.btNoRequired || null,
-            accommodation_type_n: acc.accommodationTypeN || null,
             address: acc.address || null,
             place_of_stay: acc.placeOfStay || null,
           }));
-          await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, "trf_id", "accommodation_type", "other_type_description", "check_in_date", "check_in_time", "check_out_date", "check_out_time", "location", "remarks", "estimated_cost_per_night", "from_date", "to_date", "from_location", "to_location", "bt_no_required", "accommodation_type_n", "address", "place_of_stay")}`;
+          await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, "trf_id", "accommodation_type", "other_type_description", "check_in_date", "check_in_time", "check_out_date", "check_out_time", "location", "remarks", "estimated_cost_per_night", "address", "place_of_stay")}`;
         }
         if (
           details.companyTransportDetails &&
@@ -1791,7 +1937,7 @@ export async function PUT(
           // Check if table exists before attempting insert
           const tableExists = await tx`
             SELECT EXISTS (
-              SELECT FROM information_schema.tables 
+              SELECT 1 FROM information_schema.tables 
               WHERE table_schema = 'public' 
               AND table_name = 'trf_company_transport_details'
             ) as exists
@@ -1981,6 +2127,17 @@ export async function DELETE(
     await sql.begin(async (tx) => {
       await tx`DELETE FROM trf_itinerary_segments WHERE trf_id = ${trfId}`;
       await tx`DELETE FROM trf_meal_provisions WHERE trf_id = ${trfId}`;
+      // Delete daily meal selections if table exists
+      const dailyMealTableExists = await tx`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'trf_daily_meal_selections'
+        ) as exists
+      `;
+      if (dailyMealTableExists[0]?.exists) {
+        await tx`DELETE FROM trf_daily_meal_selections WHERE trf_id = ${trfId}`;
+      }
       await tx`DELETE FROM trf_accommodation_details WHERE trf_id = ${trfId}`;
       await tx`DELETE FROM trf_company_transport_details WHERE trf_id = ${trfId}`;
       await tx`DELETE FROM trf_advance_bank_details WHERE trf_id = ${trfId}`;

@@ -107,10 +107,9 @@ export default function FlightsProcessingPage() {
         shouldShowRequest(role, { ...trf, itemType: 'trf' }, userId)
       );
       
-      // Filter for TRFs that require flights (Overseas, Home Leave Passage)
-      const flightRequiredTrfs = filteredTrfs.filter(trf => 
-        trf.travelType === 'Overseas' || trf.travelType === 'Home Leave Passage'
-      );
+      // All approved TSRs require flight processing - flight admin handles all flight ticket bookings
+      // regardless of travel type (Domestic, Overseas, Home Leave Passage, External Parties)
+      const flightRequiredTrfs = filteredTrfs;
       
       setPendingTrfs(flightRequiredTrfs.map((trf: any) => {
         let destinationSummary = 'N/A';
@@ -485,7 +484,7 @@ export default function FlightsProcessingPage() {
             <Plane className="w-8 h-8 text-primary" />
             Flights Processing Dashboard
           </h1>
-          <p className="text-muted-foreground">Process flight bookings for approved travel requests.</p>
+          <p className="text-muted-foreground">Process flight ticket bookings for all approved travel requests.</p>
         </div>
       </div>
 
@@ -523,7 +522,7 @@ export default function FlightsProcessingPage() {
             <Card className="md:col-span-2">
               <CardHeader>
                 <CardTitle>TRFs Awaiting Flight Booking</CardTitle>
-                <CardDescription>Overseas and Home Leave requests requiring flight arrangements.</CardDescription>
+                <CardDescription>All approved travel requests requiring flight ticket booking and arrangements.</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (

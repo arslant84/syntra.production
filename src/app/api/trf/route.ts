@@ -44,6 +44,17 @@ const itinerarySegmentSchemaDb = z.object({
   remarks: z.string().optional().nullable(),
 });
 
+const dailyMealSelectionSchema = z.object({
+  id: z.string().optional(),
+  trf_id: z.string().optional(),
+  meal_date: z.coerce.date({invalid_type_error: "Invalid meal date format."}),
+  breakfast: z.boolean().default(false),
+  lunch: z.boolean().default(false),
+  dinner: z.boolean().default(false),
+  supper: z.boolean().default(false),
+  refreshment: z.boolean().default(false),
+});
+
 const mealProvisionSchemaDb = z.object({
   dateFromTo: z.string().optional().transform(val => val || ""),
   breakfast: z.coerce.number().int().nonnegative("Must be a non-negative integer").optional().default(0),
@@ -51,6 +62,8 @@ const mealProvisionSchemaDb = z.object({
   dinner: z.coerce.number().int().nonnegative("Must be a non-negative integer").optional().default(0),
   supper: z.coerce.number().int().nonnegative("Must be a non-negative integer").optional().default(0),
   refreshment: z.coerce.number().int().nonnegative("Must be a non-negative integer").optional().default(0),
+  // Daily meal selections (no longer using toggle)
+  dailyMealSelections: z.array(dailyMealSelectionSchema).optional().default([]),
 });
 
 const accommodationDetailSchemaDb = z.object({
@@ -315,7 +328,10 @@ export const POST = withAuth(async function(request: NextRequest) {
     externalRefToAuthorityLetterVal = validatedData.externalPartyRequestorInfo.externalRefToAuthorityLetter;
     externalCostCenterVal = validatedData.externalPartyRequestorInfo.externalCostCenter;
     purposeVal = validatedData.externalPartiesTravelDetails.purpose;
-    requestorNameVal = externalFullNameVal; // For approval step log
+    // Use the submitting user's information for filtering purposes, not external party name
+    requestorNameVal = session.name || session.email || 'External Party Submitter';
+    staffIdVal = session.staffId || session.id || null;
+    departmentVal = session.department || null;
   }
 
   // Generate a unified request ID for the TRF
@@ -398,6 +414,8 @@ export const POST = withAuth(async function(request: NextRequest) {
       
       if (mealProvisionData) {
         console.log("API_TRF_POST (PostgreSQL): Inserting meal provisions for TRF ID:", trfId);
+        
+        // Insert the main meal provision record
         await tx`INSERT INTO trf_meal_provisions (
           trf_id, 
           date_from_to, 
@@ -415,6 +433,25 @@ export const POST = withAuth(async function(request: NextRequest) {
           ${Number(mealProvisionData.supper || 0)}, 
           ${Number(mealProvisionData.refreshment || 0)}
         )`;
+        
+        // Insert daily meal selections if available
+        if (mealProvisionData.dailyMealSelections && mealProvisionData.dailyMealSelections.length > 0) {
+          console.log("API_TRF_POST (PostgreSQL): Inserting daily meal selections for TRF ID:", trfId);
+          
+          const dailyMealInserts = mealProvisionData.dailyMealSelections.map((selection: any) => ({
+            trf_id: trfId,
+            meal_date: formatISO(new Date(selection.meal_date), { representation: "date" }),
+            breakfast: Boolean(selection.breakfast),
+            lunch: Boolean(selection.lunch),
+            dinner: Boolean(selection.dinner),
+            supper: Boolean(selection.supper),
+            refreshment: Boolean(selection.refreshment)
+          }));
+          
+          await tx`INSERT INTO trf_daily_meal_selections ${tx(dailyMealInserts, "trf_id", "meal_date", "breakfast", "lunch", "dinner", "supper", "refreshment")}`;
+          console.log("API_TRF_POST (PostgreSQL): Successfully inserted daily meal selections.");
+        }
+        
         console.log("API_TRF_POST (PostgreSQL): Successfully inserted meal provisions.");
       }
       
@@ -431,19 +468,13 @@ export const POST = withAuth(async function(request: NextRequest) {
             check_out_date: acc.checkOutDate ? formatISO(acc.checkOutDate, { representation: 'date' }) : null,
             check_out_time: acc.checkOutTime || null,
             location: acc.location || null,
-            from_date: acc.fromDate ? formatISO(acc.fromDate, { representation: 'date' }) : null,
-            to_date: acc.toDate ? formatISO(acc.toDate, { representation: 'date' }) : null,
-            from_location: acc.fromLocation || null,
-            to_location: acc.toLocation || null,
-            bt_no_required: acc.btNoRequired || null,
-            accommodation_type_n: acc.accommodationTypeN || null,
             address: acc.address || null,
             place_of_stay: acc.placeOfStay || null,
             estimated_cost_per_night: acc.estimatedCostPerNight ? Number(acc.estimatedCostPerNight) : null,
             other_type_description: acc.otherTypeDescription || null,
             remarks: acc.remarks || null,
           }));
-          await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, 'trf_id', 'accommodation_type', 'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time', 'location', 'from_date', 'to_date', 'from_location', 'to_location', 'bt_no_required', 'accommodation_type_n', 'address', 'place_of_stay', 'estimated_cost_per_night', 'other_type_description', 'remarks')}`;
+          await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, 'trf_id', 'accommodation_type', 'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time', 'location', 'address', 'place_of_stay', 'estimated_cost_per_night', 'other_type_description', 'remarks')}`;
         }
         // Insert company transport details
         if (details.companyTransportDetails && details.companyTransportDetails.length > 0) {
@@ -574,19 +605,13 @@ export const POST = withAuth(async function(request: NextRequest) {
             check_out_date: acc.checkOutDate ? formatISO(acc.checkOutDate, { representation: 'date' }) : null,
             check_out_time: '', // Default empty string
             location: '', // Default empty string
-            from_date: null, // Default null
-            to_date: null, // Default null
-            from_location: '', // Default empty string
-            to_location: '', // Default empty string
-            bt_no_required: '', // Default empty string
-            accommodation_type_n: '', // Default empty string
             address: '', // Default empty string
             place_of_stay: acc.placeOfStay || '', 
             estimated_cost_per_night: Number(acc.estimatedCostPerNight || 0),
             other_type_description: null, // Default null
             remarks: acc.remarks || null,
           }));
-          await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, 'trf_id', 'accommodation_type', 'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time', 'location', 'from_date', 'to_date', 'from_location', 'to_location', 'bt_no_required', 'accommodation_type_n', 'address', 'place_of_stay', 'estimated_cost_per_night', 'other_type_description', 'remarks')}`;
+          await tx`INSERT INTO trf_accommodation_details ${tx(accomInserts, 'trf_id', 'accommodation_type', 'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time', 'location', 'address', 'place_of_stay', 'estimated_cost_per_night', 'other_type_description', 'remarks')}`;
         }
       }
 

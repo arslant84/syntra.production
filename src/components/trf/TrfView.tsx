@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import ApprovalWorkflow from "./ApprovalWorkflow";
 import { format, isValid } from "date-fns";
 import { cn } from "@/lib/utils";
-import { UserCircle, Users as ExternalUserIcon, FileText, ClipboardList, Utensils, Bed, Car, Landmark, CreditCard, Building, Globe, Home as HomeIcon, Info } from "lucide-react";
+import { UserCircle, Users as ExternalUserIcon, FileText, ClipboardList, Utensils, Bed, Car, Landmark, CreditCard, Building, Globe, Home as HomeIcon, Info, AlertTriangle, Plane } from "lucide-react";
 
 interface TrfViewProps {
   trfData: TravelRequestForm;
@@ -84,6 +84,13 @@ export default function TrfView({ trfData }: TrfViewProps) {
     status,
   } = trfData;
 
+  // Check if this is a flight-related rejection
+  const isFlightRelatedRejection = status === "Rejected" && approvalWorkflow?.some(step => 
+    step.role === "Flight Admin" && 
+    step.status === "Rejected" && 
+    step.comments?.toLowerCase().includes("no flights available")
+  );
+
   const isExternal = travelType === 'External Parties' && externalPartyRequestorInfo;
   const isOverseas = (travelType === 'Overseas' || travelType === 'Home Leave Passage') && overseasTravelDetails;
   const isDomestic = travelType === 'Domestic' && domesticTravelDetails;
@@ -116,6 +123,32 @@ export default function TrfView({ trfData }: TrfViewProps) {
 
   return (
     <div className="space-y-4 print:space-y-2">
+      {/* Flight Unavailability Alert */}
+      {isFlightRelatedRejection && (
+        <Card className="border-red-200 bg-red-50 shadow-md print:shadow-none print:border-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2 text-red-800">
+              <AlertTriangle className="w-5 h-5" />
+              Flight Unavailability Notice
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-start gap-3">
+              <Plane className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm text-red-800 font-medium">
+                  This travel request was cancelled due to flight unavailability.
+                </p>
+                <p className="text-sm text-red-700 mt-1">
+                  No flights were available for the requested travel dates and destinations. 
+                  Please consider alternative travel dates or contact the travel administrator for assistance.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="shadow-md print:shadow-none print:border-none print:break-inside-avoid">
         <CardHeader className="print:p-0 print:mb-2">
           <div className="flex items-center justify-between print:mb-1">
@@ -207,20 +240,69 @@ export default function TrfView({ trfData }: TrfViewProps) {
             </section>
           )}
 
-          {isDomestic && domesticTravelDetails?.mealProvision && (
+          {isDomestic && domesticTravelDetails?.mealProvision?.dailyMealSelections && domesticTravelDetails.mealProvision.dailyMealSelections.length > 0 && (
             <section className="print:break-inside-avoid">
               <Separator className="my-2 print:hidden" />
               <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1"><Utensils className="print:hidden"/> Meal Provision (Kiyanly)</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
-                <DetailItem 
-                  label="Date From/To" 
-                  value={domesticTravelDetails.mealProvision.dateFromTo || domesticTravelDetails.mealProvision.date_from_to} 
-                />
-                <DetailItem label="Breakfast" value={formatNumberSafe(domesticTravelDetails.mealProvision.breakfast)} />
-                <DetailItem label="Lunch" value={formatNumberSafe(domesticTravelDetails.mealProvision.lunch)} />
-                <DetailItem label="Dinner" value={formatNumberSafe(domesticTravelDetails.mealProvision.dinner)} />
-                <DetailItem label="Supper" value={formatNumberSafe(domesticTravelDetails.mealProvision.supper)} />
-                <DetailItem label="Refreshment" value={formatNumberSafe(domesticTravelDetails.mealProvision.refreshment)} />
+              
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm text-muted-foreground print:font-bold print:text-black">Daily Meal Selections:</h4>
+                <div className="overflow-x-auto print:overflow-visible">
+                  <Table className="print:text-[7pt]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="print:p-0.5">Date</TableHead>
+                        <TableHead className="text-center print:p-0.5">Breakfast</TableHead>
+                        <TableHead className="text-center print:p-0.5">Lunch</TableHead>
+                        <TableHead className="text-center print:p-0.5">Dinner</TableHead>
+                        <TableHead className="text-center print:p-0.5">Supper</TableHead>
+                        <TableHead className="text-center print:p-0.5">Refreshment</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {domesticTravelDetails.mealProvision.dailyMealSelections.map((dailyMeal: any, index: number) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium print:p-0.5">
+                            {formatDateSafe(dailyMeal.meal_date, "EEE, MMM d, yyyy")}
+                          </TableCell>
+                          <TableCell className="text-center print:p-0.5">
+                            <span className="print:text-black">{dailyMeal.breakfast ? "✓" : "—"}</span>
+                          </TableCell>
+                          <TableCell className="text-center print:p-0.5">
+                            <span className="print:text-black">{dailyMeal.lunch ? "✓" : "—"}</span>
+                          </TableCell>
+                          <TableCell className="text-center print:p-0.5">
+                            <span className="print:text-black">{dailyMeal.dinner ? "✓" : "—"}</span>
+                          </TableCell>
+                          <TableCell className="text-center print:p-0.5">
+                            <span className="print:text-black">{dailyMeal.supper ? "✓" : "—"}</span>
+                          </TableCell>
+                          <TableCell className="text-center print:p-0.5">
+                            <span className="print:text-black">{dailyMeal.refreshment ? "✓" : "—"}</span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                {/* Summary totals */}
+                <div className="mt-4 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-md border print:border-none print:bg-transparent print:p-0">
+                  <h5 className="font-medium text-sm text-muted-foreground mb-2 print:font-bold print:text-black">Summary Totals:</h5>
+                  <div className="grid grid-cols-5 gap-2 text-sm print:text-[8pt]">
+                    {(['breakfast', 'lunch', 'dinner', 'supper', 'refreshment'] as const).map((mealType) => {
+                      const count = domesticTravelDetails.mealProvision.dailyMealSelections?.reduce((acc: number, dailyMeal: any) => {
+                        return acc + (dailyMeal[mealType] ? 1 : 0);
+                      }, 0) || 0;
+                      return (
+                        <div key={mealType} className="text-center">
+                          <div className="font-medium capitalize print:font-bold">{mealType}</div>
+                          <div className="text-lg font-bold text-primary print:text-black print:text-base">{count}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </section>
           )}
@@ -289,20 +371,69 @@ export default function TrfView({ trfData }: TrfViewProps) {
                   })}
                 </section>
               )}
-              {externalPartiesTravelDetails.mealProvision && (
+              {externalPartiesTravelDetails.mealProvision?.dailyMealSelections && externalPartiesTravelDetails.mealProvision.dailyMealSelections.length > 0 && (
                 <section className="print:break-inside-avoid">
                   <Separator className="my-2 print:hidden" />
                   <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1"><Utensils className="print:hidden"/> Meal Provision (Kiyanly)</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
-                    <DetailItem 
-                      label="Date From/To" 
-                      value={externalPartiesTravelDetails.mealProvision.dateFromTo || externalPartiesTravelDetails.mealProvision.date_from_to} 
-                    />
-                    <DetailItem label="Breakfast" value={formatNumberSafe(externalPartiesTravelDetails.mealProvision.breakfast)} />
-                    <DetailItem label="Lunch" value={formatNumberSafe(externalPartiesTravelDetails.mealProvision.lunch)} />
-                    <DetailItem label="Dinner" value={formatNumberSafe(externalPartiesTravelDetails.mealProvision.dinner)} />
-                    <DetailItem label="Supper" value={formatNumberSafe(externalPartiesTravelDetails.mealProvision.supper)} />
-                    <DetailItem label="Refreshment" value={formatNumberSafe(externalPartiesTravelDetails.mealProvision.refreshment)} />
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm text-muted-foreground print:font-bold print:text-black">Daily Meal Selections:</h4>
+                    <div className="overflow-x-auto print:overflow-visible">
+                      <Table className="print:text-[7pt]">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="print:p-0.5">Date</TableHead>
+                            <TableHead className="text-center print:p-0.5">Breakfast</TableHead>
+                            <TableHead className="text-center print:p-0.5">Lunch</TableHead>
+                            <TableHead className="text-center print:p-0.5">Dinner</TableHead>
+                            <TableHead className="text-center print:p-0.5">Supper</TableHead>
+                            <TableHead className="text-center print:p-0.5">Refreshment</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {externalPartiesTravelDetails.mealProvision.dailyMealSelections.map((dailyMeal: any, index: number) => (
+                            <TableRow key={index}>
+                              <TableCell className="font-medium print:p-0.5">
+                                {formatDateSafe(dailyMeal.meal_date, "EEE, MMM d, yyyy")}
+                              </TableCell>
+                              <TableCell className="text-center print:p-0.5">
+                                <span className="print:text-black">{dailyMeal.breakfast ? "✓" : "—"}</span>
+                              </TableCell>
+                              <TableCell className="text-center print:p-0.5">
+                                <span className="print:text-black">{dailyMeal.lunch ? "✓" : "—"}</span>
+                              </TableCell>
+                              <TableCell className="text-center print:p-0.5">
+                                <span className="print:text-black">{dailyMeal.dinner ? "✓" : "—"}</span>
+                              </TableCell>
+                              <TableCell className="text-center print:p-0.5">
+                                <span className="print:text-black">{dailyMeal.supper ? "✓" : "—"}</span>
+                              </TableCell>
+                              <TableCell className="text-center print:p-0.5">
+                                <span className="print:text-black">{dailyMeal.refreshment ? "✓" : "—"}</span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    
+                    {/* Summary totals */}
+                    <div className="mt-4 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-md border print:border-none print:bg-transparent print:p-0">
+                      <h5 className="font-medium text-sm text-muted-foreground mb-2 print:font-bold print:text-black">Summary Totals:</h5>
+                      <div className="grid grid-cols-5 gap-2 text-sm print:text-[8pt]">
+                        {(['breakfast', 'lunch', 'dinner', 'supper', 'refreshment'] as const).map((mealType) => {
+                          const count = externalPartiesTravelDetails.mealProvision.dailyMealSelections?.reduce((acc: number, dailyMeal: any) => {
+                            return acc + (dailyMeal[mealType] ? 1 : 0);
+                          }, 0) || 0;
+                          return (
+                            <div key={mealType} className="text-center">
+                              <div className="font-medium capitalize print:font-bold">{mealType}</div>
+                              <div className="text-lg font-bold text-primary print:text-black print:text-base">{count}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </section>
               )}

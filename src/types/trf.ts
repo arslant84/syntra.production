@@ -39,6 +39,19 @@ export interface MealProvisionDetails {
   dinner?: number | string;
   supper?: number | string;
   refreshment?: number | string;
+  // Daily meal selections (no longer using toggle)
+  dailyMealSelections?: DailyMealSelection[];
+}
+
+export interface DailyMealSelection {
+  id?: string;
+  trf_id?: string;
+  meal_date: Date | string;
+  breakfast: boolean;
+  lunch: boolean;
+  dinner: boolean;
+  supper: boolean;
+  refreshment: boolean;
 }
 
 export type AccommodationType = 'Hotel/Отели' | 'Staff House/PKC Kampung/Kiyanly camp' | 'Other';

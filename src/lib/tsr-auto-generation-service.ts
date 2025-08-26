@@ -29,6 +29,7 @@ export class TSRAutoGenerationService {
    * Auto-generate Transport and Accommodation requests based on TSR data
    */
   static async autoGenerateRequests(tsrData: TSRData, userId: string) {
+    console.log(`TSR_AUTO_GEN: Starting auto-generation for TSR ${tsrData.id} with userId: ${userId}`);
     const generatedRequests = {
       transportRequests: [] as string[],
       accommodationRequests: [] as string[]
@@ -36,7 +37,9 @@ export class TSRAutoGenerationService {
 
     try {
       // Fetch complete TSR data from database to get stored transport and accommodation details
+      console.log(`TSR_AUTO_GEN: Fetching complete TSR data for ${tsrData.id}`);
       const completesTsrData = await this.fetchCompleteTsrData(tsrData.id);
+      console.log(`TSR_AUTO_GEN: Fetched data - Transport details: ${completesTsrData.companyTransportDetails?.length || 0}, Accommodation details: ${completesTsrData.accommodationDetails?.length || 0}`);
       
       // Generate Transport requests from company transport details (stored in database)
       if (completesTsrData.companyTransportDetails?.length > 0) {
@@ -48,16 +51,29 @@ export class TSRAutoGenerationService {
 
       // Generate Accommodation requests from accommodation details (stored in database)
       if (completesTsrData.accommodationDetails?.length > 0) {
+        console.log(`TSR_AUTO_GEN: Processing ${completesTsrData.accommodationDetails.length} accommodation details`);
         for (const accommodationDetail of completesTsrData.accommodationDetails) {
+          console.log(`TSR_AUTO_GEN: Processing accommodation detail:`, {
+            id: accommodationDetail.id,
+            type: accommodationDetail.accommodationType,
+            checkInDate: accommodationDetail.checkInDate,
+            checkOutDate: accommodationDetail.checkOutDate,
+            location: accommodationDetail.location
+          });
           const accommodationRequestId = await this.generateAccommodationRequest(tsrData, accommodationDetail, userId);
           if (accommodationRequestId) {
+            console.log(`TSR_AUTO_GEN: Successfully created accommodation request ${accommodationRequestId}`);
             generatedRequests.accommodationRequests.push(accommodationRequestId);
             
             // After successfully creating ACCOM request, remove accommodation details from original TSR
             // to avoid confusion and duplication
             await this.removeAccommodationDetailsFromTSR(tsrData.id, accommodationDetail.id);
+          } else {
+            console.log(`TSR_AUTO_GEN: Failed to create accommodation request for detail ID ${accommodationDetail.id}`);
           }
         }
+      } else {
+        console.log(`TSR_AUTO_GEN: No accommodation details found for TSR ${tsrData.id}`);
       }
 
       console.log(`TSR_AUTO_GEN: Generated ${generatedRequests.transportRequests.length} transport requests and ${generatedRequests.accommodationRequests.length} accommodation requests for TSR ${tsrData.id}`);

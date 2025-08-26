@@ -17,6 +17,7 @@ import { format, isValid, startOfDay, getDay } from "date-fns";
 import { CalendarIcon, PlusCircle, Trash2, ClipboardList, Utensils, Bed, FileText, Users } from "lucide-react"; // Removed Car
 import React, { useEffect } from 'react'; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DailyMealSelection } from "./DailyMealSelection";
 
 const weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -49,13 +50,26 @@ const externalPartyAccommodationDetailSchema = z.object({
     return data.checkOutDate >= data.checkInDate;
   }, { message: "Check-out date cannot be before check-in date.", path: ["checkOutDate"] });
 
+const dailyMealSelectionSchema = z.object({
+  id: z.string().optional(),
+  trf_id: z.string().optional(),
+  meal_date: z.coerce.date(),
+  breakfast: z.boolean(),
+  lunch: z.boolean(),
+  dinner: z.boolean(),
+  supper: z.boolean(),
+  refreshment: z.boolean(),
+});
+
 const mealProvisionSchema = z.object({
-  dateFromTo: z.string().min(1, "Date From/To is required for meal provision."),
+  dateFromTo: z.string().optional().transform(val => val || ""),
   breakfast: z.preprocess(val => String(val).trim() === '' ? 0 : Number(val), z.number().int().nonnegative().optional()),
   lunch: z.preprocess(val => String(val).trim() === '' ? 0 : Number(val), z.number().int().nonnegative().optional()),
   dinner: z.preprocess(val => String(val).trim() === '' ? 0 : Number(val), z.number().int().nonnegative().optional()),
   supper: z.preprocess(val => String(val).trim() === '' ? 0 : Number(val), z.number().int().nonnegative().optional()),
   refreshment: z.preprocess(val => String(val).trim() === '' ? 0 : Number(val), z.number().int().nonnegative().optional()),
+  // Daily meal selections (no longer using toggle)
+  dailyMealSelections: z.array(dailyMealSelectionSchema).optional(),
 });
 
 const externalPartiesTravelDetailsSchema = z.object({
@@ -102,14 +116,7 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
             estimatedCostPerNight: Number(item.estimatedCostPerNight || 0),
           }))
         : []),
-      mealProvision: initialData?.mealProvision ? {
-        ...initialData.mealProvision,
-        breakfast: Number(initialData.mealProvision.breakfast || 0),
-        lunch: Number(initialData.mealProvision.lunch || 0),
-        dinner: Number(initialData.mealProvision.dinner || 0),
-        supper: Number(initialData.mealProvision.supper || 0),
-        refreshment: Number(initialData.mealProvision.refreshment || 0),
-      } : { dateFromTo: "", breakfast: 0, lunch: 0, dinner: 0, supper: 0, refreshment: 0 },
+      mealProvision: initialData?.mealProvision || { dailyMealSelections: [] },
     },
   });
 
@@ -144,7 +151,61 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
     });
   }, [itineraryFields.length, itineraryFields.map(f => form.getValues(`itinerary.${f.id}.date`)).join(",")]);
 
+  // Watch itinerary changes to auto-populate accommodation dates
+  const currentItinerary = form.watch("itinerary");
+  useEffect(() => {
+    console.log('ExternalPartiesTravelDetailsForm: Itinerary changed, updating accommodation dates');
+    
+    if (!currentItinerary || currentItinerary.length === 0) {
+      console.log('ExternalPartiesTravelDetailsForm: No itinerary data, skipping accommodation date sync');
+      return;
+    }
+
+    // Get valid dates from itinerary segments
+    const validDates = currentItinerary
+      .filter(item => item.date && isValid(item.date))
+      .map(item => item.date)
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    if (validDates.length === 0) {
+      console.log('ExternalPartiesTravelDetailsForm: No valid dates in itinerary, skipping accommodation date sync');
+      return;
+    }
+
+    const firstDate = validDates[0]; // Check-in date (arrival/departure date from segment 1)
+    const lastDate = validDates[validDates.length - 1]; // Check-out date (return date from last segment)
+
+    console.log('ExternalPartiesTravelDetailsForm: Syncing accommodation dates:', {
+      checkIn: firstDate.toDateString(),
+      checkOut: lastDate.toDateString(),
+      accommodationCount: accommodationFields.length
+    });
+
+    // Update all existing accommodation entries with the travel period dates
+    accommodationFields.forEach((_, index) => {
+      const currentCheckIn = form.getValues(`accommodationDetails.${index}.checkInDate`);
+      const currentCheckOut = form.getValues(`accommodationDetails.${index}.checkOutDate`);
+
+      // Only update if dates are not already set, or if they're different from itinerary dates
+      if (!currentCheckIn || currentCheckIn.getTime() !== firstDate.getTime()) {
+        form.setValue(`accommodationDetails.${index}.checkInDate`, firstDate);
+        console.log(`ExternalPartiesTravelDetailsForm: Updated check-in date for accommodation ${index + 1}`);
+      }
+
+      if (!currentCheckOut || currentCheckOut.getTime() !== lastDate.getTime()) {
+        form.setValue(`accommodationDetails.${index}.checkOutDate`, lastDate);
+        console.log(`ExternalPartiesTravelDetailsForm: Updated check-out date for accommodation ${index + 1}`);
+      }
+    });
+  }, [
+    currentItinerary?.length,
+    // Watch for changes in the actual date values within segments
+    currentItinerary?.map(item => item.date?.getTime() || 0).join(','),
+    accommodationFields.length
+  ]);
+
   const handleFormSubmit = (data: z.infer<typeof externalPartiesTravelDetailsSchema>) => {
+    console.log('ExternalPartiesTravelDetailsForm: Form submission successful, data:', data);
     const formattedData: ExternalPartiesTravelSpecificDetails = {
       ...data,
       itinerary: data.itinerary.map(item => ({
@@ -163,14 +224,7 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
           placeOfStay: detail.placeOfStay || '',
           remarks: detail.remarks || '',
         })) || [],
-      mealProvision: {
-        ...data.mealProvision,
-        breakfast: Number(data.mealProvision.breakfast) || 0,
-        lunch: Number(data.mealProvision.lunch) || 0,
-        dinner: Number(data.mealProvision.dinner) || 0,
-        supper: Number(data.mealProvision.supper) || 0,
-        refreshment: Number(data.mealProvision.refreshment) || 0,
-      },
+      mealProvision: data.mealProvision,
     };
     onSubmit(formattedData);
   };
@@ -324,23 +378,33 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
                     <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive/80" onClick={() => removeAccommodation(index)}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 ))}
-                <Button type="button" variant="outline" size="sm" onClick={() => appendAccommodation({ checkInDate: null, checkOutDate: null, placeOfStay: '', estimatedCostPerNight: '', remarks: '' })}> <PlusCircle className="mr-2 h-4 w-4" /> Add Accommodation Entry</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => {
+                  // Get travel dates from itinerary to pre-populate new accommodation entry
+                  const itinerary = form.getValues("itinerary");
+                  const validDates = itinerary
+                    .filter(item => item.date && isValid(item.date))
+                    .map(item => item.date)
+                    .sort((a, b) => a.getTime() - b.getTime());
+                  
+                  const checkInDate = validDates.length > 0 ? validDates[0] : null;
+                  const checkOutDate = validDates.length > 0 ? validDates[validDates.length - 1] : null;
+                  
+                  appendAccommodation({ 
+                    checkInDate: checkInDate, 
+                    checkOutDate: checkOutDate, 
+                    placeOfStay: '', 
+                    estimatedCostPerNight: '', 
+                    remarks: '' 
+                  });
+                }}> <PlusCircle className="mr-2 h-4 w-4" /> Add Accommodation Entry</Button>
               </CardContent>
             </Card>
 
             {/* Meal Provision */}
             <Card className="border-dashed">
               <CardHeader><CardTitle className="text-lg font-semibold flex items-center gap-2"><Utensils /> Meal Provision in Kiyanly / Питание в Киянлы</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <FormField control={form.control} name="mealProvision.dateFromTo" render={({ field }) => (<FormItem><FormLabel>Date From/To / Даты с/по</FormLabel><FormControl><Input placeholder="e.g., 15 May - 20 May" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                  <FormField control={form.control} name="mealProvision.breakfast" render={({ field }) => (<FormItem><FormLabel>Breakfast / Завтрак</FormLabel><FormControl><Input type="number" placeholder="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="mealProvision.lunch" render={({ field }) => (<FormItem><FormLabel>Lunch / Обед</FormLabel><FormControl><Input type="number" placeholder="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="mealProvision.dinner" render={({ field }) => (<FormItem><FormLabel>Dinner / Ужин</FormLabel><FormControl><Input type="number" placeholder="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="mealProvision.supper" render={({ field }) => (<FormItem><FormLabel>Supper / Поздний ужин</FormLabel><FormControl><Input type="number" placeholder="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="mealProvision.refreshment" render={({ field }) => (<FormItem><FormLabel>Refreshment / Закуски</FormLabel><FormControl><Input type="number" placeholder="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-                 <FormDescription className="text-xs pt-2">Total/Итого fields are auto-calculated in the PDF/final document.</FormDescription>
+              <CardContent className="space-y-4">
+                <DailyMealSelection />
               </CardContent>
             </Card>
 
@@ -349,7 +413,17 @@ export default function ExternalPartiesTravelDetailsForm({ initialData, onSubmit
             <Button type="button" variant="outline" onClick={onBack}>
               Back: Requestor Info
             </Button>
-            <Button type="submit">Next: Approval &amp; Submission</Button>
+            <Button 
+              type="submit" 
+              onClick={() => {
+                const errors = form.formState.errors;
+                if (Object.keys(errors).length > 0) {
+                  console.log('ExternalPartiesTravelDetailsForm: Form validation errors preventing submission:', errors);
+                }
+              }}
+            >
+              Next: Approval &amp; Submission
+            </Button>
           </CardFooter>
         </Card>
       </form>

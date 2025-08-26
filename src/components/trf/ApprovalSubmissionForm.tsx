@@ -224,20 +224,70 @@ export default function ApprovalSubmissionForm({
               {(domesticDetails?.itinerary || overseasDetails?.itinerary || externalPartiesDetails?.itinerary) && <Separator />}
 
               {/* Domestic & External Parties: Meal Provision */}
-              {(domesticDetails?.mealProvision || externalPartiesDetails?.mealProvision) && (trfData.travelType === 'Domestic' || trfData.travelType === 'External Parties') && (
-                 <section>
+              {(domesticDetails?.mealProvision?.dailyMealSelections?.length > 0 || externalPartiesDetails?.mealProvision?.dailyMealSelections?.length > 0) && (trfData.travelType === 'Domestic' || trfData.travelType === 'External Parties') && (
+                <section>
                   <h3 className="text-md font-semibold mb-3 flex items-center gap-2 text-primary"><Utensils /> Meal Provision (Kiyanly)</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 p-3 border rounded-md bg-white dark:bg-slate-700/30 shadow-sm">
-                    {renderDetail("Date From/To", domesticDetails?.mealProvision?.dateFromTo || externalPartiesDetails?.mealProvision?.dateFromTo)}
-                    {renderDetail("Breakfast", formatNumberSafe(domesticDetails?.mealProvision?.breakfast ?? externalPartiesDetails?.mealProvision?.breakfast))}
-                    {renderDetail("Lunch", formatNumberSafe(domesticDetails?.mealProvision?.lunch ?? externalPartiesDetails?.mealProvision?.lunch))}
-                    {renderDetail("Dinner", formatNumberSafe(domesticDetails?.mealProvision?.dinner ?? externalPartiesDetails?.mealProvision?.dinner))}
-                    {renderDetail("Supper", formatNumberSafe(domesticDetails?.mealProvision?.supper ?? externalPartiesDetails?.mealProvision?.supper))}
-                    {renderDetail("Refreshment", formatNumberSafe(domesticDetails?.mealProvision?.refreshment ?? externalPartiesDetails?.mealProvision?.refreshment))}
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm text-muted-foreground">Daily Meal Selections:</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-center">Breakfast</TableHead>
+                          <TableHead className="text-center">Lunch</TableHead>
+                          <TableHead className="text-center">Dinner</TableHead>
+                          <TableHead className="text-center">Supper</TableHead>
+                          <TableHead className="text-center">Refreshment</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(domesticDetails?.mealProvision?.dailyMealSelections || externalPartiesDetails?.mealProvision?.dailyMealSelections)?.map((dailyMeal: any, index: number) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">
+                              {formatDateSafe(dailyMeal.meal_date, "EEE, MMM d, yyyy")}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {dailyMeal.breakfast ? "✅" : "❌"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {dailyMeal.lunch ? "✅" : "❌"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {dailyMeal.dinner ? "✅" : "❌"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {dailyMeal.supper ? "✅" : "❌"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {dailyMeal.refreshment ? "✅" : "❌"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    
+                    {/* Summary totals */}
+                    <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-md border">
+                      <h5 className="font-medium text-sm text-muted-foreground mb-2">Summary Totals:</h5>
+                      <div className="grid grid-cols-5 gap-4 text-sm">
+                        {(['breakfast', 'lunch', 'dinner', 'supper', 'refreshment'] as const).map((mealType) => {
+                          const count = (domesticDetails?.mealProvision?.dailyMealSelections || externalPartiesDetails?.mealProvision?.dailyMealSelections)?.reduce((acc: number, dailyMeal: any) => {
+                            return acc + (dailyMeal[mealType] ? 1 : 0);
+                          }, 0) || 0;
+                          return (
+                            <div key={mealType} className="text-center">
+                              <div className="font-medium capitalize">{mealType}</div>
+                              <div className="text-lg font-bold text-primary">{count}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </section>
               )}
-              {(domesticDetails?.mealProvision || externalPartiesDetails?.mealProvision) && (trfData.travelType === 'Domestic' || trfData.travelType === 'External Parties') && <Separator />}
+              {(domesticDetails?.mealProvision?.dailyMealSelections?.length > 0 || externalPartiesDetails?.mealProvision?.dailyMealSelections?.length > 0) && (trfData.travelType === 'Domestic' || trfData.travelType === 'External Parties') && <Separator />}
 
               {/* Domestic Accommodation */}
               {domesticDetails?.accommodationDetails && domesticDetails.accommodationDetails.length > 0 && trfData.travelType === 'Domestic' && (

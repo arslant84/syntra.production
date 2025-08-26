@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { format, isValid, startOfDay, getDay } from "date-fns";
 import { CalendarIcon, PlusCircle, Trash2, ClipboardList, Utensils, Bed, Car, FileText, Building } from "lucide-react";
 import React, { useEffect } from 'react';
+import { DailyMealSelection } from "./DailyMealSelection";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -33,6 +34,17 @@ const itinerarySegmentSchema = z.object({
   remarks: z.string().optional().transform(val => val || ""), // Ensure remarks is always a string
 });
 
+const dailyMealSelectionSchema = z.object({
+  id: z.string().optional(),
+  trf_id: z.string().optional(),
+  meal_date: z.coerce.date(),
+  breakfast: z.boolean(),
+  lunch: z.boolean(),
+  dinner: z.boolean(),
+  supper: z.boolean(),
+  refreshment: z.boolean(),
+});
+
 const mealProvisionSchema = z.object({
   dateFromTo: z.string().optional().transform(val => val || ""),
   // Allow both number and string types to match MealProvisionDetails interface
@@ -41,6 +53,8 @@ const mealProvisionSchema = z.object({
   dinner: z.union([z.string(), z.number()]).transform(val => String(val) === '' ? '0' : val),
   supper: z.union([z.string(), z.number()]).transform(val => String(val) === '' ? '0' : val),
   refreshment: z.union([z.string(), z.number()]).transform(val => String(val) === '' ? '0' : val),
+  // Daily meal selections (no longer using toggle)
+  dailyMealSelections: z.array(dailyMealSelectionSchema).optional(),
 });
 
 const accommodationDetailSchema = z.object({
@@ -133,7 +147,7 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
       itinerary: (initialData?.itinerary && initialData.itinerary.length > 0 
         ? initialData.itinerary.map(item => ({ ...item, date: item.date ? new Date(item.date) : null }))
         : [{ date: null, day: '', from: '', to: '', etd: '', eta: '', flightNumber: '', flightClass: '', remarks: '' }]),
-      mealProvision: initialData?.mealProvision || { dateFromTo: "", breakfast: 0, lunch: 0, dinner: 0, supper: 0, refreshment: 0 },
+      mealProvision: initialData?.mealProvision || { dailyMealSelections: [] },
       accommodationDetails: (initialData?.accommodationDetails && initialData.accommodationDetails.length > 0
         ? initialData.accommodationDetails.map(item => ({
           ...item,
@@ -182,6 +196,134 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
     }
     // Only run when tripType or itineraryFields.length changes
   }, [tripType, itineraryFields.length]);
+
+  // Watch itinerary changes to auto-populate accommodation dates
+  const currentItinerary = form.watch("itinerary");
+  useEffect(() => {
+    console.log('DomesticTravelDetailsForm: Itinerary changed, updating accommodation dates');
+    
+    if (!currentItinerary || currentItinerary.length === 0) {
+      console.log('DomesticTravelDetailsForm: No itinerary data, skipping accommodation date sync');
+      return;
+    }
+
+    // Get valid dates from itinerary segments
+    const validDates = currentItinerary
+      .filter(item => item.date && isValid(item.date))
+      .map(item => item.date)
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    if (validDates.length === 0) {
+      console.log('DomesticTravelDetailsForm: No valid dates in itinerary, skipping accommodation date sync');
+      return;
+    }
+
+    const firstDate = validDates[0]; // Check-in date (arrival/departure date from segment 1)
+    const lastDate = validDates[validDates.length - 1]; // Check-out date (return date from last segment)
+
+    console.log('DomesticTravelDetailsForm: Syncing accommodation dates:', {
+      checkIn: firstDate.toDateString(),
+      checkOut: lastDate.toDateString(),
+      accommodationCount: accommodationFields.length
+    });
+
+    // Update all existing accommodation entries with the travel period dates
+    accommodationFields.forEach((_, index) => {
+      const currentCheckIn = form.getValues(`accommodationDetails.${index}.checkInDate`);
+      const currentCheckOut = form.getValues(`accommodationDetails.${index}.checkOutDate`);
+
+      // Only update if dates are not already set, or if they're different from itinerary dates
+      if (!currentCheckIn || currentCheckIn.getTime() !== firstDate.getTime()) {
+        form.setValue(`accommodationDetails.${index}.checkInDate`, firstDate);
+        console.log(`DomesticTravelDetailsForm: Updated check-in date for accommodation ${index + 1}`);
+      }
+
+      if (!currentCheckOut || currentCheckOut.getTime() !== lastDate.getTime()) {
+        form.setValue(`accommodationDetails.${index}.checkOutDate`, lastDate);
+        console.log(`DomesticTravelDetailsForm: Updated check-out date for accommodation ${index + 1}`);
+      }
+    });
+  }, [
+    currentItinerary?.length,
+    // Watch for changes in the actual date values within segments
+    currentItinerary?.map(item => item.date?.getTime() || 0).join(','),
+    accommodationFields.length
+  ]);
+
+  // Watch itinerary and accommodation changes to auto-populate transport data
+  const currentAccommodation = form.watch("accommodationDetails");
+  useEffect(() => {
+    console.log('DomesticTravelDetailsForm: Itinerary/Accommodation changed, updating transport data');
+    
+    if (!currentItinerary || currentItinerary.length === 0) {
+      console.log('DomesticTravelDetailsForm: No itinerary data, skipping transport sync');
+      return;
+    }
+
+    // Get the first valid date from itinerary (pick-up date)
+    const firstValidDate = currentItinerary
+      .filter(item => item.date && isValid(item.date))
+      .sort((a, b) => a.date.getTime() - b.date.getTime())[0]?.date;
+
+    if (!firstValidDate) {
+      console.log('DomesticTravelDetailsForm: No valid first date in itinerary, skipping transport sync');
+      return;
+    }
+
+    // Get accommodation type for Accom. № Type
+    const firstAccommodationType = currentAccommodation && currentAccommodation.length > 0 
+      ? currentAccommodation[0].accommodationType 
+      : null;
+
+    const pickUpDate = firstValidDate;
+    const dayOfWeek = weekdayNames[getDay(pickUpDate)];
+    
+    // Map accommodation type to transport accommodation type
+    const transportAccommodationType = firstAccommodationType 
+      ? (firstAccommodationType === 'Hotel/Отели' ? 'Hotel' 
+         : firstAccommodationType === 'Staff House/PKC Kampung/Kiyanly camp' ? 'Camp'
+         : firstAccommodationType === 'Other' ? 'Other' 
+         : '')
+      : '';
+
+    console.log('DomesticTravelDetailsForm: Syncing transport data:', {
+      pickUpDate: pickUpDate.toDateString(),
+      dayOfWeek: dayOfWeek,
+      accommodationType: transportAccommodationType,
+      transportCount: transportFields.length
+    });
+
+    // Update all existing transport entries
+    transportFields.forEach((_, index) => {
+      const currentDate = form.getValues(`companyTransportDetails.${index}.date`);
+      const currentDay = form.getValues(`companyTransportDetails.${index}.day`);
+      const currentAccomType = form.getValues(`companyTransportDetails.${index}.accommodationTypeN`);
+
+      // Update pick-up date if not set or different from first itinerary date
+      if (!currentDate || currentDate.getTime() !== pickUpDate.getTime()) {
+        form.setValue(`companyTransportDetails.${index}.date`, pickUpDate);
+        console.log(`DomesticTravelDetailsForm: Updated transport ${index + 1} date`);
+      }
+
+      // Update day based on pick-up date
+      if (currentDay !== dayOfWeek) {
+        form.setValue(`companyTransportDetails.${index}.day`, dayOfWeek);
+        console.log(`DomesticTravelDetailsForm: Updated transport ${index + 1} day to ${dayOfWeek}`);
+      }
+
+      // Update accommodation type if available and different
+      if (transportAccommodationType && currentAccomType !== transportAccommodationType) {
+        form.setValue(`companyTransportDetails.${index}.accommodationTypeN`, transportAccommodationType);
+        console.log(`DomesticTravelDetailsForm: Updated transport ${index + 1} accommodation type to ${transportAccommodationType}`);
+      }
+    });
+  }, [
+    currentItinerary?.length,
+    currentItinerary?.map(item => item.date?.getTime() || 0).join(','),
+    currentAccommodation?.length,
+    currentAccommodation?.map(item => item.accommodationType).join(','),
+    transportFields.length
+  ]);
 
   const handleSubmit = form.handleSubmit((data) => {
     console.log('DomesticTravelDetailsForm onSubmit called!');
@@ -315,16 +457,8 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
             {/* Meal Provision */}
             <Card className="border-dashed">
               <CardHeader><CardTitle className="text-lg font-semibold flex items-center gap-2"><Utensils /> Meal Provision in Kiyanly / Питание в Киянлы</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <FormField control={form.control} name="mealProvision.dateFromTo" render={({ field }) => (<FormItem><FormLabel>Date From/To / Даты с/по</FormLabel><FormControl><Input placeholder="e.g., 15 May - 20 May" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                  <FormField control={form.control} name="mealProvision.breakfast" render={({ field }) => (<FormItem><FormLabel>Breakfast / Завтрак</FormLabel><FormControl><Input type="number" placeholder="0" {...field} value={field.value || 0} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="mealProvision.lunch" render={({ field }) => (<FormItem><FormLabel>Lunch / Обед</FormLabel><FormControl><Input type="number" placeholder="0" {...field} value={field.value || 0} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="mealProvision.dinner" render={({ field }) => (<FormItem><FormLabel>Dinner / Ужин</FormLabel><FormControl><Input type="number" placeholder="0" {...field} value={field.value || 0} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="mealProvision.supper" render={({ field }) => (<FormItem><FormLabel>Supper / Поздний ужин</FormLabel><FormControl><Input type="number" placeholder="0" {...field} value={field.value || 0} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="mealProvision.refreshment" render={({ field }) => (<FormItem><FormLabel>Refreshment / Закуски</FormLabel><FormControl><Input type="number" placeholder="0" {...field} value={field.value || 0} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-                 <FormDescription className="text-xs pt-2">Total/Итого fields are auto-calculated in the PDF/final document.</FormDescription>
+              <CardContent className="space-y-4">
+                <DailyMealSelection />
               </CardContent>
             </Card>
 
@@ -406,7 +540,37 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
                     {accommodationFields.length > 1 && <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive/80" onClick={() => removeAccommodation(index)}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
                 ))}
-                <Button type="button" variant="outline" size="sm" onClick={() => appendAccommodation({ accommodationType: "Hotel/Отели", checkInDate: null, checkInTime: "", checkOutDate: null, checkOutTime: "", otherTypeDescription: "", remarks: "", location: "", fromDate: null, toDate: null, fromLocation: "", toLocation: "", btNoRequired: "", accommodationTypeN: "", address: "", placeOfStay: "", estimatedCostPerNight: "0" })}> <PlusCircle className="mr-2 h-4 w-4" /> Add Accommodation Entry</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => {
+                  // Get travel dates from itinerary to pre-populate new accommodation entry
+                  const itinerary = form.getValues("itinerary");
+                  const validDates = itinerary
+                    .filter(item => item.date && isValid(item.date))
+                    .map(item => item.date)
+                    .sort((a, b) => a.getTime() - b.getTime());
+                  
+                  const checkInDate = validDates.length > 0 ? validDates[0] : null;
+                  const checkOutDate = validDates.length > 0 ? validDates[validDates.length - 1] : null;
+                  
+                  appendAccommodation({ 
+                    accommodationType: "Hotel/Отели", 
+                    checkInDate: checkInDate, 
+                    checkInTime: "", 
+                    checkOutDate: checkOutDate, 
+                    checkOutTime: "", 
+                    otherTypeDescription: "", 
+                    remarks: "", 
+                    location: "", 
+                    fromDate: null, 
+                    toDate: null, 
+                    fromLocation: "", 
+                    toLocation: "", 
+                    btNoRequired: "", 
+                    accommodationTypeN: "", 
+                    address: "", 
+                    placeOfStay: "", 
+                    estimatedCostPerNight: "0" 
+                  });
+                }}> <PlusCircle className="mr-2 h-4 w-4" /> Add Accommodation Entry</Button>
               </CardContent>
             </Card>
             
@@ -441,7 +605,41 @@ export default function DomesticTravelDetailsForm({ initialData, onSubmit, onBac
                     <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive/80" onClick={() => removeTransport(index)}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 ))}
-                <Button type="button" variant="outline" size="sm" onClick={() => appendTransport({ date: null, day: '', from: '', to: '', btNoRequired: '', accommodationTypeN: '', address: '', remarks: '' })}> <PlusCircle className="mr-2 h-4 w-4" /> Add Transport Request</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => {
+                  // Get data from itinerary and accommodation to pre-populate new transport entry
+                  const itinerary = form.getValues("itinerary");
+                  const accommodation = form.getValues("accommodationDetails");
+                  
+                  // Get first valid date from itinerary for pick-up date
+                  const firstValidDate = itinerary
+                    .filter(item => item.date && isValid(item.date))
+                    .sort((a, b) => a.date.getTime() - b.date.getTime())[0]?.date;
+                  
+                  const dayOfWeek = firstValidDate ? weekdayNames[getDay(firstValidDate)] : '';
+                  
+                  // Get accommodation type for Accom. № Type
+                  const firstAccommodationType = accommodation && accommodation.length > 0 
+                    ? accommodation[0].accommodationType 
+                    : null;
+                  
+                  const transportAccommodationType = firstAccommodationType 
+                    ? (firstAccommodationType === 'Hotel/Отели' ? 'Hotel' 
+                       : firstAccommodationType === 'Staff House/PKC Kampung/Kiyanly camp' ? 'Camp'
+                       : firstAccommodationType === 'Other' ? 'Other' 
+                       : '')
+                    : '';
+                  
+                  appendTransport({ 
+                    date: firstValidDate || null, 
+                    day: dayOfWeek, 
+                    from: '', 
+                    to: '', 
+                    btNoRequired: '', 
+                    accommodationTypeN: transportAccommodationType, 
+                    address: '', 
+                    remarks: '' 
+                  });
+                }}> <PlusCircle className="mr-2 h-4 w-4" /> Add Transport Request</Button>
               </CardContent>
             </Card>
 

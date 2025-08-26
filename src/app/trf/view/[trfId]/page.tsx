@@ -27,6 +27,18 @@ export default function ViewTSRPage() {
   const [isActionPending, setIsActionPending] = React.useState(false);
   const { toast } = useToast();
 
+  // Early validation - redirect accommodation requests to proper page
+  React.useEffect(() => {
+    if (trfId?.startsWith('ACCOM-')) {
+      setIsLoading(false);
+      setError('This is an accommodation request. Redirecting to accommodation view...');
+      setTimeout(() => {
+        router.push(`/accommodation/view/${trfId}`);
+      }, 1500);
+      return;
+    }
+  }, [trfId, router]);
+
   const fetchTrfDetails = useCallback(async () => {
     if (!trfId) return;
     console.log(`ViewTSRPage: Fetching TSR details for ${trfId}.`);
@@ -36,6 +48,16 @@ export default function ViewTSRPage() {
       const response = await fetch(`/api/trf/${trfId}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        
+        // Handle accommodation request redirect
+        if (errorData.redirectTo && trfId?.startsWith('ACCOM-')) {
+          setError(`This is an accommodation request, not a TSR. Redirecting to the accommodation view...`);
+          setTimeout(() => {
+            window.location.href = errorData.redirectTo;
+          }, 2000);
+          return;
+        }
+        
         throw new Error(errorData.error || errorData.details || `Failed to fetch TSR ${trfId}: ${response.statusText}`);
       }
       const result = await response.json();

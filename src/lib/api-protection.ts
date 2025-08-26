@@ -193,14 +193,31 @@ export function canViewApprovalData(session: any, domain: string): boolean {
 /**
  * Get user identifier for filtering user-specific data
  */
-export function getUserIdentifier(session: any): {
+export async function getUserIdentifier(session: any): Promise<{
   userId: string;
   staffId?: string;
   email: string;
-} {
+}> {
+  let staffId = session.staffId;
+  
+  // If staffId is not in session, get it from database
+  if (!staffId && session.id) {
+    try {
+      const { sql } = await import('./db');
+      const userResult = await sql`
+        SELECT staff_id FROM users WHERE id = ${session.id} LIMIT 1
+      `;
+      if (userResult.length > 0) {
+        staffId = userResult[0].staff_id;
+      }
+    } catch (error) {
+      console.error('Error fetching staffId from database:', error);
+    }
+  }
+  
   return {
     userId: session.id,
-    staffId: session.staffId,
+    staffId,
     email: session.email
   };
 }

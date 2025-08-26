@@ -5,29 +5,43 @@ import { hasPermission } from '@/lib/permissions';
 import { withAuth, getUserIdentifier } from '@/lib/api-protection';
 
 export const GET = withAuth(async function(request: NextRequest) {
+  console.log('DASHBOARD_SUMMARY_API_CALLED: Dashboard summary API endpoint hit');
   try {
     const session = (request as any).user;
-    const userIdentifier = getUserIdentifier(session);
+    console.log('DASHBOARD_SUMMARY_SESSION: Session data:', session);
+    const userIdentifier = await getUserIdentifier(session);
+    console.log('DASHBOARD_SUMMARY_USER_ID: Got user identifier:', userIdentifier);
     
     console.log(`Dashboard summary for user ${session.role} (${userIdentifier.userId})`);
+    console.log('DASHBOARD_SUMMARY_DEBUG: User identifier:', userIdentifier);
+    console.log('DASHBOARD_SUMMARY_DEBUG: Session data:', { 
+      id: session.id, 
+      name: session.name, 
+      email: session.email, 
+      staffId: session.staffId 
+    });
     
     // Build user filter condition for SQL queries
     const staffIdCondition = userIdentifier.staffId 
       ? `staff_id = '${userIdentifier.staffId}' OR ` 
       : '';
     const userFilter = `(${staffIdCondition}staff_id = '${userIdentifier.userId}' OR requestor_name ILIKE '%${userIdentifier.email}%')`;
+    console.log('DASHBOARD_SUMMARY_DEBUG: Generated user filter:', userFilter);
 
     // Get user's pending TRF count
     let pendingTRFs = 0;
     try {
       console.log('Fetching user\'s pending TRFs...');
-      const trfQuery = await sql.unsafe(`
+      const sqlQuery = `
         SELECT COUNT(*) AS count FROM travel_requests
         WHERE (status LIKE 'Pending%' OR status = 'Draft')
+          AND travel_type != 'Accommodation'
           AND ${userFilter}
-      `);
+      `;
+      console.log('DASHBOARD_SUMMARY_DEBUG: TRF SQL Query:', sqlQuery);
+      const trfQuery = await sql.unsafe(sqlQuery);
       pendingTRFs = parseInt(trfQuery[0]?.count || '0');
-      console.log(`Found ${pendingTRFs} pending TRFs for user ${userIdentifier.userId}`);
+      console.log(`DASHBOARD_SUMMARY_DEBUG: Found ${pendingTRFs} pending TRFs for user ${userIdentifier.userId}`);
     } catch (err) {
       console.error('Error fetching user\'s travel requests:', err);
     }

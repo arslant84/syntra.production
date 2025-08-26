@@ -162,7 +162,7 @@ export const GET = withAuth(async function(request: NextRequest) {
   
   try {
     const session = (request as any).user;
-    const userIdentifier = getUserIdentifier(session);
+    const userIdentifier = await getUserIdentifier(session);
     
     console.log(`Loading activities for user ${session.role} (${userIdentifier.userId})`);
     

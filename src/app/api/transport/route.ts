@@ -23,20 +23,17 @@ export const GET = withAuth(async function(request: NextRequest) {
     if (summary === 'true') {
       let allTransportRequests;
       
-      // Universal filtering for summary
-      const canViewAll = canViewAllData(session);
-      const canViewTransport = canViewDomainData(session, 'transport');
-      const userIdentifier = getUserIdentifier(session);
-      let userId = null;
+      // Strict filtering for summary - only true system admins can see all data
+      const userIdentifier = await getUserIdentifier(session);
+      const isSystemAdmin = session.role === 'System Administrator' || session.role === 'Admin';
+      let userId = userIdentifier.userId; // Default: filter by user
       
-      if (canViewAll || canViewTransport) {
-        console.log(`API_TRANSPORT_GET: Admin ${session.role} can view all transport requests for summary`);
-        userId = null; // Show all data
+      if (isSystemAdmin) {
+        console.log(`API_TRANSPORT_GET: System Admin ${session.role} can view all transport requests for summary`);
+        userId = null; // Only system admins see all data
       } else {
-        // All other users see only their own requests with universal filtering
-        userId = userIdentifier.userId;
-        console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport summary with universal filtering`);
-        // Note: Summary endpoints will use universal filtering
+        console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport summary with strict filtering`);
+        // All other users (including Line Managers, HODs, etc.) see only their own requests
       }
       
       if (fromDate && toDate) {
@@ -73,20 +70,23 @@ export const GET = withAuth(async function(request: NextRequest) {
       return NextResponse.json({ statusByMonth: sortedMonths });
     }
     
-    // Universal user filtering system
-    const userIdentifier = getUserIdentifier(session);
-    let userId = null;
+    // Strict user filtering system for personal views
+    const userIdentifier = await getUserIdentifier(session);
+    let userId = userIdentifier.userId; // Default: always filter by user
     
-    if (shouldBypassUserFilter(session, statuses)) {
-      console.log(`API_TRANSPORT_GET: Admin ${session.role} viewing approval queue - no user filter`);
-      // Admins viewing approval queue see all requests
-      userId = null;
+    console.log(`API_TRANSPORT_GET: Session details - role: ${session.role}, userId: ${userId}, email: ${session.email}`);
+    
+    // Only bypass user filtering for true admin roles and only when viewing approval queues with status filters
+    const isApprovalQueue = statuses && statuses.trim() !== '';
+    const isSystemAdmin = session.role === 'System Administrator' || session.role === 'Admin';
+    
+    if (isApprovalQueue && isSystemAdmin) {
+      console.log(`API_TRANSPORT_GET: System Admin ${session.role} viewing approval queue - no user filter`);
+      userId = null; // System admins can see all requests in approval queues
     } else {
-      // Use universal user filtering - works for ALL users regardless of role
-      // For transport service, we pass the full session and let it handle universal matching
-      userId = userIdentifier.userId;
-      console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport requests with universal filtering (${userId})`);
-      // Note: TransportService will need to be updated to use universal filtering
+      console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport requests with strict filtering (${userId})`);
+      // All other users (including Line Managers, HODs, etc.) see only their own requests on personal pages
+      // This ensures Line Managers see only their own requests on /transport page, not all requests
     }
     
     // If statuses are specified, fetch all transport requests with those statuses (for approval queue)
@@ -101,6 +101,7 @@ export const GET = withAuth(async function(request: NextRequest) {
     }
 
     // For transport listing page, show transport requests based on role
+    console.log(`API_TRANSPORT_GET: Calling TransportService.getAllTransportRequests with userId: ${userId}`);
     const transportRequests = await TransportService.getAllTransportRequests(userId);
     
     return NextResponse.json(transportRequests);

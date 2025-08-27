@@ -325,7 +325,7 @@ export class TransportService {
       let query;
       
       if (userId) {
-        // Filter by user ID for non-admin users
+        // STRICT filtering for personal views - only show requests created by this specific user
         if (limit) {
           query = sql`
             SELECT 
@@ -338,12 +338,7 @@ export class TransportService {
               tr.tsr_reference
             FROM transport_requests tr
             WHERE tr.status = ANY(${statuses})
-              AND (
-                tr.created_by = ${userId} 
-                OR tr.staff_id = ${userId}
-                OR tr.staff_id IN (SELECT staff_id FROM users WHERE id = ${userId})
-                OR tr.requestor_name IN (SELECT name FROM users WHERE id = ${userId})
-              )
+              AND tr.created_by = ${userId}
             ORDER BY tr.created_at DESC
             LIMIT ${limit}
           `;
@@ -359,12 +354,7 @@ export class TransportService {
               tr.tsr_reference
             FROM transport_requests tr
             WHERE tr.status = ANY(${statuses})
-              AND (
-                tr.created_by = ${userId} 
-                OR tr.staff_id = ${userId}
-                OR tr.staff_id IN (SELECT staff_id FROM users WHERE id = ${userId})
-                OR tr.requestor_name IN (SELECT name FROM users WHERE id = ${userId})
-              )
+              AND tr.created_by = ${userId}
             ORDER BY tr.created_at DESC
           `;
         }
@@ -423,7 +413,8 @@ export class TransportService {
     try {
       let result;
       if (userId) {
-        // Filter by user ID for non-admin users
+        // STRICT filtering for personal views - only show requests created by this specific user
+        // This fixes the issue where users see other users' transport requests on their profile
         result = await sql`
           SELECT 
             tr.id,
@@ -434,12 +425,7 @@ export class TransportService {
             tr.created_at as submitted_at,
             tr.tsr_reference
           FROM transport_requests tr
-          WHERE (
-            tr.created_by = ${userId} 
-            OR tr.staff_id = ${userId}
-            OR tr.staff_id IN (SELECT staff_id FROM users WHERE id = ${userId})
-            OR tr.requestor_name IN (SELECT name FROM users WHERE id = ${userId})
-          )
+          WHERE tr.created_by = ${userId}
           ORDER BY tr.created_at DESC
         `;
       } else {
@@ -478,7 +464,7 @@ export class TransportService {
     try {
       let result;
       if (userId) {
-        // Filter by user ID for non-admin users
+        // STRICT filtering for personal views - only show requests created by this specific user
         result = await sql`
           SELECT 
             tr.id,
@@ -490,12 +476,7 @@ export class TransportService {
             tr.tsr_reference
           FROM transport_requests tr
           WHERE tr.created_at >= ${fromDate.toISOString()} AND tr.created_at <= ${toDate.toISOString()}
-            AND (
-              tr.created_by = ${userId} 
-              OR tr.staff_id = ${userId}
-              OR tr.staff_id IN (SELECT staff_id FROM users WHERE id = ${userId})
-              OR tr.requestor_name IN (SELECT name FROM users WHERE id = ${userId})
-            )
+            AND tr.created_by = ${userId}
           ORDER BY tr.created_at DESC
         `;
       } else {

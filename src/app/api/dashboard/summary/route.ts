@@ -3,14 +3,43 @@ import { sql } from '@/lib/db';
 import { requireAuth, createAuthError } from '@/lib/auth-utils';
 import { hasPermission } from '@/lib/permissions';
 import { withAuth, getUserIdentifier } from '@/lib/api-protection';
+import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
+import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 
-export const GET = withAuth(async function(request: NextRequest) {
+export const GET = withRateLimit(RATE_LIMITS.DASHBOARD)(withAuth(async function(request: NextRequest) {
   console.log('DASHBOARD_SUMMARY_API_CALLED: Dashboard summary API endpoint hit');
   try {
     const session = (request as any).user;
     console.log('DASHBOARD_SUMMARY_SESSION: Session data:', session);
     const userIdentifier = await getUserIdentifier(session);
     console.log('DASHBOARD_SUMMARY_USER_ID: Got user identifier:', userIdentifier);
+
+    // Cache dashboard data per user
+    const cacheKey = userCacheKey(userIdentifier.userId, 'dashboard-summary');
+    const dashboardData = await withCache(
+      cacheKey,
+      async () => {
+        return await fetchDashboardData(userIdentifier, session);
+      },
+      CACHE_TTL.DASHBOARD_STATS
+    );
+
+    return NextResponse.json(dashboardData, {
+      headers: {
+        'X-User-Filtered': 'true'
+      }
+    });
+  } catch (error: any) {
+    console.error('Error in dashboard summary API:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch dashboard summary' },
+      { status: 500 }
+    );
+  }
+}));
+
+// Extract dashboard data fetching logic for caching
+async function fetchDashboardData(userIdentifier: any, session: any) {
     
     console.log(`Dashboard summary for user ${session.role} (${userIdentifier.userId})`);
     console.log('DASHBOARD_SUMMARY_DEBUG: User identifier:', userIdentifier);
@@ -151,23 +180,11 @@ export const GET = withAuth(async function(request: NextRequest) {
       console.error('Error fetching user\'s transport requests:', err);
     }
 
-    return NextResponse.json({
+    return {
       pendingTsrs: pendingTRFs,
       visaUpdates,
       draftClaims,
       pendingAccommodation: accommodationBookings,
       pendingTransport
-    }, {
-      headers: {
-        'Cache-Control': 'private, max-age=60', // Shorter cache for user-specific data
-        'X-User-Filtered': 'true'
-      }
-    });
-  } catch (error: any) {
-    console.error('Error in dashboard summary API:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch dashboard summary' },
-      { status: 500 }
-    );
-  }
-});
+    };
+}

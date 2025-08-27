@@ -30,13 +30,17 @@ interface HeaderProps {
 
 export default function Header({ showDesktopLogo = true }: HeaderProps) {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [navItems, setNavItems] = useState<NavItem[]>([]);
 
   // Load role-based navigation items from API
   useEffect(() => {
     const fetchNavigation = async () => {
+      if (status === 'loading') {
+        return; // Wait for session to load
+      }
+
       if (!session?.user) {
         // Default items for unauthenticated users
         setNavItems([
@@ -45,8 +49,20 @@ export default function Header({ showDesktopLogo = true }: HeaderProps) {
         return;
       }
 
+      // Immediately set default authenticated user navigation
+      const defaultAuthNavigation = [
+        { label: 'Home', href: '/', icon: Home },
+        { label: 'TSR', href: '/trf', icon: FileText },
+        { label: 'Transport', href: '/transport', icon: Truck },
+        { label: 'Visa', href: '/visa', icon: StickyNote },
+        { label: 'Accommodation', href: '/accommodation', icon: BedDouble },
+        { label: 'Claims', href: '/claims', icon: ReceiptText }
+      ];
+      
+      setNavItems(defaultAuthNavigation);
+
       try {
-        console.log('Header: Fetching role-based navigation...');
+        console.log('Header: Fetching role-based navigation for user:', session.user.email);
         const response = await fetch('/api/navigation', {
           cache: 'no-store',
           headers: {
@@ -97,16 +113,13 @@ export default function Header({ showDesktopLogo = true }: HeaderProps) {
         setNavItems(headerNavItems);
       } catch (error) {
         console.error('Header: Error fetching navigation:', error);
-        // Fallback to basic navigation for authenticated users
-        setNavItems([
-          { label: 'Home', href: '/', icon: Home },
-          { label: 'TSR', href: '/trf', icon: FileText }
-        ]);
+        // Keep the default authenticated navigation if API fails (don't overwrite)
+        console.log('Header: Using default navigation due to API error');
       }
     };
 
     fetchNavigation();
-  }, [session]);
+  }, [session, status]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/20 bg-white/10 shadow-lg backdrop-blur-lg supports-[backdrop-filter]:bg-white/10">

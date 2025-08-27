@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { format, isValid, formatISO } from "date-fns";
 import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info, ArrowLeft, Edit, Ban, Printer, Loader2, AlertTriangle } from "lucide-react";
-import { StatusBadge } from "@/lib/status-utils";
+import { StatusBadge, WorkflowStep } from "@/lib/status-utils";
 import { formatCurrencyForTable } from "@/lib/currency-utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -498,34 +498,13 @@ export default function ClaimViewPage() {
               </h3>
               <div className="space-y-4">
                 {claim.approvalWorkflow.map((step: any, index: number) => (
-                  <div key={index} className="flex items-center gap-4">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      step.status === 'Approved' || step.status === 'Submitted' ? 'bg-green-100 text-green-600' :
-                      step.status === 'Rejected' ? 'bg-red-100 text-red-600' :
-                      step.status === 'Cancelled' ? 'bg-orange-100 text-orange-600' :
-                      step.status === 'Current' ? 'bg-blue-100 text-blue-600' :
-                      step.status === 'Pending' ? 'bg-yellow-100 text-yellow-600' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      {step.status === 'Approved' || step.status === 'Submitted' ? <CheckCircle className="h-4 w-4" /> :
-                       step.status === 'Rejected' ? <XCircle className="h-4 w-4" /> :
-                       step.status === 'Cancelled' ? <Ban className="h-4 w-4" /> :
-                       step.status === 'Current' ? <AlertTriangle className="h-4 w-4" /> :
-                       step.status === 'Pending' ? <Clock className="h-4 w-4" /> :
-                       <div className="w-2 h-2 rounded-full bg-gray-400" />}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{step.role}</p>
-                      <p className="text-sm text-muted-foreground">{step.name !== 'TBD' ? step.name : 'To be assigned'}</p>
-                      {step.date && (
-                        <p className="text-xs text-muted-foreground">{formatDateSafe(step.date)}</p>
-                      )}
-                      {step.comments && step.comments !== 'Request submitted' && (
-                        <p className="text-sm text-muted-foreground mt-1">{step.comments}</p>
-                      )}
-                    </div>
-                    <StatusBadge status={step.status} showIcon />
-                  </div>
+                  <WorkflowStep 
+                    key={index} 
+                    step={step} 
+                    index={index} 
+                    formatDateSafe={formatDateSafe}
+                    showStatusBadge={true}
+                  />
                 ))}
               </div>
             </section>

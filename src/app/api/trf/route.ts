@@ -11,6 +11,8 @@ import { NotificationService } from '@/lib/notification-service';
 import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
 import { hasPermission } from '@/lib/session-utils';
 import { generateUniversalUserFilterSQL, shouldBypassUserFilter } from '@/lib/universal-user-matching';
+import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
+import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -177,7 +179,7 @@ const trfSubmissionSchema = z.discriminatedUnion("travelType", [
   baseTrfSchema.extend({ travelType: z.literal("External Parties"), externalPartyRequestorInfo: externalPartyRequestorInfoSchema, externalPartiesTravelDetails: externalPartiesTrfDetailsSchema }),
 ]);
 
-export const POST = withAuth(async function(request: NextRequest) {
+export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function(request: NextRequest) {
   console.log("API_TRF_POST_START (PostgreSQL): Handler entered.");
   
   const session = (request as any).user;
@@ -722,9 +724,9 @@ export const POST = withAuth(async function(request: NextRequest) {
   console.error("API_TRF_POST_CRITICAL_ERROR (PostgreSQL): Unhandled exception:", outerError.message, outerError.stack);
   return NextResponse.json({ error: `Critical error processing TRF: ${outerError.message}` }, { status: 500 });
 }
-});
+}));
 
-export const GET = withAuth(async function(request: NextRequest) {
+export const GET = withRateLimit(RATE_LIMITS.API_READ)(withAuth(async function(request: NextRequest) {
   console.log("API_TRF_GET_START (PostgreSQL): Fetching TRFs.");
   
   const session = (request as any).user;
@@ -956,4 +958,4 @@ export const GET = withAuth(async function(request: NextRequest) {
     console.error("API_TRF_GET_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch TRFs from database.', details: error.message }, { status: 500 });
   }
-});
+}));

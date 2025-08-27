@@ -3,15 +3,41 @@ import { sql } from '@/lib/db';
 import { requireAuth, createAuthError } from '@/lib/auth-utils';
 import { hasPermission } from '@/lib/permissions';
 import { withAuth, canViewAllData, canViewDomainData, getUserIdentifier } from '@/lib/api-protection';
+import { withCache, userCacheKey, globalCacheKey, CACHE_TTL } from '@/lib/cache';
+import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 
-export const GET = withAuth(async function(request: NextRequest) {
+export const GET = withRateLimit(RATE_LIMITS.API_READ)(withAuth(async function(request: NextRequest) {
   try {
     const session = (request as any).user;
     console.log(`API_SIDEBAR_COUNTS: User ${session.role} (${session.email}) accessing sidebar counts`);
     
     // Role-based access control
     const canViewAll = canViewAllData(session);
-    const userIdentifier = getUserIdentifier(session);
+    const userIdentifier = await getUserIdentifier(session);
+
+    // Cache sidebar counts per user role and permissions
+    const cacheKey = canViewAll 
+      ? globalCacheKey('sidebar-counts', 'admin')
+      : userCacheKey(userIdentifier.userId, 'sidebar-counts');
+      
+    const counts = await withCache(
+      cacheKey,
+      () => fetchSidebarCounts(session, canViewAll, userIdentifier),
+      CACHE_TTL.NOTIFICATION_COUNT // 1 minute cache for real-time feel
+    );
+
+    return NextResponse.json(counts);
+  } catch (error) {
+    console.error('Error fetching sidebar counts:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch sidebar counts' },
+      { status: 500 }
+    );
+  }
+}));
+
+// Extract sidebar counts fetching logic for caching
+async function fetchSidebarCounts(session: any, canViewAll: boolean, userIdentifier: any) {
   
     // Object to store all counts
     const counts = {
@@ -221,12 +247,5 @@ export const GET = withAuth(async function(request: NextRequest) {
     }
 
     console.log(`API_SIDEBAR_COUNTS: Returning counts for user ${session.role}:`, counts);
-    return NextResponse.json(counts);
-  } catch (error: any) {
-    console.error('Error in sidebar counts API:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch sidebar counts' },
-      { status: 500 }
-    );
-  }
-});
+    return counts;
+}

@@ -30,13 +30,33 @@ function initializeDatabase() {
       username: DATABASE_USER,
       password: DATABASE_PASSWORD,
       ssl: isLocalhost ? false : { rejectUnauthorized: false }, // Disable SSL for localhost
-      connect_timeout: 10, // 10 seconds
-      max: 10, // Maximum number of connections in the pool
-      idle_timeout: 20, // Close connections after 20 seconds of inactivity
-      max_lifetime: 60 * 30, // Close connections after 30 minutes
-      // connection: {
-      //   search_path: 'my_schema', // Example if using a specific schema
-      // },
+      
+      // OPTIMIZED CONNECTION POOL FOR 1000+ USERS
+      connect_timeout: 10, // 10 seconds connection timeout
+      max: 50, // Increased max connections for high load (from 10 to 50)
+      idle_timeout: 300, // Keep connections alive longer (5 minutes)
+      max_lifetime: 60 * 60, // Connection lifetime: 1 hour (from 30 minutes)
+      
+      // PERFORMANCE OPTIMIZATIONS
+      prepare: true, // Enable prepared statements for better performance
+      types: {
+        bigint: postgres.BigInt
+      },
+      
+      // ADDITIONAL PERFORMANCE SETTINGS
+      connection: {
+        application_name: 'syntra_vms', // Help identify connections in pg_stat_activity
+        statement_timeout: '30000', // 30 second query timeout
+        lock_timeout: '10000', // 10 second lock timeout
+        idle_in_transaction_session_timeout: '30000', // 30 second idle transaction timeout
+      },
+      
+      // LOGGING FOR PERFORMANCE MONITORING (disable in production if needed)
+      debug: process.env.NODE_ENV === 'development' ? ['query'] : false,
+      
+      // CONNECTION RETRY SETTINGS
+      retry_delay: 1000, // 1 second delay between retries
+      max_retries: 3, // Maximum retry attempts
     });
     console.log("DB_LIB_SUCCESS: PostgreSQL client initialized successfully for database:", DATABASE_NAME);
     return sql;

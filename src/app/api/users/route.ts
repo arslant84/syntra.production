@@ -8,6 +8,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { hashPassword } from '@/lib/password-utils';
 import { hasPermission } from '@/lib/permissions';
+import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
+import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 
 const userCreateSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -20,7 +22,7 @@ const userCreateSchema = z.object({
   status: z.enum(['Active', 'Inactive']).default('Active'),
 });
 
-export async function GET(request: NextRequest) {
+export const GET = withRateLimit(RATE_LIMITS.API_READ)(async function(request: NextRequest) {
   console.log("API_USERS_GET_START (PostgreSQL): Handler entered.");
   
   // Check if user has permission to view users
@@ -136,9 +138,9 @@ export async function GET(request: NextRequest) {
     console.error("API_USERS_GET_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch users from database.', details: error.message }, { status: 500 });
   }
-}
+}));
 
-export async function POST(request: NextRequest) {
+export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(async function(request: NextRequest) {
   // Require admin role - accept both "System Administrator" and "admin" for backwards compatibility
   try {
     const session = await getServerSession(authOptions);
@@ -235,4 +237,4 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ error: 'Failed to create user.', details: error.message }, { status: 500 });
   }
-}
+});

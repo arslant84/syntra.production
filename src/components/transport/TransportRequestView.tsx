@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Calendar, MapPin, Clock, Users, FileText, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { TransportRequestForm } from '@/types/transport';
-import { StatusBadge } from '@/lib/status-utils';
+import { StatusBadge, WorkflowStep } from '@/lib/status-utils';
 
 interface TransportRequestViewProps {
   transportRequest: TransportRequestForm;
@@ -208,32 +208,13 @@ export default function TransportRequestView({
         <CardContent>
           <div className="space-y-4">
             {transportRequest.approvalWorkflow?.map((step, index) => (
-              <div key={index} className="flex items-center gap-4">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step.status === 'Approved' || step.status === 'Submitted' ? 'bg-green-100 text-green-600' :
-                  step.status === 'Rejected' ? 'bg-red-100 text-red-600' :
-                  step.status === 'Current' ? 'bg-blue-100 text-blue-600' :
-                  step.status === 'Pending' ? 'bg-yellow-100 text-yellow-600' :
-                  'bg-gray-100 text-gray-600'
-                }`}>
-                  {step.status === 'Approved' || step.status === 'Submitted' ? <CheckCircle className="h-4 w-4" /> :
-                   step.status === 'Rejected' ? <XCircle className="h-4 w-4" /> :
-                   step.status === 'Current' ? <AlertCircle className="h-4 w-4" /> :
-                   step.status === 'Pending' ? <Clock className="h-4 w-4" /> :
-                   <div className="w-2 h-2 rounded-full bg-gray-400" />}
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">{step.role}</p>
-                  <p className="text-sm text-gray-600">{step.name !== 'TBD' ? step.name : 'To be assigned'}</p>
-                  {step.date && (
-                    <p className="text-xs text-gray-500">{formatDate(step.date)}</p>
-                  )}
-                  {step.comments && step.comments !== 'Request submitted' && (
-                    <p className="text-sm text-gray-600 mt-1">{step.comments}</p>
-                  )}
-                </div>
-                <StatusBadge status={step.status} />
-              </div>
+              <WorkflowStep 
+                key={index} 
+                step={step} 
+                index={index} 
+                formatDateSafe={formatDate}
+                showStatusBadge={true}
+              />
             ))}
           </div>
         </CardContent>

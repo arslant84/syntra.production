@@ -5,6 +5,8 @@ import { hasPermission } from '@/lib/session-utils';
 import { sql } from '@/lib/db';
 import { NotificationService } from '@/lib/notification-service';
 import { shouldBypassUserFilter } from '@/lib/universal-user-matching';
+import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
+import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 
 export const GET = withAuth(async function(request: NextRequest) {
   try {
@@ -100,9 +102,15 @@ export const GET = withAuth(async function(request: NextRequest) {
       return NextResponse.json({ transportRequests });
     }
 
-    // For transport listing page, show transport requests based on role
+    // For transport listing page, show transport requests based on role with caching
     console.log(`API_TRANSPORT_GET: Calling TransportService.getAllTransportRequests with userId: ${userId}`);
-    const transportRequests = await TransportService.getAllTransportRequests(userId);
+    
+    const cacheKey = userCacheKey(userId || 'admin', 'transport-requests');
+    const transportRequests = await withCache(
+      cacheKey,
+      () => TransportService.getAllTransportRequests(userId),
+      CACHE_TTL.USER_REQUESTS
+    );
     
     return NextResponse.json(transportRequests);
   } catch (error) {
@@ -114,7 +122,7 @@ export const GET = withAuth(async function(request: NextRequest) {
   }
 });
 
-export const POST = withAuth(async function(request: NextRequest) {
+export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function(request: NextRequest) {
   try {
     const session = (request as any).user;
     
@@ -146,4 +154,4 @@ export const POST = withAuth(async function(request: NextRequest) {
       { status: 500 }
     );
   }
-}); 
+})); 

@@ -21,6 +21,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
+import { StatusBadge } from "@/lib/status-utils";
 
 // Define types for our data
 type SummaryData = {
@@ -268,14 +269,7 @@ export default function HomePage() {
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                         <Badge variant={item.statusVariant} className={cn(
-                          "text-xs mb-1",
-                          item.status === "Approved" && "bg-green-600 text-white dark:bg-green-500 dark:text-white",
-                          item.status === "Draft" && "bg-amber-500 text-white dark:bg-amber-600 dark:text-white",
-                          item.status.includes("Pending") && "bg-blue-500 text-white dark:bg-blue-600 dark:text-white"
-                         )}>
-                          {item.status}
-                        </Badge>
+                         <StatusBadge status={item.status} className="text-xs mb-1" />
                         <Link href={item.link} passHref>
                           <Button variant="ghost" className="p-0 h-auto text-sm text-primary">
                             View Details &rarr;

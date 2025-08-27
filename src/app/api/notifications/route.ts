@@ -4,10 +4,31 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { NotificationService } from '@/lib/notification-service';
 import { hasPermission } from '@/lib/permissions';
+import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
+import { rateLimit, RATE_LIMITS, getRateLimitIdentifier } from '@/lib/rate-limiter';
 
 // GET - Fetch user's notifications
 export async function GET(request: NextRequest) {
   try {
+    // Rate limiting
+    const rateLimitResult = rateLimit(
+      getRateLimitIdentifier(request),
+      RATE_LIMITS.NOTIFICATIONS
+    );
+    
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', resetTime: rateLimitResult.resetTime },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+          }
+        }
+      );
+    }
+
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
@@ -26,14 +47,33 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 50;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : 0;
 
-    const notifications = await NotificationService.getUserNotifications(session.user.id, {
-      unreadOnly,
-      category: category || undefined,
-      limit,
-      offset
-    });
+    // Cache notifications with shorter TTL for real-time feel
+    const cacheKey = userCacheKey(
+      session.user.id, 
+      'notifications', 
+      unreadOnly.toString(), 
+      category || 'all', 
+      limit.toString(), 
+      offset.toString()
+    );
+    
+    const notifications = await withCache(
+      cacheKey,
+      () => NotificationService.getUserNotifications(session.user.id, {
+        unreadOnly,
+        category: category || undefined,
+        limit,
+        offset
+      }),
+      CACHE_TTL.NOTIFICATION_COUNT
+    );
 
-    return NextResponse.json({ notifications });
+    return NextResponse.json({ notifications }, {
+      headers: {
+        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+        'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+      }
+    });
   } catch (error) {
     console.error('Error fetching notifications:', error);
     return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
@@ -43,6 +83,25 @@ export async function GET(request: NextRequest) {
 // POST - Create a new notification (for testing/admin use)
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const rateLimitResult = rateLimit(
+      getRateLimitIdentifier(request),
+      RATE_LIMITS.API_WRITE
+    );
+    
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', resetTime: rateLimitResult.resetTime },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+          }
+        }
+      );
+    }
+
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
@@ -80,6 +139,11 @@ export async function POST(request: NextRequest) {
       success: true, 
       notificationId,
       message: 'Notification created successfully' 
+    }, {
+      headers: {
+        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+        'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+      }
     });
   } catch (error) {
     console.error('Error creating notification:', error);

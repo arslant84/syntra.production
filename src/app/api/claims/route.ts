@@ -9,6 +9,8 @@ import { hasPermission } from '@/lib/session-utils';
 import { NotificationService } from '@/lib/notification-service';
 import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 import { generateUniversalUserFilter, generateUniversalUserFilterSQL, shouldBypassUserFilter } from '@/lib/universal-user-matching';
+import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
+import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -83,7 +85,7 @@ const expenseClaimCreateSchema = z.object({
 });
 
 
-export const POST = withAuth(async function(request: NextRequest) {
+export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function(request: NextRequest) {
   console.log("API_CLAIMS_POST_START (PostgreSQL): Creating expense claim.");
   
   const session = (request as any).user;
@@ -222,9 +224,9 @@ export const POST = withAuth(async function(request: NextRequest) {
     console.error("API_CLAIMS_POST_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to create expense claim.', details: error.message }, { status: 500 });
   }
-});
+}));
 
-export const GET = withAuth(async function(request: NextRequest) {
+export const GET = withRateLimit(RATE_LIMITS.API_READ)(withAuth(async function(request: NextRequest) {
   console.log("API_CLAIMS_GET_START (PostgreSQL): Fetching claims.");
   
   const session = (request as any).user;
@@ -363,4 +365,4 @@ export const GET = withAuth(async function(request: NextRequest) {
     console.error("API_CLAIMS_GET_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch claims.', details: error.message }, { status: 500 });
   }
-});
+}));

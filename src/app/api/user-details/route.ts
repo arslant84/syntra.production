@@ -3,8 +3,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { sql } from '@/lib/db';
 import { hasPermission } from '@/lib/permissions';
+import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
+import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 
-export async function GET(request: NextRequest) {
+export const GET = withRateLimit(RATE_LIMITS.API_READ)(async function(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -60,4 +62,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

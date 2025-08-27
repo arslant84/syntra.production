@@ -8,6 +8,8 @@ import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUs
 import { hasPermission, hasAnyPermission } from '@/lib/session-utils';
 import { NotificationService } from '@/lib/notification-service';
 import { generateUniversalUserFilter, shouldBypassUserFilter } from '@/lib/universal-user-matching';
+import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
+import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 
 const visaApplicationCreateSchema = z.object({
   applicantName: z.string().min(1, "Applicant name is required"),
@@ -32,7 +34,7 @@ const visaApplicationCreateSchema = z.object({
 });
 
 
-export const POST = withAuth(async function(request: NextRequest) {
+export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function(request: NextRequest) {
   console.log("API_VISA_POST_START (PostgreSQL): Creating visa application.");
   
   const session = (request as any).user;
@@ -146,9 +148,9 @@ export const POST = withAuth(async function(request: NextRequest) {
     console.error("API_VISA_POST_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to create visa application.', details: error.message }, { status: 500 });
   }
-});
+}));
 
-export const GET = withAuth(async function(request: NextRequest) {
+export const GET = withRateLimit(RATE_LIMITS.API_READ)(withAuth(async function(request: NextRequest) {
   console.log("API_VISA_GET_START (PostgreSQL): Fetching visa applications.");
   
   const session = (request as any).user;
@@ -280,4 +282,4 @@ export const GET = withAuth(async function(request: NextRequest) {
     console.error("API_VISA_GET_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch visa applications.', details: error.message }, { status: 500 });
   }
-});
+}));

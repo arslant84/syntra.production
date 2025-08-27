@@ -7,9 +7,11 @@ import {
 } from '@/lib/server-db';
 import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { hasPermission } from '@/lib/session-utils';
+import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
+import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 
 // API route handler for fetching accommodation data
-export const GET = withAuth(async function(request: NextRequest) {
+export const GET = withRateLimit(RATE_LIMITS.API_READ)(withAuth(async function(request: NextRequest) {
   console.log("API_ACCOMMODATION_GET_START: Fetching accommodation data.");
   
   const session = (request as any).user;
@@ -108,4 +110,4 @@ export const GET = withAuth(async function(request: NextRequest) {
       { status: 500 }
     );
   }
-});
+}));

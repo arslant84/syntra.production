@@ -21,6 +21,7 @@ import type { NavItem } from '@/types';
 import { LayoutDashboard, Plane, BedDouble, CheckSquare, Users, Settings, FileText, Truck, BarChart2 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { cn } from '@/lib/utils';
+import { useSession } from 'next-auth/react';
 
 // Icon mapping for dynamic navigation
 const iconMap = {
@@ -57,6 +58,7 @@ interface SidebarCounts {
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  const { data: session, status } = useSession();
   
   // Use separate state for counts and navigation items
   const [counts, setCounts] = useState<SidebarCounts>(initialCounts);
@@ -66,8 +68,32 @@ export default function AppSidebar() {
   // Load role-based navigation items
   useEffect(() => {
     const fetchNavigation = async () => {
+      if (status === 'loading') {
+        return; // Wait for session to load
+      }
+
+      if (!session?.user) {
+        // No session, set empty navigation
+        setNavItems([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Immediately set default navigation for authenticated users
+      const defaultNavigation = [
+        { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+        { label: 'Travel Requests', href: '/trf', icon: FileText },
+        { label: 'Transport Requests', href: '/transport', icon: Truck },
+        { label: 'Visa Applications', href: '/visa', icon: FileText },
+        { label: 'Accommodation Requests', href: '/accommodation', icon: BedDouble },
+        { label: 'Expense Claims', href: '/claims', icon: FileText }
+      ];
+      
+      setNavItems(defaultNavigation);
+      setIsLoading(false);
+
       try {
-        console.log('Fetching role-based navigation...');
+        console.log('Sidebar: Fetching role-based navigation for user:', session.user.email);
         const response = await fetch('/api/navigation', {
           cache: 'no-store',
           headers: {
@@ -90,14 +116,14 @@ export default function AppSidebar() {
         
         setNavItems(processedNavItems);
       } catch (error) {
-        console.error('Error fetching navigation:', error);
-        // Fallback to basic navigation
-        setNavItems([{ label: 'Dashboard', href: '/', icon: LayoutDashboard }]);
+        console.error('Sidebar: Error fetching navigation:', error);
+        // Keep the default navigation if API fails (don't overwrite)
+        console.log('Sidebar: Using default navigation due to API error');
       }
     };
 
     fetchNavigation();
-  }, []);
+  }, [session, status]);
 
   // Apply badges to navigation items based on counts
   const navItemsWithBadges = navItems.map(item => {

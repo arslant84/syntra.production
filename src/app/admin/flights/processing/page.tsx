@@ -42,7 +42,6 @@ interface AdminTrfListItemForFlights {
   departureTime?: string;
   arrivalDate?: Date | null;
   arrivalTime?: string;
-  cost?: string; // Using string to accommodate currency symbols if needed by input
   flightNotes?: string;
 }
 
@@ -83,7 +82,6 @@ export default function FlightsProcessingPage() {
   const [departureTime, setDepartureTime] = useState("");
   const [arrivalDate, setArrivalDate] = useState<Date | null>(null);
   const [arrivalTime, setArrivalTime] = useState("");
-  const [cost, setCost] = useState("");
   const [flightNotes, setFlightNotes] = useState("");
 
   const fetchPendingTrfs = useCallback(async () => {
@@ -190,7 +188,6 @@ export default function FlightsProcessingPage() {
     setDepartureTime("");
     setArrivalDate(null);
     setArrivalTime("");
-    setCost("");
     setFlightNotes("");
   };
 
@@ -209,7 +206,6 @@ export default function FlightsProcessingPage() {
         arrivalAirport: arrivalAirport,
         departureDateTime: departureDate ? `${format(departureDate, 'yyyy-MM-dd')}T${departureTime || '00:00'}` : undefined,
         arrivalDateTime: arrivalDate ? `${format(arrivalDate, 'yyyy-MM-dd')}T${arrivalTime || '00:00'}` : undefined,
-        cost: cost ? parseFloat(cost) : undefined,
         flightNotes: flightNotes,
       };
       const response = await fetch(`/api/trf/${trfId}/admin/book-flight`, {
@@ -381,6 +377,10 @@ export default function FlightsProcessingPage() {
                         setDepartureDate(departureDate);
                     }
                 }
+                // Set departure time from ETD
+                if (firstSegment.etd) {
+                    setDepartureTime(firstSegment.etd);
+                }
                 
                 // Set arrival location and date from last segment  
                 if (lastSegment.to_location || lastSegment.to) {
@@ -391,6 +391,10 @@ export default function FlightsProcessingPage() {
                     if (isValid(arrivalDate)) {
                         setArrivalDate(arrivalDate);
                     }
+                }
+                // Set arrival time from ETA
+                if (lastSegment.eta) {
+                    setArrivalTime(lastSegment.eta);
                 }
             }
         } catch (err) {
@@ -413,6 +417,10 @@ export default function FlightsProcessingPage() {
                       setDepartureDate(departureDate);
                   }
               }
+              // Set departure time from ETD
+              if (firstSegment.etd) {
+                  setDepartureTime(firstSegment.etd);
+              }
               
               if (lastSegment.to_location || lastSegment.to) {
                   setArrivalAirport(lastSegment.to_location || lastSegment.to);
@@ -422,6 +430,10 @@ export default function FlightsProcessingPage() {
                   if (isValid(arrivalDate)) {
                       setArrivalDate(arrivalDate);
                   }
+              }
+              // Set arrival time from ETA
+              if (lastSegment.eta) {
+                  setArrivalTime(lastSegment.eta);
               }
           }
       }
@@ -678,10 +690,6 @@ export default function FlightsProcessingPage() {
                                   <Label htmlFor="arrivalTime">Arrival Time (HH:MM)</Label>
                                   <Input id="arrivalTime" type="time" step="900" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
                                 </div>
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="cost">Cost (e.g., 1250.75)</Label>
-                              <Input id="cost" type="number" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Enter total cost"/>
                             </div>
                             <div className="space-y-1.5">
                                 <Label htmlFor="flightNotes">Flight Booking Notes</Label>

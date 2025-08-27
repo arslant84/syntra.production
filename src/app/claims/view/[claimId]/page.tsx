@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { format, isValid, formatISO } from "date-fns";
 import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info, ArrowLeft, Edit, Ban, Printer, Loader2, AlertTriangle } from "lucide-react";
 import { StatusBadge } from "@/lib/status-utils";
+import { formatCurrencyForTable } from "@/lib/currency-utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -416,10 +417,10 @@ export default function ClaimViewPage() {
               <Building className="print:hidden" /> Financial Summary
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2">
-              <DetailItem label="Total Advance Claim Amount" value={formatNumberSafe(financialSummary?.totalAdvanceClaimAmount)} />
-              <DetailItem label="Less Advance Taken" value={formatNumberSafe(financialSummary?.lessAdvanceTaken)} />
-              <DetailItem label="Less Corporate Credit Card Payment" value={formatNumberSafe(financialSummary?.lessCorporateCreditCardPayment)} />
-              <DetailItem label="Balance Claim/Repayment" value={formatNumberSafe(financialSummary?.balanceClaimRepayment)} />
+              <DetailItem label="Total Advance Claim Amount" value={formatCurrencyForTable(financialSummary?.totalAdvanceClaimAmount)} />
+              <DetailItem label="Less Advance Taken" value={formatCurrencyForTable(financialSummary?.lessAdvanceTaken)} />
+              <DetailItem label="Less Corporate Credit Card Payment" value={formatCurrencyForTable(financialSummary?.lessCorporateCreditCardPayment)} />
+              <DetailItem label="Balance Claim/Repayment" value={formatCurrencyForTable(financialSummary?.balanceClaimRepayment)} />
               <div className="sm:col-span-2 flex justify-between items-center">
                 <div className="font-medium text-xs text-muted-foreground uppercase tracking-wider print:text-[8pt] print:font-semibold">Cheque/Receipt No.</div>
                 <div className="text-sm text-foreground break-words mt-0.5 print:text-[9pt]">{financialSummary?.chequeReceiptNo || ""}</div>

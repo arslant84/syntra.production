@@ -21,6 +21,7 @@ import { shouldShowRequest } from '@/lib/client-rbac-utils';
 import { useToast } from '@/hooks/use-toast';
 import { LoadingPage, LoadingSpinner } from '@/components/ui/loading';
 import { StatusBadge } from '@/lib/status-utils';
+import { formatCurrencyForTable } from '@/lib/currency-utils';
 
 type Claim = {
   id: string;
@@ -390,7 +391,7 @@ export default function AdminClaimsPage() {
                     <TableCell>{claim.requestor || 'N/A'}</TableCell>
                     <TableCell>{claim.department || 'N/A'}</TableCell>
                     <TableCell className="max-w-xs truncate">{claim.purpose || 'General Claim'}</TableCell>
-                    <TableCell>RM {(Number(claim.amount) || 0).toFixed(2)}</TableCell>
+                    <TableCell>{formatCurrencyForTable(claim.amount)}</TableCell>
                     <TableCell>
                       <StatusBadge status={claim.status} showIcon={true} />
                     </TableCell>

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { StatusBadge } from "@/lib/status-utils";
+import { formatCurrencyForTable } from "@/lib/currency-utils";
 import { ProtectedComponent, usePermissions } from "@/components/ProtectedComponent";
 
 type Claim = {
@@ -203,7 +204,7 @@ export default function ClaimsPage() {
                     <TableRow key={claim.id}>
                       <TableCell className="font-medium">{claim.document_number || claim.documentNumber || claim.id}</TableCell>
                       <TableCell>{claim.purpose}</TableCell>
-                      <TableCell>{claim.amount.toFixed(2)}</TableCell>
+                      <TableCell>{formatCurrencyForTable(claim.amount)}</TableCell>
                       <TableCell><StatusBadge status={claim.status} showIcon /></TableCell>
                       <TableCell>{claim.submittedDate ? format(new Date(claim.submittedDate), 'dd MMM yyyy') : '-'}</TableCell>
                       <TableCell>

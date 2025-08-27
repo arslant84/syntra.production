@@ -18,10 +18,6 @@ const bookFlightSchema = z.object({
         (val) => !val || isValid(parseISO(val)),
         { message: "Invalid arrival date/time format" }
     ),
-    cost: z.preprocess(
-        (val) => (typeof val === 'string' && val.trim() === '') ? null : Number(val),
-        z.number().positive("Cost must be a positive number").optional().nullable()
-    ),
     flightNotes: z.string().optional().nullable(),
 });
 
@@ -56,7 +52,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     console.error("API_TRF_ADMIN_BOOKFLIGHT_POST (PostgreSQL): Validation failed", validationResult.error.flatten());
     return NextResponse.json({ error: "Validation failed for flight booking details", details: validationResult.error.flatten() }, { status: 400 });
   }
-  const { pnr, airline, flightNumber, departureAirport, arrivalAirport, departureDateTime, arrivalDateTime, cost, flightNotes } = validationResult.data;
+  const { pnr, airline, flightNumber, departureAirport, arrivalAirport, departureDateTime, arrivalDateTime, flightNotes } = validationResult.data;
 
   // Parse and split datetime fields for the new table
   let departure_date = null, departure_time = null, arrival_date = null, arrival_time = null;
@@ -131,7 +127,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if(arrivalDateTime && isValid(parseISO(arrivalDateTime))) {
         bookingSummary += ` Arrives: ${formatISO(parseISO(arrivalDateTime))}.`;
     }
-    if(cost) bookingSummary += ` Cost: ${cost}.`;
     bookingSummary += ` Notes: ${flightNotes || 'N/A'}`;
     
     // Insert into trf_flight_bookings

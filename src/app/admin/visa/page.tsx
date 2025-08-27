@@ -23,7 +23,6 @@ interface VisaListItem {
   destination: string;
   status: string;
   submittedAt: string;
-  tsrReference?: string;
 }
 
 type SortConfig = {
@@ -283,7 +282,7 @@ export default function AdminVisaPage() {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search by applicant name, destination, or TSR reference..."
+                  placeholder="Search by applicant name, destination, or purpose..."
                   className="pl-8"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -398,7 +397,6 @@ export default function AdminVisaPage() {
                           {getSortIcon('purpose')}
                         </div>
                       </TableHead>
-                      <TableHead>TSR Reference</TableHead>
                       <TableHead 
                         className="cursor-pointer select-none hover:bg-muted/50"
                         onClick={() => handleSort('status')}
@@ -432,18 +430,6 @@ export default function AdminVisaPage() {
                           </div>
                         </TableCell>
                         <TableCell>{application.purpose}</TableCell>
-                        <TableCell>
-                          {application.tsrReference ? (
-                            <Link 
-                              href={`/trf/view/${application.tsrReference}`}
-                              className="text-primary hover:underline"
-                            >
-                              {application.tsrReference}
-                            </Link>
-                          ) : (
-                            <span className="text-muted-foreground">N/A</span>
-                          )}
-                        </TableCell>
                         <TableCell>
                           <StatusBadge status={application.status} showIcon />
                         </TableCell>

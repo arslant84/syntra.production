@@ -51,16 +51,16 @@ export const GET = withAuth(async function(request: NextRequest) {
     try {
       console.log('Querying user\'s visa_applications...');
       const visaUserFilter = userIdentifier.staffId 
-        ? `(user_id = '${userIdentifier.userId}' OR staff_id = '${userIdentifier.staffId}' OR email = '${userIdentifier.email}')` 
-        : `(user_id = '${userIdentifier.userId}' OR email = '${userIdentifier.email}')`;
+        ? `(staff_id = '${userIdentifier.staffId}' OR staff_id = '${userIdentifier.userId}' OR requestor_name ILIKE '%${userIdentifier.email}%')` 
+        : `(staff_id = '${userIdentifier.userId}' OR requestor_name ILIKE '%${userIdentifier.email}%')`;
         
       const visaQuery = await sql.unsafe(`
         SELECT COUNT(*) AS count FROM visa_applications
-        WHERE status LIKE 'Pending%'
+        WHERE (status LIKE 'Pending%' OR status LIKE 'Processing%')
           AND ${visaUserFilter}
       `);
       visaUpdates = parseInt(visaQuery[0]?.count || '0');
-      console.log(`Found ${visaUpdates} pending visa applications for user ${userIdentifier.userId}`);
+      console.log(`Found ${visaUpdates} visa applications in progress for user ${userIdentifier.userId}`);
     } catch (err) {
       console.error('Error fetching user\'s visa applications:', err);
     }
@@ -85,7 +85,7 @@ export const GET = withAuth(async function(request: NextRequest) {
         console.log('expense_claims table exists, fetching user\'s claims...');
         const claimsQuery = await sql.unsafe(`
           SELECT COUNT(*) AS count FROM expense_claims
-          WHERE (status = 'Draft' OR status = 'Pending Verification' OR status IS NULL)
+          WHERE (status = 'Draft' OR status = 'Pending Verification' OR status LIKE 'Pending%' OR status IS NULL)
             AND ${claimsUserFilter}
         `);
         draftClaims = parseInt(claimsQuery[0]?.count || '0');
@@ -102,7 +102,7 @@ export const GET = withAuth(async function(request: NextRequest) {
         if (oldTableCheck[0]?.exists) {
           const draftClaimsQuery = await sql.unsafe(`
             SELECT COUNT(*) as count FROM claims 
-            WHERE (status = 'Draft' OR status = 'Pending Verification' OR status IS NULL)
+            WHERE (status = 'Draft' OR status = 'Pending Verification' OR status LIKE 'Pending%' OR status IS NULL)
               AND ${claimsUserFilter}
           `);
           draftClaims = parseInt(draftClaimsQuery[0]?.count || '0');
@@ -152,7 +152,7 @@ export const GET = withAuth(async function(request: NextRequest) {
     }
 
     return NextResponse.json({
-      pendingTrfs: pendingTRFs,
+      pendingTsrs: pendingTRFs,
       visaUpdates,
       draftClaims,
       pendingAccommodation: accommodationBookings,

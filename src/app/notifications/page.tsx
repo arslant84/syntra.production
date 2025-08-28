@@ -104,7 +104,7 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="w-full h-full flex flex-col space-y-6 -mx-4 md:-mx-8 px-4 md:px-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -142,10 +142,10 @@ export default function NotificationsPage() {
       </div>
 
       {/* Notifications List */}
-      <div className="space-y-4">
+      <div className="flex-1 overflow-auto space-y-4">
         {notifications.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
+          <Card className="h-full">
+            <CardContent className="p-8 h-full flex flex-col items-center justify-center text-center">
               <Bell className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No notifications</h3>
               <p className="text-muted-foreground">

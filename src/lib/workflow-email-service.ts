@@ -131,7 +131,9 @@ export class WorkflowEmailService {
     const recipients: EmailRecipient[] = [];
 
     try {
-      // Add requestor (always CC'd for status updates)
+      console.log(`📧 WORKFLOW_EMAIL: Getting recipients for event ${params.eventType}, status: ${params.currentStatus}`);
+      
+      // ALWAYS add requestor for CC purposes - ensures transparency at all workflow stages
       if (params.requestorEmail || params.requestorId) {
         const requestor = await this.getRequestorInfo(params.requestorId, params.requestorEmail);
         if (requestor) {
@@ -141,7 +143,10 @@ export class WorkflowEmailService {
             role: 'requestor',
             userId: requestor.id
           });
+          console.log(`✅ WORKFLOW_EMAIL: Added requestor for CC: ${requestor.name} (${requestor.email})`);
         }
+      } else {
+        console.warn(`⚠️ WORKFLOW_EMAIL: No requestor email/ID provided for ${params.entityType} ${params.entityId}`);
       }
 
       // Add approvers based on current status and event type
@@ -422,6 +427,7 @@ export class WorkflowEmailService {
 
   /**
    * Send emails to recipients with proper TO/CC distribution
+   * Enhanced workflow: Always CC requestor, TO goes to appropriate approver/processor
    */
   private static async sendToRecipients(
     recipients: EmailRecipient[],
@@ -429,44 +435,152 @@ export class WorkflowEmailService {
     body: string,
     params: WorkflowEmailParams
   ): Promise<void> {
-    // Separate requestor from approvers/processors
-    const requestor = recipients.find(r => r.role === 'requestor');
-    const others = recipients.filter(r => r.role !== 'requestor');
+    console.log(`📧 WORKFLOW_EMAIL: Processing recipients for workflow stage notification`);
+    console.log(`📧 WORKFLOW_EMAIL: Event: ${params.eventType}, Status: ${params.currentStatus}`);
+    
+    // Always ensure requestor is in CC for all workflow stages
+    const requestorEmail = params.requestorEmail;
+    const nonRequestorRecipients = recipients.filter(r => r.role !== 'requestor');
 
-    if (others.length === 0 && !requestor) {
-      console.warn('No recipients to send email to');
+    if (nonRequestorRecipients.length === 0 && !requestorEmail) {
+      console.warn('❌ WORKFLOW_EMAIL: No recipients to send email to');
       return;
     }
 
     try {
-      // For approval events: TO = approvers, CC = requestor
-      // For status updates: TO = requestor, CC = others
-      if (this.isApprovalEvent(params.eventType)) {
-        if (others.length > 0) {
-          await emailService.sendEmail({
-            to: others.map(r => r.email).join(', '),
-            cc: requestor?.email,
-            subject,
-            body
-          });
-        }
+      // Enhanced workflow-based email routing
+      if (this.isWorkflowNotification(params)) {
+        await this.sendWorkflowStageEmail(nonRequestorRecipients, requestorEmail, subject, body, params);
       } else {
-        // Status update: primary recipient is requestor
-        if (requestor) {
-          await emailService.sendEmail({
-            to: requestor.email,
-            cc: others.length > 0 ? others.map(r => r.email).join(', ') : undefined,
-            subject,
-            body
-          });
-        }
+        await this.sendGeneralNotificationEmail(recipients, subject, body, params);
       }
 
-      console.log(`Email sent successfully for ${params.eventType}: ${params.entityId}`);
+      console.log(`✅ WORKFLOW_EMAIL: Email sent successfully for ${params.eventType}: ${params.entityId}`);
     } catch (error) {
-      console.error('Error sending emails:', error);
+      console.error('❌ WORKFLOW_EMAIL: Error sending emails:', error);
       throw error;
     }
+  }
+
+  /**
+   * Send workflow stage-specific emails with proper routing
+   */
+  private static async sendWorkflowStageEmail(
+    approvers: EmailRecipient[],
+    requestorEmail: string | undefined,
+    subject: string,
+    body: string,
+    params: WorkflowEmailParams
+  ): Promise<void> {
+    
+    const workflowStage = this.determineWorkflowStage(params.currentStatus);
+    console.log(`📧 WORKFLOW_EMAIL: Sending ${workflowStage} stage notification`);
+    
+    // Always include requestor in CC for transparency
+    const ccList: string[] = [];
+    if (requestorEmail) {
+      ccList.push(requestorEmail);
+      console.log(`📧 WORKFLOW_EMAIL: Added requestor to CC: ${requestorEmail}`);
+    }
+
+    // Send to appropriate approvers/processors based on workflow stage
+    if (approvers.length > 0) {
+      const toList = approvers.map(r => r.email);
+      
+      console.log(`📧 WORKFLOW_EMAIL: TO: ${toList.join(', ')}`);
+      console.log(`📧 WORKFLOW_EMAIL: CC: ${ccList.join(', ')}`);
+      
+      await emailService.sendEmail({
+        to: toList.join(', '),
+        cc: ccList.length > 0 ? ccList.join(', ') : undefined,
+        subject: `[${workflowStage}] ${subject}`,
+        html: this.enhanceEmailBody(body, workflowStage, params)
+      });
+      
+      // Log workflow stage for audit trail
+      console.log(`✅ WORKFLOW_EMAIL: ${workflowStage} notification sent for ${params.entityType} ${params.entityId}`);
+    } else {
+      console.warn(`❌ WORKFLOW_EMAIL: No approvers found for ${workflowStage} stage`);
+    }
+  }
+
+  /**
+   * Send general notification emails (confirmations, rejections, etc.)
+   */
+  private static async sendGeneralNotificationEmail(
+    recipients: EmailRecipient[],
+    subject: string,
+    body: string,
+    params: WorkflowEmailParams
+  ): Promise<void> {
+    const requestor = recipients.find(r => r.role === 'requestor');
+    const others = recipients.filter(r => r.role !== 'requestor');
+
+    // Status update or completion: TO = requestor, CC = relevant stakeholders
+    if (requestor) {
+      const ccList = others.length > 0 ? others.map(r => r.email).join(', ') : undefined;
+      
+      await emailService.sendEmail({
+        to: requestor.email,
+        cc: ccList,
+        subject,
+        html: body
+      });
+      
+      console.log(`✅ WORKFLOW_EMAIL: General notification sent to requestor: ${requestor.email}`);
+    }
+  }
+
+  /**
+   * Determine workflow stage from current status
+   */
+  private static determineWorkflowStage(currentStatus: string): string {
+    switch (currentStatus) {
+      case 'Pending Department Focal':
+        return 'Department Focal Approval';
+      case 'Pending Line Manager':
+        return 'Line Manager Approval';
+      case 'Pending HOD':
+        return 'HOD Approval';
+      case 'Approved':
+        return 'Processing Required';
+      case 'Processed':
+        return 'Completion Confirmation';
+      default:
+        return 'Workflow Notification';
+    }
+  }
+
+  /**
+   * Check if this is a workflow stage notification
+   */
+  private static isWorkflowNotification(params: WorkflowEmailParams): boolean {
+    const workflowStatuses = [
+      'Pending Department Focal',
+      'Pending Line Manager', 
+      'Pending HOD',
+      'Approved'
+    ];
+    return workflowStatuses.includes(params.currentStatus);
+  }
+
+  /**
+   * Enhance email body with workflow stage information
+   */
+  private static enhanceEmailBody(body: string, workflowStage: string, params: WorkflowEmailParams): string {
+    const stageInfo = `
+      <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 12px; margin: 16px 0;">
+        <h3 style="margin: 0 0 8px 0; color: #0ea5e9;">📋 ${workflowStage}</h3>
+        <p style="margin: 0; color: #374151;">
+          <strong>Request Type:</strong> ${params.entityType.toUpperCase()}<br>
+          <strong>Request ID:</strong> ${params.entityId}<br>
+          <strong>Requestor:</strong> ${params.requestorName}<br>
+          <strong>Department:</strong> ${params.department || 'N/A'}
+        </p>
+      </div>
+    `;
+    
+    return stageInfo + body;
   }
 
   /**
@@ -522,6 +636,7 @@ export class WorkflowEmailService {
     newStatus: string;
     approverName: string;
     comments?: string;
+    department?: string;
   }): Promise<void> {
     const eventType = params.newStatus.toLowerCase().includes('reject') 
       ? `${params.entityType}_rejected`
@@ -536,7 +651,92 @@ export class WorkflowEmailService {
       requestorId: params.requestorId,
       currentStatus: params.newStatus,
       approverName: params.approverName,
-      comments: params.comments
+      comments: params.comments,
+      department: params.department
+    });
+  }
+
+  /**
+   * Send status change notification (for workflow progression)
+   */
+  static async sendStatusChangeNotification(params: {
+    entityType: 'trf' | 'claim' | 'visa' | 'transport' | 'accommodation';
+    entityId: string;
+    requestorName: string;
+    requestorEmail?: string;
+    requestorId?: string;
+    fromStatus: string;
+    toStatus: string;
+    department?: string;
+    changedBy?: string;
+    comments?: string;
+  }): Promise<void> {
+    await this.sendWorkflowNotification({
+      eventType: `${params.entityType}_status_changed`,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      requestorName: params.requestorName,
+      requestorEmail: params.requestorEmail,
+      requestorId: params.requestorId,
+      currentStatus: params.toStatus,
+      department: params.department,
+      approverName: params.changedBy,
+      comments: `Status changed from ${params.fromStatus} to ${params.toStatus}${params.comments ? '. ' + params.comments : ''}`
+    });
+  }
+
+  /**
+   * Send processing notification (for admin actions after approval)
+   */
+  static async sendProcessingNotification(params: {
+    entityType: 'trf' | 'claim' | 'visa' | 'transport' | 'accommodation';
+    entityId: string;
+    requestorName: string;
+    requestorEmail?: string;
+    requestorId?: string;
+    processingAction: string;
+    processorName?: string;
+    department?: string;
+    details?: string;
+  }): Promise<void> {
+    await this.sendWorkflowNotification({
+      eventType: `${params.entityType}_processing`,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      requestorName: params.requestorName,
+      requestorEmail: params.requestorEmail,
+      requestorId: params.requestorId,
+      currentStatus: 'Processing',
+      department: params.department,
+      approverName: params.processorName,
+      comments: `${params.processingAction}${params.details ? ': ' + params.details : ''}`
+    });
+  }
+
+  /**
+   * Send completion notification (final confirmation)
+   */
+  static async sendCompletionNotification(params: {
+    entityType: 'trf' | 'claim' | 'visa' | 'transport' | 'accommodation';
+    entityId: string;
+    requestorName: string;
+    requestorEmail?: string;
+    requestorId?: string;
+    department?: string;
+    completionDetails?: string;
+    completedBy?: string;
+  }): Promise<void> {
+    await this.sendWorkflowNotification({
+      eventType: `${params.entityType}_completed`,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      requestorName: params.requestorName,
+      requestorEmail: params.requestorEmail,
+      requestorId: params.requestorId,
+      currentStatus: 'Completed',
+      department: params.department,
+      approverName: params.completedBy,
+      comments: `Your ${params.entityType.toUpperCase()} request has been completed successfully.${params.completionDetails ? ' ' + params.completionDetails : ''}`
     });
   }
 }

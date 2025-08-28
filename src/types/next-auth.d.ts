@@ -8,6 +8,8 @@ declare module "next-auth" {
     role?: string | null; // This will hold the role name for display
     roleId?: string | null;
     permissions?: string[];
+    department?: string | null;
+    staffId?: string | null;
   }
 
   interface Session extends DefaultSession {
@@ -21,5 +23,7 @@ declare module "next-auth/jwt" {
     role?: string | null; // Role name
     roleId?: string | null;
     permissions?: string[];
+    department?: string | null;
+    staffId?: string | null;
   }
 }

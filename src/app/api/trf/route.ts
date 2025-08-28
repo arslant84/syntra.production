@@ -702,12 +702,10 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
         console.log(`🔔 TRF_NOTIFICATION: Starting async notification process for TRF ${trfRequestId}`);
         console.log(`🔔 TRF_NOTIFICATION: Session ID: ${session.id}, Session user: ${JSON.stringify(session)}`);
         
-        // Get requestor email for enhanced notifications
-        const requestorInfo = await sql`SELECT email FROM users WHERE id = ${session.id}`;
-        const requestorEmail = requestorInfo.length > 0 ? requestorInfo[0].email : null;
+        // Use requestor email from session (avoid database query)
+        const requestorEmail = session.email;
         
-        console.log(`🔔 TRF_NOTIFICATION: Requestor email query result:`, requestorInfo);
-        console.log(`🔔 TRF_NOTIFICATION: Extracted email: ${requestorEmail}`);
+        console.log(`🔔 TRF_NOTIFICATION: Using session email: ${requestorEmail}`);
 
         // Log the department value being used for notification
         console.log(`🔔 TRF_NOTIFICATION: Notification parameters:`);

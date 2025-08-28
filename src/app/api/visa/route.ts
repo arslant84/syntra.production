@@ -138,16 +138,8 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
       try {
         console.log(`🔔 VISA_NOTIFICATION: Starting async notification process for visa ${visaRequestId}`);
         
-        // First get the requestor's department from their user record
-        let requestorDepartment = 'Unknown';
-        if (data.employeeId) {
-          const requestorInfo = await sql`
-            SELECT department FROM users WHERE staff_id = ${data.employeeId} OR email = ${data.employeeId} LIMIT 1
-          `;
-          if (requestorInfo.length > 0) {
-            requestorDepartment = requestorInfo[0].department || 'Unknown';
-          }
-        }
+        // Use requestor's department from session (avoid database query)
+        const requestorDepartment = session.department || 'Unknown';
 
         // Find Department Focals with visa approval permission in the same department
         const departmentFocals = await sql`

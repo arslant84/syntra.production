@@ -43,9 +43,11 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // Fetch user from DB
+          // Fetch user from DB with department and staff_id for session caching
           const users = await sql`
-            SELECT id, name, email, password, role_id, role, status
+            SELECT id, name, email, password, role_id, role, status, 
+                   COALESCE(department, '') as department, 
+                   COALESCE(staff_id, '') as staff_id
             FROM users
             WHERE email = ${credentials.email}
             LIMIT 1
@@ -90,6 +92,8 @@ export const authOptions: NextAuthOptions = {
             email: user.email,
             roleId: user.role_id,
             role: user.role,
+            department: user.department,
+            staffId: user.staff_id,
           };
         } catch (error) {
           console.error('NEXTAUTH CREDENTIALS - Error during authentication:', error);
@@ -117,7 +121,9 @@ export const authOptions: NextAuthOptions = {
           let dbUser;
           try {
             const existingUsers = await sql`
-              SELECT id, name, email, role_id, role
+              SELECT id, name, email, role_id, role, 
+                     COALESCE(department, '') as department, 
+                     COALESCE(staff_id, '') as staff_id
               FROM users
               WHERE email = ${user.email}
               LIMIT 1
@@ -140,17 +146,23 @@ export const authOptions: NextAuthOptions = {
             token.uid = dbUser.id;
             token.roleId = dbUser.role_id;
             token.role = dbUser.role;
+            token.department = dbUser.department || null;
+            token.staffId = dbUser.staff_id || null;
           } catch (error) {
             console.error('JWT Callback: Error handling Azure AD user:', error);
             token.uid = user.id;
             token.roleId = 1; // Default role
             token.role = 'user';
+            token.department = null;
+            token.staffId = null;
           }
         } else {
           // Handle credentials sign-in
           token.uid = user.id;
           token.roleId = user.roleId || null;
           token.role = user.role || null;
+          token.department = user.department || null;
+          token.staffId = user.staffId || null;
         }
 
         token.permissions = []; // Initialize as empty
@@ -204,6 +216,8 @@ export const authOptions: NextAuthOptions = {
         session.user.roleId = token.roleId;
         session.user.role = token.role; // Role name from token
         session.user.permissions = token.permissions;
+        session.user.department = token.department;
+        session.user.staffId = token.staffId;
         console.log('Session Callback: Session created/updated:', session);
       } else {
         console.warn("Session Callback: session.user is undefined");

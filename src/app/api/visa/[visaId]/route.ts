@@ -5,6 +5,8 @@ import { sql } from '@/lib/db';
 import { formatISO, parseISO } from 'date-fns';
 import type { VisaApplication, VisaApprovalStep } from '@/types/visa';
 import { hasPermission } from '@/lib/permissions';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const visaUpdateSchema = z.object({
   applicantName: z.string(),
@@ -24,9 +26,54 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { visaId } = await params;
   console.log(`API_VISA_VISAID_GET_START (PostgreSQL): Fetching visa application ${visaId}.`);
   
-  // Check if user has permission to view visa applications (either process or view)
-  if (!await hasPermission('process_visa_applications') && !await hasPermission('view_visa_applications')) {
-    return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+  // Check if user has permission to view visa applications (either process or view, or if it's their own application)
+  const canProcess = await hasPermission('process_visa_applications');
+  const canView = await hasPermission('view_visa_applications');
+  
+  console.log(`[VISA PERMISSIONS DEBUG] visaId: ${visaId}, canProcess: ${canProcess}, canView: ${canView}`);
+  
+  if (!canProcess && !canView) {
+    // If user doesn't have admin permissions, check if it's their own visa application
+    const session = await getServerSession(authOptions);
+    console.log(`[VISA OWNERSHIP DEBUG] session exists: ${!!session}, userId: ${session?.user?.id}, userName: ${session?.user?.name}, userEmail: ${session?.user?.email}, staffId: ${session?.user?.staff_id}`);
+    
+    if (session?.user?.id) {
+      try {
+        const visaCheck = await sql`
+          SELECT user_id, requestor_name, staff_id 
+          FROM visa_applications 
+          WHERE id = ${visaId}
+        `;
+        
+        console.log(`[VISA OWNERSHIP DEBUG] visa check result:`, visaCheck);
+        
+        if (visaCheck.length > 0) {
+          const visa = visaCheck[0];
+          // Allow access if it's the user's own visa application (by user_id, name, or staff_id)
+          const isOwnVisa = visa.user_id === session.user.id || 
+                           visa.requestor_name === session.user.name ||
+                           visa.staff_id === session.user.staff_id;
+          
+          console.log(`[VISA OWNERSHIP DEBUG] isOwnVisa: ${isOwnVisa}, visa.user_id: ${visa.user_id}, visa.requestor_name: ${visa.requestor_name}, visa.staff_id: ${visa.staff_id}`);
+          
+          if (!isOwnVisa) {
+            console.log(`[VISA OWNERSHIP DEBUG] Access denied - not own visa`);
+            return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+          } else {
+            console.log(`[VISA OWNERSHIP DEBUG] Access granted - own visa`);
+          }
+        } else {
+          console.log(`[VISA OWNERSHIP DEBUG] Visa not found in database`);
+          return NextResponse.json({ error: 'Visa application not found' }, { status: 404 });
+        }
+      } catch (error) {
+        console.error('[VISA OWNERSHIP DEBUG] Error checking visa ownership:', error);
+        return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+      }
+    } else {
+      console.log(`[VISA OWNERSHIP DEBUG] No session or user ID found`);
+      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
+    }
   }
   
   if (!sql) {

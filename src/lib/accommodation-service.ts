@@ -157,7 +157,16 @@ export async function getAccommodationRequests(userId?: string, statuses?: strin
  */
 export async function getAccommodationRequestById(requestId: string): Promise<(AccommodationRequestDetails & { approvalWorkflow?: AccommodationApprovalStep[]; bookingDetails?: any[] }) | null> {
   const bookingId = requestId; // Alias for parameter consistency
+  console.log(`[ACCOMMODATION SERVICE] Looking for accommodation request with ID: ${bookingId}`);
+  
   try {
+    // First, let's check what records exist in both tables for debugging
+    const trfCheck = await sql`SELECT id, travel_type, status FROM travel_requests WHERE id = ${bookingId}`;
+    const tadCheck = await sql`SELECT trf_id FROM trf_accommodation_details WHERE trf_id = ${bookingId}`;
+    
+    console.log(`[ACCOMMODATION SERVICE] TRF check result: ${JSON.stringify(trfCheck)}`);
+    console.log(`[ACCOMMODATION SERVICE] TAD check result: ${JSON.stringify(tadCheck)}`);
+    
     const [request] = await sql`
       SELECT 
         tr.id,
@@ -221,7 +230,10 @@ export async function getAccommodationRequestById(requestId: string): Promise<(A
         tr.id = ${bookingId}
     `;
 
+    console.log(`[ACCOMMODATION SERVICE] Query result: ${JSON.stringify(request)}`);
+
     if (!request) {
+      console.log(`[ACCOMMODATION SERVICE] No accommodation request found with ID: ${bookingId}`);
       return null;
     }
 

@@ -6,6 +6,7 @@ import { WorkflowEmailService } from './workflow-email-service';
 import { NotificationService } from './notification-service';
 import { NotificationEventType } from '@/types/notifications';
 import { EnhancedWorkflowNotificationService } from './enhanced-workflow-notification-service';
+import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from './request-deduplication';
 
 export class TransportService {
   // Create a new transport request
@@ -13,6 +14,26 @@ export class TransportService {
     const { userId, ...requestData } = data;
     if (!userId) {
       throw new Error('User ID is required to create a transport request');
+    }
+
+    // Check for duplicate submission using request deduplication
+    const requestFingerprint = generateRequestFingerprint(
+      userId,
+      'transport_submission',
+      {
+        requestorName: requestData.requestorName || '',
+        purpose: requestData.purpose || '',
+        transportType: requestData.transportDetails?.[0]?.transportType || '',
+        fromLocation: requestData.transportDetails?.[0]?.from || '',
+        toLocation: requestData.transportDetails?.[0]?.to || '',
+        date: requestData.transportDetails?.[0]?.date || ''
+      }
+    );
+
+    const deduplicationResult = checkAndMarkRequest(requestFingerprint, 30000); // 30 seconds TTL
+    if (deduplicationResult.isDuplicate) {
+      console.warn(`TRANSPORT_SERVICE_DUPLICATE: Duplicate transport submission detected for user ${userId}. Time remaining: ${deduplicationResult.timeRemaining}s`);
+      throw new Error(`Duplicate submission detected. Please wait ${deduplicationResult.timeRemaining} seconds before submitting again.`);
     }
     
     // Generate transport request ID using the standard naming convention
@@ -82,36 +103,43 @@ export class TransportService {
         return request;
       });
 
-      // Send notification using enhanced workflow notification system
-      try {
-        console.log(`🔔 TRANSPORT_SERVICE: Starting notification process for transport request: ${transportId}`);
-        
-        // Get requestor information for email
-        const requestorInfo = await sql`SELECT email FROM users WHERE id = ${userId}`;
-        const requestorEmail = requestorInfo.length > 0 ? requestorInfo[0].email : null;
-        
-        console.log(`🔔 TRANSPORT_SERVICE: Requestor email: ${requestorEmail}, Department: ${requestData.department}`);
+      // Mark deduplication request as completed (successful submission)
+      markRequestCompleted(requestFingerprint);
 
-        // Send enhanced workflow notification (only to Department Focal + CC requestor)
-        await EnhancedWorkflowNotificationService.sendSubmissionNotification({
-          entityType: 'transport',
-          entityId: transportId,
-          requestorName: requestData.requestorName || 'User',
-          requestorEmail,
-          requestorId: userId,
-          department: requestData.department,
-          purpose: requestData.purpose
-        });
+      // Process notifications asynchronously (non-blocking)
+      setImmediate(async () => {
+        try {
+          console.log(`🔔 TRANSPORT_SERVICE_NOTIFICATION: Starting async notification process for transport request: ${transportId}`);
+          
+          // Get requestor information for email
+          const requestorInfo = await sql`SELECT email FROM users WHERE id = ${userId}`;
+          const requestorEmail = requestorInfo.length > 0 ? requestorInfo[0].email : null;
+          
+          console.log(`🔔 TRANSPORT_SERVICE_NOTIFICATION: Requestor email: ${requestorEmail}, Department: ${requestData.department}`);
 
-        console.log(`✅ TRANSPORT_SERVICE: Enhanced workflow notification sent successfully for transport request: ${transportId}`);
-      } catch (notificationError) {
-        console.error('❌ TRANSPORT_SERVICE: Failed to send enhanced workflow notification:', notificationError);
-        console.error('❌ TRANSPORT_SERVICE: Error details:', notificationError.stack);
-        // Don't fail the request creation due to notification errors
-      }
+          // Send enhanced workflow notification (only to Department Focal + CC requestor)
+          await EnhancedWorkflowNotificationService.sendSubmissionNotification({
+            entityType: 'transport',
+            entityId: transportId,
+            requestorName: requestData.requestorName || 'User',
+            requestorEmail,
+            requestorId: userId,
+            department: requestData.department,
+            purpose: requestData.purpose
+          });
+
+          console.log(`✅ TRANSPORT_SERVICE_NOTIFICATION: Sent async workflow notification for transport request: ${transportId}`);
+        } catch (notificationError) {
+          console.error(`❌ TRANSPORT_SERVICE_NOTIFICATION: Error sending async notification for transport ${transportId}:`, notificationError);
+          // Notification failures don't affect the completed submission
+        }
+      });
 
       return this.getTransportRequestById(transportId);
     } catch (error) {
+      // Clean up deduplication on error
+      markRequestCompleted(requestFingerprint);
+      
       console.error('Error creating transport request:', error);
       throw new Error('Failed to create transport request');
     }

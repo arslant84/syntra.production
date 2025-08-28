@@ -7,6 +7,7 @@ import { NotificationService } from '@/lib/notification-service';
 import { shouldBypassUserFilter } from '@/lib/universal-user-matching';
 import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
 import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
+import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from '@/lib/request-deduplication';
 
 export const GET = withAuth(async function(request: NextRequest) {
   try {
@@ -123,6 +124,8 @@ export const GET = withAuth(async function(request: NextRequest) {
 });
 
 export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function(request: NextRequest) {
+  let requestFingerprint: string | undefined;
+  
   try {
     const session = (request as any).user;
     
@@ -134,6 +137,29 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     }
 
     const body = await request.json();
+    
+    // Check for duplicate submission using request deduplication
+    requestFingerprint = generateRequestFingerprint(
+      session.id,
+      'transport_submission',
+      {
+        requestorName: body.requestorName,
+        pickupLocation: body.pickupLocation,
+        destination: body.destination,
+        travelDate: body.travelDate,
+        travelTime: body.travelTime
+      }
+    );
+
+    const deduplicationResult = checkAndMarkRequest(requestFingerprint, 30000); // 30 seconds TTL
+    if (deduplicationResult.isDuplicate) {
+      console.warn(`API_TRANSPORT_POST_DUPLICATE: Duplicate transport submission detected for user ${session.id}. Time remaining: ${deduplicationResult.timeRemaining}s`);
+      return NextResponse.json({ 
+        error: 'Duplicate submission detected', 
+        message: `Please wait ${deduplicationResult.timeRemaining} seconds before submitting again.`,
+        details: 'You recently submitted a similar transport request. To prevent duplicates, please wait before trying again.'
+      }, { status: 429 });
+    }
     const userId = session.id || session.email;
     const requestData = { ...body, userId };
     
@@ -141,10 +167,20 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     const transportRequest = await TransportService.createTransportRequest(requestData);
     console.log(`✅ TRANSPORT_API: Transport request created with ID: ${transportRequest.id}`);
     
+    // Mark deduplication request as completed (successful submission)
+    if (requestFingerprint) {
+      markRequestCompleted(requestFingerprint);
+    }
+    
     // Note: Notifications are handled within TransportService.createTransportRequest
     
     return NextResponse.json(transportRequest, { status: 201 });
   } catch (error) {
+    // Clean up deduplication on error
+    if (requestFingerprint) {
+      markRequestCompleted(requestFingerprint);
+    }
+    
     console.error('Error creating transport request:', error);
     return NextResponse.json(
       { 

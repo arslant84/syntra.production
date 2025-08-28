@@ -13,6 +13,7 @@ import { hasPermission } from '@/lib/session-utils';
 import { generateUniversalUserFilterSQL, shouldBypassUserFilter } from '@/lib/universal-user-matching';
 import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
 import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
+import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from '@/lib/request-deduplication';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -189,6 +190,8 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
   
+  let requestFingerprint: string | undefined;
+  
   try {
     if (!sql) {
       console.error("API_TRF_POST_CRITICAL_ERROR (PostgreSQL): SQL client is not initialized.");
@@ -334,6 +337,29 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     requestorNameVal = session.name || session.email || 'External Party Submitter';
     staffIdVal = session.staffId || session.id || null;
     departmentVal = session.department || null;
+  }
+
+  // Check for duplicate submission using request deduplication
+  requestFingerprint = generateRequestFingerprint(
+    session.id,
+    'trf_submission',
+    {
+      travelType: validatedData.travelType,
+      requestorName: requestorNameVal,
+      purpose: purposeVal,
+      department: departmentVal,
+      estimatedCost: validatedData.estimatedCost
+    }
+  );
+
+  const deduplicationResult = checkAndMarkRequest(requestFingerprint, 30000); // 30 seconds TTL
+  if (deduplicationResult.isDuplicate) {
+    console.warn(`API_TRF_POST_DUPLICATE: Duplicate TRF submission detected for user ${session.id}. Time remaining: ${deduplicationResult.timeRemaining}s`);
+    return NextResponse.json({ 
+      error: 'Duplicate submission detected', 
+      message: `Please wait ${deduplicationResult.timeRemaining} seconds before submitting again.`,
+      details: 'You recently submitted a similar travel request. To prevent duplicates, please wait before trying again.'
+    }, { status: 429 });
   }
 
   // Generate a unified request ID for the TRF
@@ -657,62 +683,77 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
       // Don't fail the entire TSR submission due to auto-generation errors
     }
 
-    // Create notification using enhanced workflow notification system
-    try {
-      console.log(`🔔 TRF_NOTIFICATION: Starting notification process for TRF ${trfRequestId}`);
-      console.log(`🔔 TRF_NOTIFICATION: Session ID: ${session.id}, Session user: ${JSON.stringify(session)}`);
-      
-      // Get requestor email for enhanced notifications
-      const requestorInfo = await sql`SELECT email FROM users WHERE id = ${session.id}`;
-      const requestorEmail = requestorInfo.length > 0 ? requestorInfo[0].email : null;
-      
-      console.log(`🔔 TRF_NOTIFICATION: Requestor email query result:`, requestorInfo);
-      console.log(`🔔 TRF_NOTIFICATION: Extracted email: ${requestorEmail}`);
-
-      // Log the department value being used for notification
-      console.log(`🔔 TRF_NOTIFICATION: Notification parameters:`);
-      console.log(`  - TRF ID: ${trfRequestId}`);
-      console.log(`  - Requestor: ${requestorNameVal}`);
-      console.log(`  - Department: ${departmentVal}`);
-      console.log(`  - Purpose: ${purposeVal}`);
-      console.log(`  - Requestor Email: ${requestorEmail}`);
-      console.log(`  - Requestor ID: ${session.id}`);
-      
-      // Check if EnhancedWorkflowNotificationService is available
-      if (!EnhancedWorkflowNotificationService) {
-        throw new Error('EnhancedWorkflowNotificationService is not available');
-      }
-      
-      console.log(`🔔 TRF_NOTIFICATION: Calling EnhancedWorkflowNotificationService.sendSubmissionNotification`);
-      
-      // Send enhanced workflow notification (only to Department Focal + CC requestor)
-      await EnhancedWorkflowNotificationService.sendSubmissionNotification({
-        entityType: 'trf',
-        entityId: trfRequestId,
-        requestorName: requestorNameVal || 'User',
-        requestorEmail,
-        requestorId: session.id,
-        department: departmentVal,
-        purpose: purposeVal
-      });
-
-      console.log(`✅ TRF_NOTIFICATION: Successfully created enhanced workflow notifications for TRF ${trfRequestId}`);
-    } catch (notificationError) {
-      console.error(`❌ TRF_NOTIFICATION: Failed to create enhanced workflow notifications for TRF ${trfRequestId}`);
-      console.error(`❌ TRF_NOTIFICATION: Error type: ${notificationError.constructor.name}`);
-      console.error(`❌ TRF_NOTIFICATION: Error message: ${notificationError.message}`);
-      console.error(`❌ TRF_NOTIFICATION: Error stack:`, notificationError.stack);
-      // Don't fail the TRF submission due to notification errors
+    // Mark deduplication request as completed (successful submission)
+    if (requestFingerprint) {
+      markRequestCompleted(requestFingerprint);
     }
 
-    return NextResponse.json({ 
+    // Return response immediately, then process notifications asynchronously
+    const response = NextResponse.json({ 
       message: 'Travel request submitted successfully!', 
       trfId: resultTrfId,
       requestId: trfRequestId,
       autoGenerated: autoGeneratedRequests
     }, { status: 201 });
 
+    // Process notifications asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        console.log(`🔔 TRF_NOTIFICATION: Starting async notification process for TRF ${trfRequestId}`);
+        console.log(`🔔 TRF_NOTIFICATION: Session ID: ${session.id}, Session user: ${JSON.stringify(session)}`);
+        
+        // Get requestor email for enhanced notifications
+        const requestorInfo = await sql`SELECT email FROM users WHERE id = ${session.id}`;
+        const requestorEmail = requestorInfo.length > 0 ? requestorInfo[0].email : null;
+        
+        console.log(`🔔 TRF_NOTIFICATION: Requestor email query result:`, requestorInfo);
+        console.log(`🔔 TRF_NOTIFICATION: Extracted email: ${requestorEmail}`);
+
+        // Log the department value being used for notification
+        console.log(`🔔 TRF_NOTIFICATION: Notification parameters:`);
+        console.log(`  - TRF ID: ${trfRequestId}`);
+        console.log(`  - Requestor: ${requestorNameVal}`);
+        console.log(`  - Department: ${departmentVal}`);
+        console.log(`  - Purpose: ${purposeVal}`);
+        console.log(`  - Requestor Email: ${requestorEmail}`);
+        console.log(`  - Requestor ID: ${session.id}`);
+        
+        // Check if EnhancedWorkflowNotificationService is available
+        if (!EnhancedWorkflowNotificationService) {
+          throw new Error('EnhancedWorkflowNotificationService is not available');
+        }
+        
+        console.log(`🔔 TRF_NOTIFICATION: Calling EnhancedWorkflowNotificationService.sendSubmissionNotification`);
+        
+        // Send enhanced workflow notification (only to Department Focal + CC requestor)
+        await EnhancedWorkflowNotificationService.sendSubmissionNotification({
+          entityType: 'trf',
+          entityId: trfRequestId,
+          requestorName: requestorNameVal || 'User',
+          requestorEmail,
+          requestorId: session.id,
+          department: departmentVal,
+          purpose: purposeVal
+        });
+
+        console.log(`✅ TRF_NOTIFICATION: Successfully created enhanced workflow notifications for TRF ${trfRequestId}`);
+      } catch (notificationError) {
+        console.error(`❌ TRF_NOTIFICATION: Failed to create enhanced workflow notifications for TRF ${trfRequestId}`);
+        console.error(`❌ TRF_NOTIFICATION: Error type: ${notificationError.constructor.name}`);
+        console.error(`❌ TRF_NOTIFICATION: Error message: ${notificationError.message}`);
+        console.error(`❌ TRF_NOTIFICATION: Error stack:`, notificationError.stack);
+        // Notification failures don't affect the submitted TRF
+      }
+    });
+
+    return response;
+
   } catch (error: any) {
+    // Clean up deduplication on error
+    if (requestFingerprint) {
+      markRequestCompleted(requestFingerprint);
+    }
+    
     console.error("API_TRF_POST_ERROR (PostgreSQL): Failed to create TRF.", error.message, error.stack, error.code, error.constraint_name);
     return NextResponse.json({ error: `Failed to create TRF: ${error.message}`, details: {
       message: error.message,
@@ -721,6 +762,11 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     } }, { status: 500 });
   }
 } catch (outerError: any) {
+  // Clean up deduplication on critical error
+  if (requestFingerprint) {
+    markRequestCompleted(requestFingerprint);
+  }
+  
   console.error("API_TRF_POST_CRITICAL_ERROR (PostgreSQL): Unhandled exception:", outerError.message, outerError.stack);
   return NextResponse.json({ error: `Critical error processing TRF: ${outerError.message}` }, { status: 500 });
 }

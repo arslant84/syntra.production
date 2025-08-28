@@ -130,7 +130,7 @@ export default function ClaimViewPage() {
       setClaim(result.claim);
       toast({ 
         title: "Claim Cancelled", 
-        description: `Claim ID ${claimId} has been cancelled.` 
+        description: `Claim ${result.claim?.document_number || claimId} has been cancelled.` 
       });
     } catch (err: any) {
       console.error('Error cancelling claim:', err);

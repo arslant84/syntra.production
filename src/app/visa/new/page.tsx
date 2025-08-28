@@ -151,16 +151,19 @@ export default function NewVisaApplicationPage() {
           </div>
         </CardHeader>
       </Card>
-      {initialVisaData ? (
-        <VisaApplicationForm
-          initialData={initialVisaData}
-          onSubmit={handleSubmitVisaApplication}
-        />
-      ) : (
-        <div className="flex items-center justify-center py-8">
-          <div className="text-muted-foreground">Loading user details...</div>
-        </div>
-      )}
+      <VisaApplicationForm
+        initialData={initialVisaData || {
+          travelPurpose: "",
+          destination: undefined,
+          employeeId: "",
+          passportCopy: null,
+          additionalDocuments: null,
+          tripStartDate: null,
+          tripEndDate: null,
+          itineraryDetails: "",
+        }}
+        onSubmit={handleSubmitVisaApplication}
+      />
     </div>
   );
 }

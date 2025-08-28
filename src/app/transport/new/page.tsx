@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { FormSubmitButton } from '@/components/ui/submit-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -112,8 +113,8 @@ export default function NewTransportRequestPage() {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setLoading(true);
 
     try {
@@ -188,7 +189,7 @@ export default function NewTransportRequestPage() {
         </Button>
       </div>
 
-        <form onSubmit={handleSubmit}>
+        <div>
           <div className="grid gap-6">
             {/* Requestor Information */}
             <Card>
@@ -440,12 +441,18 @@ export default function NewTransportRequestPage() {
               <Button type="button" variant="outline" onClick={() => router.back()}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? 'Creating...' : 'Create Transport Request'}
-              </Button>
+              <FormSubmitButton
+                onClick={handleSubmit}
+                type="button"
+                loadingText="Creating transport request..."
+                preventMultipleClicks={true}
+                debounceMs={300}
+              >
+                Create Transport Request
+              </FormSubmitButton>
             </div>
           </div>
-        </form>
+        </div>
     </div>
   );
 } 

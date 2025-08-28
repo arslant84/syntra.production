@@ -185,7 +185,7 @@ export default function ClaimsProcessingPage() {
 
       toast({
         title: "Processing Started",
-        description: `Claim ${selectedClaim.id} is now being processed`,
+        description: `Claim ${selectedClaim.documentNumber || selectedClaim.id} is now being processed`,
       });
 
       setProcessingDialog(false);
@@ -238,7 +238,7 @@ export default function ClaimsProcessingPage() {
 
       toast({
         title: "Reimbursement Completed",
-        description: `Claim ${selectedClaim.id} has been completed with reimbursement details`,
+        description: `Claim ${selectedClaim.documentNumber || selectedClaim.id} has been completed with reimbursement details`,
       });
 
       setCompletingDialog(false);

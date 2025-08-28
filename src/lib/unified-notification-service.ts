@@ -346,11 +346,11 @@ export class UnifiedNotificationService {
       accommodationPurpose: params.accommodationPurpose || '',
       
       // URLs
-      approvalUrl: `${baseUrl}/${params.entityType}/approve/${params.entityId}`,
-      viewUrl: `${baseUrl}/${params.entityType}/view/${params.entityId}`,
-      newRequestUrl: `${baseUrl}/${params.entityType}/new`,
-      bookingUrl: `${baseUrl}/${params.entityType}/booking/${params.entityId}`,
-      processingUrl: `${baseUrl}/${params.entityType}/process/${params.entityId}`
+      approvalUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/approve/${params.entityId}`,
+      viewUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/view/${params.entityId}`,
+      newRequestUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/new`,
+      bookingUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/booking/${params.entityId}`,
+      processingUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/process/${params.entityId}`
     };
   }
 
@@ -506,12 +506,15 @@ export class UnifiedNotificationService {
     previousStatus: string;
     approverName: string;
     approverRole: string;
+    approverId?: string;
+    approverEmail?: string;
     nextApprover?: string;
     entityTitle: string;
     comments?: string;
   }): Promise<void> {
     const eventType = this.getApprovalEventType(params.entityType, params.previousStatus);
     
+    // Send notification to requestor and next approver (existing logic)
     await this.sendWorkflowNotification({
       eventType,
       entityType: params.entityType,
@@ -527,6 +530,124 @@ export class UnifiedNotificationService {
       entityTitle: params.entityTitle,
       comments: params.comments
     });
+
+    // NEW: Send confirmation notification to the approver who just approved
+    if (params.approverId || params.approverEmail) {
+      await this.notifyApproverConfirmation({
+        entityType: params.entityType,
+        entityId: params.entityId,
+        approverId: params.approverId,
+        approverName: params.approverName,
+        approverEmail: params.approverEmail,
+        approverRole: params.approverRole,
+        entityTitle: params.entityTitle,
+        currentStatus: params.currentStatus,
+        nextApprover: params.nextApprover,
+        comments: params.comments
+      });
+    }
+  }
+
+  /**
+   * Send confirmation notification to approver after they approve a request
+   */
+  static async notifyApproverConfirmation(params: {
+    entityType: 'trf' | 'visa' | 'claims' | 'transport' | 'accommodation';
+    entityId: string;
+    approverId?: string;
+    approverName: string;
+    approverEmail?: string;
+    approverRole: string;
+    entityTitle: string;
+    currentStatus: string;
+    nextApprover?: string;
+    comments?: string;
+  }): Promise<void> {
+    try {
+      const entityTypeNames = {
+        trf: 'Travel Request',
+        visa: 'Visa Application', 
+        claims: 'Expense Claim',
+        transport: 'Transport Request',
+        accommodation: 'Accommodation Request'
+      };
+
+      const entityName = entityTypeNames[params.entityType];
+      
+      // Create a friendly confirmation message
+      let confirmationMessage: string;
+      let nextStepMessage: string = '';
+      
+      if (params.nextApprover && params.nextApprover !== 'Completed') {
+        nextStepMessage = ` and has been forwarded to ${params.nextApprover} for the next approval`;
+      } else if (params.currentStatus.includes('Approved') || params.currentStatus.includes('Completed')) {
+        nextStepMessage = ' and is now fully approved';
+      } else {
+        nextStepMessage = ' and is now processing';
+      }
+
+      confirmationMessage = `You have successfully approved ${entityName} "${params.entityTitle}"${nextStepMessage}.`;
+
+      if (params.comments) {
+        confirmationMessage += ` Your comments: "${params.comments}"`;
+      }
+
+      // Send in-app notification
+      if (params.approverId) {
+        await NotificationService.createNotification({
+          userId: params.approverId,
+          title: `✅ Approval Confirmed - ${entityName}`,
+          message: confirmationMessage,
+          type: 'approval_confirmation',
+          category: 'workflow_status',
+          priority: 'medium',
+          relatedEntityType: params.entityType,
+          relatedEntityId: params.entityId,
+          actionRequired: false,
+          actionUrl: `/${params.entityType === 'claims' ? 'claims' : params.entityType}/view/${params.entityId}`
+        });
+      }
+
+      // Send email notification (optional - can be configured)
+      if (params.approverEmail && process.env.SEND_APPROVAL_CONFIRMATIONS !== 'false') {
+        await emailService.sendEmail({
+          to: params.approverEmail,
+          subject: `✅ Approval Confirmed: ${entityName} - ${params.entityTitle}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h2 style="color: #28a745; margin: 0;">✅ Approval Confirmed</h2>
+              </div>
+              
+              <p>Dear ${params.approverName},</p>
+              
+              <p>${confirmationMessage}</p>
+              
+              <div style="background: #e9ecef; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p style="margin: 0;"><strong>Request Details:</strong></p>
+                <p style="margin: 5px 0;">• ${entityName}: ${params.entityTitle}</p>
+                <p style="margin: 5px 0;">• Status: ${params.currentStatus}</p>
+                <p style="margin: 5px 0;">• Your Role: ${params.approverRole}</p>
+                ${params.nextApprover ? `<p style="margin: 5px 0;">• Next Step: ${params.nextApprover}</p>` : ''}
+              </div>
+              
+              <p>Thank you for your timely approval!</p>
+              
+              <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
+              <p style="font-size: 12px; color: #6c757d;">
+                This is an automated confirmation from the VMS System. You do not need to take any further action for this request.
+              </p>
+            </div>
+          `,
+          from: process.env.DEFAULT_FROM_EMAIL || 'VMS System <noreplyvmspctsb@gmail.com>'
+        });
+      }
+
+      console.log(`✅ Approval confirmation sent to ${params.approverName} for ${entityName} ${params.entityId}`);
+    } catch (error) {
+      console.error('Error sending approval confirmation:', error);
+      // Don't throw - this is a nice-to-have feature
+    }
   }
 
   static async notifyRejection(params: {

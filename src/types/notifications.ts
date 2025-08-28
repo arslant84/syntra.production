@@ -5,8 +5,8 @@ export interface UserNotification {
   userId: string;
   title: string;
   message: string;
-  type: 'approval_request' | 'status_update' | 'system';
-  category: 'workflow_approval' | 'personal_status' | 'system_alert';
+  type: 'approval_request' | 'status_update' | 'approval_confirmation' | 'system';
+  category: 'workflow_approval' | 'workflow_status' | 'personal_status' | 'system_alert';
   priority: 'high' | 'normal' | 'low';
   relatedEntityType?: 'trf' | 'claim' | 'visa' | 'transport' | 'accommodation';
   relatedEntityId?: string;
@@ -33,8 +33,8 @@ export interface CreateNotificationParams {
   userId: string;
   title: string;
   message: string;
-  type: 'approval_request' | 'status_update' | 'system';
-  category: 'workflow_approval' | 'personal_status' | 'system_alert';
+  type: 'approval_request' | 'status_update' | 'approval_confirmation' | 'system';
+  category: 'workflow_approval' | 'workflow_status' | 'personal_status' | 'system_alert';
   priority?: 'high' | 'normal' | 'low';
   relatedEntityType?: 'trf' | 'claim' | 'visa' | 'transport' | 'accommodation';
   relatedEntityId?: string;

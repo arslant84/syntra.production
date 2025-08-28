@@ -321,7 +321,7 @@ export class NotificationService {
       relatedEntityType: params.entityType,
       relatedEntityId: params.entityId,
       actionRequired: true,
-      actionUrl: `/${params.entityType}/view/${params.entityId}`
+      actionUrl: `/${params.entityType === 'claim' ? 'claims' : params.entityType}/view/${params.entityId}`
     });
   }
 
@@ -374,7 +374,7 @@ export class NotificationService {
       relatedEntityType: params.entityType,
       relatedEntityId: params.entityId,
       actionRequired: false,
-      actionUrl: `/${params.entityType}/view/${params.entityId}`
+      actionUrl: `/${params.entityType === 'claim' ? 'claims' : params.entityType}/view/${params.entityId}`
     });
   }
 
@@ -421,7 +421,7 @@ export class NotificationService {
           relatedEntityType: params.entityType,
           relatedEntityId: params.entityId,
           actionRequired: true,
-          actionUrl: `/${params.entityType}/view/${params.entityId}`
+          actionUrl: `/${params.entityType === 'claim' ? 'claims' : params.entityType}/view/${params.entityId}`
         });
       }
       

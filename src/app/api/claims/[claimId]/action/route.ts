@@ -98,79 +98,89 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         VALUES (${claimId}, ${approverRole}, ${approverName}, ${approvalStatus}, NOW(), ${approvalComments})
     `;
 
-    // Create notifications for claim action
-    try {
-      // Get the claim requestor information
-      const claimDetails = await sql`
-        SELECT staff_name, staff_no, department_code 
-        FROM expense_claims 
-        WHERE id = ${claimId}
-      `;
+    // Return response immediately, then process notifications asynchronously
+    const response = NextResponse.json({ 
+      message: `Claim action '${action}' processed.`, 
+      claim: updatedClaim 
+    });
 
-      if (claimDetails.length > 0) {
-        const claimInfo = claimDetails[0];
+    // Process notifications asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        console.log(`🔔 CLAIM_NOTIFICATION: Starting async notification process for claim ${claimId} ${effectiveAction}`);
         
-        // Notify the requestor about status update
-        const requestorUser = await sql`
-          SELECT id FROM users 
-          WHERE staff_id = ${claimInfo.staff_no} OR name = ${claimInfo.staff_name}
-          LIMIT 1
+        // Get the claim requestor information including document_number
+        const claimDetails = await sql`
+          SELECT staff_name, staff_no, department_code, document_number, document_type, purpose_of_claim
+          FROM expense_claims 
+          WHERE id = ${claimId}
         `;
-        
-        if (requestorUser.length > 0) {
-          await NotificationService.createStatusUpdate({
-            requestorId: requestorUser[0].id,
-            status: updatedClaim.status,
-            entityType: 'claim',
-            entityId: claimId,
-            approverName: validationResult.data.approverName || 'System',
-            comments: comments || undefined
-          });
-        }
 
-        // Send comprehensive workflow notifications based on action
-        if (action === 'reject') {
-          // Handle rejection notification
-          await UnifiedNotificationService.notifyRejection({
-            entityType: 'claims',
-            entityId: claimId,
-            requestorId: requestorUser[0]?.id || '',
-            requestorName: claimInfo.staff_name,
-            requestorEmail: requestorUser[0]?.email || '',
-            approverName: validationResult.data.approverName || 'System',
-            approverRole: validationResult.data.approverRole || 'Approver',
-            rejectionReason: comments || 'No reason provided',
-            entityTitle: `${claimInfo.document_type || 'Expense Claim'} - ${claimInfo.purpose_of_claim}`
-          });
-        } else {
-          // Handle approval notification (includes progression to next step)
-          await UnifiedNotificationService.notifyApproval({
-            entityType: 'claims',
-            entityId: claimId,
-            requestorId: requestorUser[0]?.id || '',
-            requestorName: claimInfo.staff_name,
-            requestorEmail: requestorUser[0]?.email || '',
-            currentStatus: nextStatus,
-            previousStatus: currentClaim.status,
-            approverName: validationResult.data.approverName || 'System',
-            approverRole: validationResult.data.approverRole || 'Approver',
-            nextApprover: nextStatus === 'Pending HOD Approval' ? 'HOD' : 
-                         nextStatus === 'Pending Finance Approval' ? 'Finance' : 
-                         nextStatus === 'Approved' ? 'Completed' : 'Next Approver',
-            entityTitle: `${claimInfo.document_type || 'Expense Claim'} - ${claimInfo.purpose_of_claim}`,
-            comments: comments
-          });
-        }
+        if (claimDetails.length > 0) {
+          const claimInfo = claimDetails[0];
+          
+          // Notify the requestor about status update
+          const requestorUser = await sql`
+            SELECT id FROM users 
+            WHERE staff_id = ${claimInfo.staff_no} OR name = ${claimInfo.staff_name}
+            LIMIT 1
+          `;
+          
+          if (requestorUser.length > 0) {
+            await NotificationService.createStatusUpdate({
+              requestorId: requestorUser[0].id,
+              status: updatedClaim.status,
+              entityType: 'claim',
+              entityId: claimId, // Keep UUID for URL compatibility
+              approverName: validationResult.data.approverName || 'System',
+              comments: comments || undefined
+            });
+          }
 
-        console.log(`Created notifications for claim ${claimId} ${effectiveAction} action`);
+          // Send comprehensive workflow notifications based on action
+          if (action === 'reject') {
+            // Handle rejection notification
+            await UnifiedNotificationService.notifyRejection({
+              entityType: 'claims',
+              entityId: claimId, // Keep UUID for URL compatibility
+              requestorId: requestorUser[0]?.id || '',
+              requestorName: claimInfo.staff_name,
+              requestorEmail: requestorUser[0]?.email || '',
+              approverName: validationResult.data.approverName || 'System',
+              approverRole: validationResult.data.approverRole || 'Approver',
+              rejectionReason: comments || 'No reason provided',
+              entityTitle: `${claimInfo.document_number || claimId} - ${claimInfo.purpose_of_claim || claimInfo.document_type || 'Expense Claim'}`
+            });
+          } else {
+            // Handle approval notification (includes progression to next step)
+            await UnifiedNotificationService.notifyApproval({
+              entityType: 'claims',
+              entityId: claimId, // Keep UUID for URL compatibility
+              requestorId: requestorUser[0]?.id || '',
+              requestorName: claimInfo.staff_name,
+              requestorEmail: requestorUser[0]?.email || '',
+              currentStatus: nextStatus,
+              previousStatus: currentClaim.status,
+              approverName: validationResult.data.approverName || 'System',
+              approverRole: validationResult.data.approverRole || 'Approver',
+              nextApprover: nextStatus === 'Pending HOD Approval' ? 'HOD' : 
+                           nextStatus === 'Pending Finance Approval' ? 'Finance' : 
+                           nextStatus === 'Approved' ? 'Completed' : 'Next Approver',
+              entityTitle: `${claimInfo.document_number || claimId} - ${claimInfo.purpose_of_claim || claimInfo.document_type || 'Expense Claim'}`,
+              comments: comments
+            });
+          }
+
+          console.log(`✅ CLAIM_NOTIFICATION: Successfully created async notifications for claim ${claimId} ${effectiveAction} action`);
+        }
+      } catch (notificationError) {
+        console.error(`❌ CLAIM_NOTIFICATION: Failed to create async notifications for claim ${claimId}:`, notificationError);
+        // Notification failures don't affect the claim action
       }
-    } catch (notificationError) {
-      console.error(`Failed to create notifications for claim ${claimId}:`, notificationError);
-      // Don't fail the claim action due to notification errors
-    }
+    });
 
     console.log(`API_CLAIMS_ACTION_POST (PostgreSQL): Claim ${claimId} action '${action}' processed. New status: ${updatedClaim.status}`);
-    return NextResponse.json({ message: `Claim action '${action}' processed.`, claim: updatedClaim });
+    return response;
 
   } catch (error: any) {
     console.error(`API_CLAIMS_ACTION_POST_ERROR (PostgreSQL) for claim ${claimId}:`, error.message, error.stack);

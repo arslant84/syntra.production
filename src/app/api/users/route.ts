@@ -138,7 +138,7 @@ export const GET = withRateLimit(RATE_LIMITS.API_READ)(async function(request: N
     console.error("API_USERS_GET_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to fetch users from database.', details: error.message }, { status: 500 });
   }
-}));
+});
 
 export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(async function(request: NextRequest) {
   // Require admin role - accept both "System Administrator" and "admin" for backwards compatibility

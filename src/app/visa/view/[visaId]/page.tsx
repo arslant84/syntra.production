@@ -57,7 +57,8 @@ export default function ViewVisaPage() {
       // Check if user has permission to manage visa documents
       const response = await fetch('/api/user/permissions');
       if (response.ok) {
-        const permissions = await response.json();
+        const data = await response.json();
+        const permissions = data.permissions || [];
         const canManage = permissions.includes('process_visa_applications') || 
                          permissions.includes('manage_visa_documents');
         setCanManageDocuments(canManage);

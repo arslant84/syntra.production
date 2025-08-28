@@ -130,7 +130,7 @@ export default function HomePage() {
       <Card className="bg-transparent shadow-none border-none">
         <CardContent>
           <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4 border-none shadow-none">
-            <Link href="/tsr/new" passHref>
+            <Link href="/trf/new" passHref>
               <Button size="lg" variant="default" className="w-48 whitespace-normal text-center">
                 <PlusCircle className="mr-2 h-5 w-5" /> Create New TSR
               </Button>
@@ -140,7 +140,7 @@ export default function HomePage() {
                 <PlusCircle className="mr-2 h-5 w-5" /> Submit New Claim
               </Button>
             </Link>
-            <Link href="/accommodation" passHref>
+            <Link href="/accommodation/request" passHref>
               <Button size="lg" variant="default" className="w-48 whitespace-normal text-center">
                 <PlusCircle className="mr-2 h-5 w-5" /> Book Accommodation
               </Button>

@@ -333,7 +333,7 @@ export class WorkflowEmailService {
    */
   private static prepareTemplateVariables(params: WorkflowEmailParams): Record<string, string> {
     const baseUrl = this.BASE_URL;
-    const approvalUrl = `${baseUrl}/${params.entityType}/view/${params.entityId}`;
+    const approvalUrl = `${baseUrl}/${params.entityType === 'claim' ? 'claims' : params.entityType}/view/${params.entityId}`;
     const dashboardUrl = `${baseUrl}/dashboard`;
 
     const variables = {
@@ -376,7 +376,7 @@ export class WorkflowEmailService {
    */
   private static generateApprovalButtons(entityType: string, entityId: string): string {
     const baseUrl = this.BASE_URL;
-    const viewUrl = `${baseUrl}/${entityType}/view/${entityId}`;
+    const viewUrl = `${baseUrl}/${entityType === 'claim' ? 'claims' : entityType}/view/${entityId}`;
     
     return `
       <div style="margin: 20px 0; text-align: center;">

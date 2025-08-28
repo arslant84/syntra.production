@@ -8,6 +8,7 @@ import { requireAuth, createAuthError } from '@/lib/auth-utils';
 import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { NotificationService } from '@/lib/notification-service';
 import { generateUniversalUserFilter, shouldBypassUserFilter } from '@/lib/universal-user-matching';
+import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from '@/lib/request-deduplication';
 
 const accommodationRequestSchema = z.object({
   trfId: z.string().optional().nullable(), // Can be optional if not directly tied to a TRF
@@ -28,6 +29,8 @@ const accommodationRequestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  let requestFingerprint: string | undefined;
+
   try {
     // SECURITY: Require authentication
     const user = await requireAuth();
@@ -44,6 +47,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Validation failed", details: validationResult.error.flatten() }, { status: 400 });
     }
     const data = validationResult.data;
+
+    // Check for duplicate submission using request deduplication
+    requestFingerprint = generateRequestFingerprint(
+      user.id || user.email,
+      'accommodation_submission',
+      {
+        requestorName: data.requestorName,
+        location: data.location,
+        checkInDate: data.requestedCheckInDate.toISOString(),
+        checkOutDate: data.requestedCheckOutDate.toISOString(),
+        roomType: data.requestedRoomType || ''
+      }
+    );
+
+    const deduplicationResult = checkAndMarkRequest(requestFingerprint, 30000); // 30 seconds TTL
+    if (deduplicationResult.isDuplicate) {
+      console.warn(`API_ACCOM_REQ_POST_DUPLICATE: Duplicate accommodation submission detected for user ${user.email}. Time remaining: ${deduplicationResult.timeRemaining}s`);
+      return NextResponse.json({ 
+        error: 'Duplicate submission detected', 
+        message: `Please wait ${deduplicationResult.timeRemaining} seconds before submitting again.`,
+        details: 'You recently submitted a similar accommodation request. To prevent duplicates, please wait before trying again.'
+      }, { status: 429 });
+    }
     
     // Generate a unified request ID for the accommodation request
     // Use the location as context for the request ID
@@ -104,56 +130,73 @@ export async function POST(request: NextRequest) {
       flightDepartureTime: newAccommodationDetails.check_out_time,
       submittedDate: newTravelRequest.submitted_at
     };
+
+    // Mark deduplication request as completed (successful submission)
+    markRequestCompleted(requestFingerprint);
+    
     console.log("API_ACCOM_REQ_POST (PostgreSQL): Accommodation request created:", newRequest.id);
     
-    // Send notification to Department Focals in the requestor's department
-    try {
-      // First get the requestor's department from their user record
-      let requestorDepartment = 'Unknown';
-      if (data.requestorId) {
-        const requestorInfo = await sql`
-          SELECT department FROM users WHERE staff_id = ${data.requestorId} OR email = ${data.requestorId} LIMIT 1
-        `;
-        if (requestorInfo.length > 0) {
-          requestorDepartment = requestorInfo[0].department || 'Unknown';
-        }
-      }
-
-      // Find Department Focals with accommodation approval permission in the same department
-      const departmentFocals = await sql`
-        SELECT u.id, u.name 
-        FROM users u
-        INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-        INNER JOIN permissions p ON rp.permission_id = p.id
-        WHERE p.name = 'approve_trf_focal'
-          AND u.department = ${requestorDepartment}
-          AND u.status = 'Active'
-      `;
-
-      for (const focal of departmentFocals) {
-        await NotificationService.createApprovalRequest({
-          approverId: focal.id,
-          requestorName: data.requestorName,
-          entityType: 'accommodation',
-          entityId: accomRequestId,
-          entityTitle: `Accommodation Request at ${data.location}`
-        });
-      }
-      
-      if (departmentFocals.length > 0) {
-        console.log(`Created approval notifications for accommodation ${accomRequestId} to ${departmentFocals.length} department focals`);
-      }
-    } catch (notificationError) {
-      console.error('Error sending notifications for new accommodation request:', notificationError);
-      // Don't fail the main operation due to notification errors
-    }
-    
-    return NextResponse.json({ 
+    // Return response immediately, then process notifications asynchronously
+    const response = NextResponse.json({ 
       message: 'Accommodation request submitted successfully!', 
       accommodationRequest: newRequest,
       requestId: accomRequestId
     }, { status: 201 });
+
+    // Process notifications asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        console.log(`🔔 ACCOMMODATION_NOTIFICATION: Starting async notification process for accommodation ${accomRequestId}`);
+        
+        // First get the requestor's department from their user record
+        let requestorDepartment = 'Unknown';
+        if (data.requestorId) {
+          const requestorInfo = await sql`
+            SELECT department FROM users WHERE staff_id = ${data.requestorId} OR email = ${data.requestorId} LIMIT 1
+          `;
+          if (requestorInfo.length > 0) {
+            requestorDepartment = requestorInfo[0].department || 'Unknown';
+          }
+        }
+
+        // Find Department Focals with accommodation approval permission in the same department
+        const departmentFocals = await sql`
+          SELECT u.id, u.name 
+          FROM users u
+          INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+          INNER JOIN permissions p ON rp.permission_id = p.id
+          WHERE p.name = 'approve_trf_focal'
+            AND u.department = ${requestorDepartment}
+            AND u.status = 'Active'
+        `;
+
+        for (const focal of departmentFocals) {
+          await NotificationService.createApprovalRequest({
+            approverId: focal.id,
+            requestorName: data.requestorName,
+            entityType: 'accommodation',
+            entityId: accomRequestId,
+            entityTitle: `Accommodation Request at ${data.location}`
+          });
+        }
+        
+        if (departmentFocals.length > 0) {
+          console.log(`✅ ACCOMMODATION_NOTIFICATION: Sent async notifications for accommodation ${accomRequestId} to ${departmentFocals.length} department focals`);
+        }
+      } catch (notificationError) {
+        console.error(`❌ ACCOMMODATION_NOTIFICATION: Error sending async notifications for accommodation ${accomRequestId}:`, notificationError);
+        // Notification failures don't affect the submitted request
+      }
+    });
+
+    console.log("API_ACCOM_REQ_POST (PostgreSQL): Accommodation request submission completed successfully:", accomRequestId);
+    return response;
   } catch (error: any) {
+    // Clean up deduplication on error
+    if (requestFingerprint) {
+      markRequestCompleted(requestFingerprint);
+    }
+
     // Handle authentication errors
     if (error.message === 'UNAUTHORIZED') {
       const authError = createAuthError('UNAUTHORIZED');

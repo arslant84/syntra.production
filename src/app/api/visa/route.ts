@@ -10,6 +10,7 @@ import { NotificationService } from '@/lib/notification-service';
 import { generateUniversalUserFilter, shouldBypassUserFilter } from '@/lib/universal-user-matching';
 import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
 import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
+import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from '@/lib/request-deduplication';
 
 const visaApplicationCreateSchema = z.object({
   applicantName: z.string().min(1, "Applicant name is required"),
@@ -49,6 +50,8 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     return NextResponse.json({ error: 'Database client not initialized. Check server logs.' }, { status: 503 });
   }
   
+  let requestFingerprint: string | undefined;
+  
   try {
     const body = await request.json();
     const validationResult = visaApplicationCreateSchema.safeParse(body);
@@ -59,10 +62,34 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
       return NextResponse.json({ error: "Validation failed", details: validationResult.error.errors }, { status: 400 });
     }
     const data = validationResult.data;
+
+    // Check for duplicate submission using request deduplication
+    requestFingerprint = generateRequestFingerprint(
+      session.id,
+      'visa_submission',
+      {
+        applicantName: data.applicantName,
+        travelPurpose: data.travelPurpose,
+        destination: data.destination,
+        visaType: data.visaType,
+        tripStartDate: data.tripStartDate.toISOString(),
+        tripEndDate: data.tripEndDate.toISOString()
+      }
+    );
+
+    const deduplicationResult = checkAndMarkRequest(requestFingerprint, 30000); // 30 seconds TTL
+    if (deduplicationResult.isDuplicate) {
+      console.warn(`API_VISA_POST_DUPLICATE: Duplicate visa submission detected for user ${session.id}. Time remaining: ${deduplicationResult.timeRemaining}s`);
+      return NextResponse.json({ 
+        error: 'Duplicate submission detected', 
+        message: `Please wait ${deduplicationResult.timeRemaining} seconds before submitting again.`,
+        details: 'You recently submitted a similar visa application. To prevent duplicates, please wait before trying again.'
+      }, { status: 429 });
+    }
     
     // Generate a unified request ID for the visa application
     // Use the destination country as context for the request ID
-    let contextForVisaId = data.destination.substring(0, 5).toUpperCase();
+    let contextForVisaId = data.destination?.substring(0, 5).toUpperCase() || 'VISA';
     const visaRequestId = generateRequestId('VIS', contextForVisaId);
     console.log("API_VISA_POST (PostgreSQL): Generated Visa ID:", visaRequestId);
 
@@ -96,55 +123,70 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
         )
     `;
 
-    // Send notification to Department Focals in the requestor's department
-    try {
-      // First get the requestor's department from their user record
-      let requestorDepartment = 'Unknown';
-      if (data.employeeId) {
-        const requestorInfo = await sql`
-          SELECT department FROM users WHERE staff_id = ${data.employeeId} OR email = ${data.employeeId} LIMIT 1
-        `;
-        if (requestorInfo.length > 0) {
-          requestorDepartment = requestorInfo[0].department || 'Unknown';
-        }
-      }
-
-      // Find Department Focals with visa approval permission in the same department
-      const departmentFocals = await sql`
-        SELECT u.id, u.name 
-        FROM users u
-        INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-        INNER JOIN permissions p ON rp.permission_id = p.id
-        WHERE p.name = 'approve_trf_focal'
-          AND u.department = ${requestorDepartment}
-          AND u.status = 'Active'
-      `;
-
-      for (const focal of departmentFocals) {
-        await NotificationService.createApprovalRequest({
-          approverId: focal.id,
-          requestorName: data.applicantName,
-          entityType: 'visa',
-          entityId: visaRequestId,
-          entityTitle: `Visa Application to ${data.destination}`
-        });
-      }
-      
-      if (departmentFocals.length > 0) {
-        console.log(`Created approval notifications for visa ${visaRequestId} to ${departmentFocals.length} department focals`);
-      }
-    } catch (notificationError) {
-      console.error('Error sending notifications for new visa application:', notificationError);
-      // Don't fail the main operation due to notification errors
-    }
-
-    console.log("API_VISA_POST (PostgreSQL): Visa application created successfully:", newVisaApp.id);
-    return NextResponse.json({ 
+    // Mark deduplication request as completed (successful submission)
+    markRequestCompleted(requestFingerprint);
+    
+    // Return response immediately, then process notifications asynchronously
+    const response = NextResponse.json({ 
       message: 'Visa application submitted successfully!', 
       visaApplication: newVisaApp,
       requestId: visaRequestId
     }, { status: 201 });
+
+    // Process notifications asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        console.log(`🔔 VISA_NOTIFICATION: Starting async notification process for visa ${visaRequestId}`);
+        
+        // First get the requestor's department from their user record
+        let requestorDepartment = 'Unknown';
+        if (data.employeeId) {
+          const requestorInfo = await sql`
+            SELECT department FROM users WHERE staff_id = ${data.employeeId} OR email = ${data.employeeId} LIMIT 1
+          `;
+          if (requestorInfo.length > 0) {
+            requestorDepartment = requestorInfo[0].department || 'Unknown';
+          }
+        }
+
+        // Find Department Focals with visa approval permission in the same department
+        const departmentFocals = await sql`
+          SELECT u.id, u.name 
+          FROM users u
+          INNER JOIN role_permissions rp ON u.role_id = rp.role_id
+          INNER JOIN permissions p ON rp.permission_id = p.id
+          WHERE p.name = 'approve_trf_focal'
+            AND u.department = ${requestorDepartment}
+            AND u.status = 'Active'
+        `;
+
+        for (const focal of departmentFocals) {
+          await NotificationService.createApprovalRequest({
+            approverId: focal.id,
+            requestorName: data.applicantName,
+            entityType: 'visa',
+            entityId: visaRequestId,
+            entityTitle: `Visa Application to ${data.destination || 'Unknown Destination'}`
+          });
+        }
+        
+        if (departmentFocals.length > 0) {
+          console.log(`✅ VISA_NOTIFICATION: Created approval notifications for visa ${visaRequestId} to ${departmentFocals.length} department focals`);
+        }
+      } catch (notificationError) {
+        console.error(`❌ VISA_NOTIFICATION: Error sending async notifications for visa ${visaRequestId}:`, notificationError);
+        // Notification failures don't affect the submitted visa application
+      }
+    });
+
+    console.log("API_VISA_POST (PostgreSQL): Visa application created successfully:", newVisaApp.id);
+    return response;
   } catch (error: any) {
+    // Clean up deduplication on error
+    if (requestFingerprint) {
+      markRequestCompleted(requestFingerprint);
+    }
+    
     console.error("API_VISA_POST_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to create visa application.', details: error.message }, { status: 500 });
   }

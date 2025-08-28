@@ -11,6 +11,7 @@ import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 import { generateUniversalUserFilter, generateUniversalUserFilterSQL, shouldBypassUserFilter } from '@/lib/universal-user-matching';
 import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
 import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
+import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from '@/lib/request-deduplication';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -100,6 +101,8 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
   }
 
+  let requestFingerprint: string | undefined;
+
   try {
     const body = await request.json();
     console.log("API_CLAIMS_POST (PostgreSQL): Received raw body:", JSON.stringify(body).substring(0, 500) + "...");
@@ -111,6 +114,29 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     }
     const data = validationResult.data;
     const { headerDetails, bankDetails, medicalClaimDetails, expenseItems, informationOnForeignExchangeRate, financialSummary, declaration, trfId } = data;
+    
+    // Check for duplicate submission using request deduplication
+    requestFingerprint = generateRequestFingerprint(
+      session.id,
+      'claims_submission',
+      {
+        staffName: headerDetails.staffName,
+        documentType: headerDetails.documentType,
+        purposeOfClaim: bankDetails.purposeOfClaim,
+        claimForMonthOf: headerDetails.claimForMonthOf.toISOString(),
+        totalAmount: financialSummary.totalAdvanceClaimAmount
+      }
+    );
+
+    const deduplicationResult = checkAndMarkRequest(requestFingerprint, 30000); // 30 seconds TTL
+    if (deduplicationResult.isDuplicate) {
+      console.warn(`API_CLAIMS_POST_DUPLICATE: Duplicate claims submission detected for user ${session.id}. Time remaining: ${deduplicationResult.timeRemaining}s`);
+      return NextResponse.json({ 
+        error: 'Duplicate submission detected', 
+        message: `Please wait ${deduplicationResult.timeRemaining} seconds before submitting again.`,
+        details: 'You recently submitted a similar expense claim. To prevent duplicates, please wait before trying again.'
+      }, { status: 429 });
+    }
     
     // Generate a unified request ID for the claim
     // Use the claim purpose as context (first word or first few characters)
@@ -192,35 +218,52 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
       
       return claimId;
     });
+
+    // Mark deduplication request as completed (successful submission)
+    markRequestCompleted(requestFingerprint);
     
     console.log("API_CLAIMS_POST (PostgreSQL): Expense claim created successfully:", newClaim);
     console.log("API_CLAIMS_POST (PostgreSQL): Generated claim ID:", claimRequestId);
     
-    // Send comprehensive workflow notifications using new unified service
-    try {
-      await UnifiedNotificationService.notifySubmission({
-        entityType: 'claims',
-        entityId: claimRequestId,
-        requestorId: session.id,
-        requestorName: data.headerDetails.staffName,
-        requestorEmail: session.email,
-        department: data.headerDetails.departmentCode,
-        entityTitle: `${data.headerDetails.documentType} - ${data.bankDetails.purposeOfClaim}`,
-        entityAmount: data.financialSummary.totalAdvanceClaimAmount.toString(),
-        entityDates: formatISO(data.headerDetails.claimForMonthOf, {representation: 'date'})
-      });
-      console.log(`✅ Sent unified workflow notifications for claim ${claimRequestId}`);
-    } catch (notificationError) {
-      console.error(`❌ Failed to send workflow notifications for claim ${claimRequestId}:`, notificationError);
-      // Don't fail the claim submission due to notification errors
-    }
-    
-    return NextResponse.json({ 
+    // Return response immediately, then process notifications asynchronously
+    const response = NextResponse.json({ 
       message: 'Expense claim submitted successfully!', 
       claimId: newClaim,
       requestId: claimRequestId 
     }, { status: 201 });
+
+    // Process notifications asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        console.log(`🔔 CLAIMS_NOTIFICATION: Starting async notification process for claim ${claimRequestId}`);
+        
+        await UnifiedNotificationService.notifySubmission({
+          entityType: 'claims',
+          entityId: claimRequestId,
+          requestorId: session.id,
+          requestorName: data.headerDetails.staffName,
+          requestorEmail: session.email,
+          department: data.headerDetails.departmentCode,
+          entityTitle: `${data.headerDetails.documentType} - ${data.bankDetails.purposeOfClaim}`,
+          entityAmount: data.financialSummary.totalAdvanceClaimAmount.toString(),
+          entityDates: formatISO(data.headerDetails.claimForMonthOf, {representation: 'date'})
+        });
+        
+        console.log(`✅ CLAIMS_NOTIFICATION: Sent async workflow notifications for claim ${claimRequestId}`);
+      } catch (notificationError) {
+        console.error(`❌ CLAIMS_NOTIFICATION: Error sending async notifications for claim ${claimRequestId}:`, notificationError);
+        // Notification failures don't affect the submitted claim
+      }
+    });
+
+    console.log("API_CLAIMS_POST (PostgreSQL): Claims submission completed successfully:", claimRequestId);
+    return response;
   } catch (error: any) {
+    // Clean up deduplication on error
+    if (requestFingerprint) {
+      markRequestCompleted(requestFingerprint);
+    }
+    
     console.error("API_CLAIMS_POST_ERROR (PostgreSQL):", error.message, error.stack);
     return NextResponse.json({ error: 'Failed to create expense claim.', details: error.message }, { status: 500 });
   }

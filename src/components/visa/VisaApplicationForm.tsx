@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { FormSubmitButton } from "@/components/ui/submit-button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -106,7 +107,7 @@ type VisaFormValues = Omit<VisaApplication, 'id' | 'userId' | 'status' | 'submit
 
 interface VisaApplicationFormProps {
   initialData: Partial<VisaApplication>;
-  onSubmit: (data: VisaFormValues) => void;
+  onSubmit: (data: VisaFormValues) => Promise<void>;
 }
 
 export default function VisaApplicationForm({ initialData, onSubmit }: VisaApplicationFormProps) {
@@ -159,8 +160,14 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
 
   const watchTravelPurpose = form.watch("travelPurpose");
 
-  function handleFormSubmit(values: VisaFormValues) {
-    onSubmit(values);
+  async function handleFormSubmit(values: VisaFormValues) {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      console.error('Visa form submission error:', error);
+      // Error handling can be improved here
+      throw error;
+    }
   }
 
   return (
@@ -319,9 +326,17 @@ export default function VisaApplicationForm({ initialData, onSubmit }: VisaAppli
 
 
         <div className="flex justify-end pt-6">
-          <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Submitting..." : "Submit Visa Application"}
-          </Button>
+          <FormSubmitButton 
+            onClick={form.handleSubmit(handleFormSubmit)}
+            type="button" 
+            size="lg"
+            loadingText="Submitting visa application..."
+            disabled={!form.formState.isValid}
+            preventMultipleClicks={true}
+            debounceMs={500}
+          >
+            Submit Visa Application
+          </FormSubmitButton>
         </div>
       </form>
     </Form>

@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface LoadingSpinnerProps {
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   text?: string;
 }
@@ -14,9 +14,11 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   text
 }) => {
   const sizeClasses = {
+    xs: 'w-3 h-3',
     sm: 'w-4 h-4',
     md: 'w-6 h-6',
-    lg: 'w-8 h-8'
+    lg: 'w-8 h-8',
+    xl: 'w-12 h-12'
   };
 
   return (
@@ -89,6 +91,55 @@ export const LoadingPage: React.FC<LoadingPageProps> = ({
         <LoadingSpinner size="lg" />
         <p className="text-muted-foreground">{message}</p>
       </div>
+    </div>
+  );
+};
+
+// Inline loading spinner for buttons and small spaces
+interface InlineLoadingProps {
+  size?: 'xs' | 'sm';
+  className?: string;
+}
+
+export const InlineLoading: React.FC<InlineLoadingProps> = ({
+  size = 'sm',
+  className
+}) => {
+  const sizeClasses = {
+    xs: 'w-3 h-3',
+    sm: 'w-4 h-4'
+  };
+
+  return (
+    <Loader2 className={cn('animate-spin text-current', sizeClasses[size], className)} />
+  );
+};
+
+// Loading overlay for covering content while loading
+interface LoadingOverlayProps {
+  isLoading: boolean;
+  children: React.ReactNode;
+  message?: string;
+  className?: string;
+}
+
+export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
+  isLoading,
+  children,
+  message = 'Loading...',
+  className
+}) => {
+  return (
+    <div className={cn('relative', className)}>
+      {children}
+      {isLoading && (
+        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50 rounded-md">
+          <div className="text-center space-y-2">
+            <LoadingSpinner size="lg" />
+            <p className="text-sm text-muted-foreground">{message}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

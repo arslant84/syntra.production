@@ -5,6 +5,10 @@ import { sql } from '@/lib/db';
 import type { TravelRequestForm, TrfStatus } from '@/types/trf';
 import { NotificationService } from '@/lib/notification-service';
 import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from '@/lib/request-deduplication';
 
 const actionSchema = z.object({
   action: z.enum(["approve", "reject", "cancel"]),
@@ -37,6 +41,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Database client not initialized.' }, { status: 503 });
   }
 
+  let requestFingerprint: string | undefined;
+
   try {
     const body = await request.json();
     const validationResult = actionSchema.safeParse(body);
@@ -46,6 +52,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Validation failed for action", details: validationResult.error.flatten() }, { status: 400 });
     }
     const { action, comments, approverRole, approverName } = validationResult.data;
+
+    // Check for duplicate action submission using request deduplication
+    requestFingerprint = generateRequestFingerprint(
+      trfId,
+      'trf_action',
+      {
+        action: action,
+        approverRole: approverRole,
+        approverName: approverName,
+        timestamp: Date.now().toString()
+      }
+    );
+
+    const deduplicationResult = checkAndMarkRequest(requestFingerprint, 15000); // 15 seconds TTL for actions
+    if (deduplicationResult.isDuplicate) {
+      console.warn(`API_TRF_ACTION_POST_DUPLICATE: Duplicate TRF action detected for ${trfId}. Time remaining: ${deduplicationResult.timeRemaining}s`);
+      return NextResponse.json({ 
+        error: 'Duplicate action detected', 
+        message: `Please wait ${deduplicationResult.timeRemaining} seconds before trying again.`,
+        details: 'This action was recently performed. To prevent duplicates, please wait before trying again.'
+      }, { status: 429 });
+    }
     
     const [currentTrf] = await sql`SELECT id, status, travel_type, estimated_cost, requestor_name, external_full_name FROM travel_requests WHERE id = ${trfId}`;
 
@@ -141,44 +169,101 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       console.error(`API_TRF_ACTION_POST_ERROR (PostgreSQL): Failed to update TRF ${trfId}`);
       return NextResponse.json({ error: 'Failed to update TRF' }, { status: 500 });
     }
+
+    // Mark deduplication request as completed (successful action)
+    markRequestCompleted(requestFingerprint);
     
-    // Create enhanced workflow notifications
-    try {
-      // Get TRF details including requestor information
-      const trfDetails = await sql`
-        SELECT tr.staff_id, tr.requestor_name, tr.department, tr.purpose, u.email, u.id as user_id
-        FROM travel_requests tr
-        LEFT JOIN users u ON (tr.staff_id = u.staff_id OR tr.staff_id = u.id OR tr.staff_id = u.email)
-        WHERE tr.id = ${trfId}
-      `;
+    // Return response immediately, then process notifications asynchronously
+    const response = NextResponse.json({ message: `TRF ${action}ed successfully.`, trf: updated });
 
-      if (trfDetails.length > 0) {
-        const trfInfo = trfDetails[0];
+    // Process notifications asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        console.log(`🔔 TRF_ACTION_NOTIFICATION: Starting async notification process for TRF ${trfId} ${action}`);
         
-        // Send enhanced workflow notification for status change
-        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
-          entityType: 'trf',
-          entityId: trfId,
-          requestorName: trfInfo.requestor_name || 'User',
-          requestorEmail: trfInfo.email,
-          requestorId: trfInfo.user_id,
-          department: trfInfo.department,
-          purpose: trfInfo.purpose,
-          newStatus: updated.status,
-          approverName: approverName,
-          comments: comments
-        });
+        // Create enhanced workflow notifications with approval confirmation
+        const session = await getServerSession(authOptions);
+        
+        // Get TRF details including requestor information
+        const trfDetails = await sql`
+          SELECT tr.staff_id, tr.requestor_name, tr.department, tr.purpose, u.email, u.id as user_id
+          FROM travel_requests tr
+          LEFT JOIN users u ON (tr.staff_id = u.staff_id OR tr.staff_id = u.id OR tr.staff_id = u.email)
+          WHERE tr.id = ${trfId}
+        `;
+
+        if (trfDetails.length > 0) {
+          const trfInfo = trfDetails[0];
+          
+          // Determine next approver
+          const nextApprover = updated.status === 'Pending Line Manager' ? 'Line Manager' :
+                             updated.status === 'Pending HOD' ? 'HOD' :
+                             updated.status === 'Approved' ? 'Completed' : 'Processing';
+          
+          if (action === 'approve') {
+            // Send approval notification (includes confirmation to approver)
+            await UnifiedNotificationService.notifyApproval({
+              entityType: 'trf',
+              entityId: trfId,
+              requestorId: trfInfo.user_id,
+              requestorName: trfInfo.requestor_name || 'User',
+              requestorEmail: trfInfo.email,
+              currentStatus: updated.status,
+              previousStatus: currentTrf.status,
+              approverName: approverName,
+              approverRole: approverRole,
+              approverId: session?.user?.id,
+              approverEmail: session?.user?.email,
+              nextApprover: nextApprover,
+              entityTitle: trfInfo.purpose || `Travel Request ${trfId}`,
+              comments: comments
+            });
+          } else if (action === 'reject') {
+            // Send rejection notification
+            await UnifiedNotificationService.notifyRejection({
+              entityType: 'trf',
+              entityId: trfId,
+              requestorId: trfInfo.user_id,
+              requestorName: trfInfo.requestor_name || 'User',
+              requestorEmail: trfInfo.email,
+              approverName: approverName,
+              approverRole: approverRole,
+              rejectionReason: comments || 'No reason provided',
+              entityTitle: trfInfo.purpose || `Travel Request ${trfId}`
+            });
+          }
+          
+          // Also send legacy enhanced workflow notification for compatibility
+          await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
+            entityType: 'trf',
+            entityId: trfId,
+            requestorName: trfInfo.requestor_name || 'User',
+            requestorEmail: trfInfo.email,
+            requestorId: trfInfo.user_id,
+            department: trfInfo.department,
+            purpose: trfInfo.purpose,
+            newStatus: updated.status,
+            approverName: approverName,
+            comments: comments
+          });
+        }
+
+        console.log(`✅ TRF_ACTION_NOTIFICATION: Sent async workflow notifications for TRF ${trfId} ${action} by ${approverName}`);
+      } catch (notificationError) {
+        console.error(`❌ TRF_ACTION_NOTIFICATION: Error sending async notifications for TRF ${trfId}:`, notificationError);
+        // Notification failures don't affect the completed action
       }
+    });
 
-      console.log(`✅ Created enhanced workflow notifications for TRF ${trfId} ${action} by ${approverName}`);
-    } catch (notificationError) {
-      console.error(`❌ Failed to create enhanced workflow notifications for TRF ${trfId}:`, notificationError);
-      // Don't fail the approval due to notification errors
-    }
-
-    return NextResponse.json({ message: `TRF ${action}ed successfully.`, trf: updated });
+    console.log(`API_TRF_ACTION_POST (PostgreSQL): TRF ${trfId} ${action} completed successfully`);
+    return response;
 
   } catch (error: any) {
+    // Clean up deduplication on error
+    if (requestFingerprint) {
+      markRequestCompleted(requestFingerprint);
+    }
+    
     console.error(`API_TRF_ACTION_POST_ERROR (PostgreSQL) for TRF ${trfId}:`, error.message, error.stack);
     return NextResponse.json({ error: `Failed to perform action on TRF.`, details: error.message }, { status: 500 });
   }

@@ -128,17 +128,54 @@ export default function NewClaimPage() {
           </div>
         </CardHeader>
         <CardContent className="py-8 px-4 md:px-8">
-          {initialClaimData ? (
-            <ExpenseClaimForm
-              initialData={initialClaimData as ExpenseClaim}
-              onSubmit={handleSubmitClaim}
-              submitButtonText="Submit Claim"
-            />
-          ) : (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-muted-foreground">Loading user details...</div>
-            </div>
-          )}
+          <ExpenseClaimForm
+            initialData={initialClaimData || {
+              headerDetails: {
+                documentType: "",
+                documentNumber: "",
+                claimForMonthOf: null,
+                staffName: "",
+                staffNo: "",
+                gred: "",
+                staffType: "",
+                executiveStatus: "",
+                departmentCode: "",
+                deptCostCenterCode: "",
+                location: "",
+                telExt: "",
+                startTimeFromHome: "",
+                timeOfArrivalAtHome: "",
+              },
+              bankDetails: {
+                bankName: "",
+                accountNumber: "",
+                purposeOfClaim: "",
+              },
+              medicalClaimDetails: {
+                isMedicalClaim: false,
+                applicableMedicalType: "",
+                isForFamily: false,
+                familyMemberSpouse: false,
+                familyMemberChildren: false,
+                familyMemberOther: "",
+              },
+              expenseItems: [],
+              informationOnForeignExchangeRate: [],
+              financialSummary: {
+                totalAdvanceClaimAmount: "",
+                lessAdvanceTaken: "",
+                lessCorporateCreditCardPayment: "",
+                balanceClaimRepayment: "",
+                chequeReceiptNo: "",
+              },
+              declaration: {
+                iDeclare: false,
+                date: new Date(),
+              },
+            } as ExpenseClaim}
+            onSubmit={handleSubmitClaim}
+            submitButtonText="Submit Claim"
+          />
         </CardContent>
       </Card>
     </div>

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { hasPermission } from '@/lib/permissions';
-import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 
 const processClaimSchema = z.object({
   action: z.enum(["process", "complete"]),
@@ -148,19 +148,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (claimDetails.length > 0) {
         const claimInfo = claimDetails[0];
         
-        // Send enhanced workflow notification for status change
-        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
-          entityType: 'claim',
-          entityId: claimId,
-          requestorName: claimInfo.staff_name || 'User',
-          requestorEmail: claimInfo.email,
-          requestorId: claimInfo.user_id,
-          department: claimInfo.department_code,
-          purpose: claimInfo.purpose_of_claim,
-          newStatus: updated.status,
-          approverName: 'Claims Admin',
-          comments: comments
-        });
+        // Send 5-stage workflow notification
+        if (action === 'complete') {
+          // This is the final admin completion stage
+          await UnifiedNotificationService.notifyAdminCompletion({
+            entityType: 'claim',
+            entityId: claimId,
+            requestorId: claimInfo.user_id,
+            requestorName: claimInfo.staff_name || 'User',
+            requestorEmail: claimInfo.email,
+            adminName: 'Claims Admin',
+            entityTitle: claimInfo.purpose_of_claim || `Expense Claim ${claimId}`,
+            completionDetails: comments || 'Claim processing completed with reimbursement details'
+          });
+        } else {
+          // For processing, notify status change
+          await UnifiedNotificationService.notifyStatusUpdate({
+            entityType: 'claim',
+            entityId: claimId,
+            requestorId: claimInfo.user_id,
+            requestorName: claimInfo.staff_name || 'User',
+            requestorEmail: claimInfo.email,
+            newStatus: updated.status,
+            previousStatus: currentClaim.status,
+            updateReason: 'Claim processing started by admin',
+            entityTitle: claimInfo.purpose_of_claim || `Expense Claim ${claimId}`
+          });
+        }
 
         console.log(`✅ Created enhanced workflow notifications for claim ${claimId} ${action} by Claims Admin`);
       }

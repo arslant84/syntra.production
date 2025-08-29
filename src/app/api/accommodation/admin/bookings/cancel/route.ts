@@ -3,7 +3,7 @@ import { sql } from '@/lib/db';
 import { withAuth } from '@/lib/api-protection';
 import { hasPermission } from '@/lib/session-utils';
 import { z } from 'zod';
-import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 
 const cancelBookingSchema = z.object({
   staffId: z.string().min(1).optional(), // Cancel all bookings for this person
@@ -131,17 +131,16 @@ export const POST = withAuth(async function(request: NextRequest) {
 
           if (userDetails.length > 0) {
             const user = userDetails[0];
-            await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
+            await UnifiedNotificationService.notifyStatusUpdate({
               entityType: 'accommodation',
               entityId: trfId,
+              requestorId: user.id,
               requestorName: user.name || user.requestor_name || 'User',
               requestorEmail: user.email,
-              requestorId: user.id,
-              department: user.department || 'Unknown',
-              purpose: user.purpose || 'Travel/Accommodation Request',
               newStatus: 'Approved',
-              approverName: 'Accommodation Administrator',
-              comments: 'Accommodation processing has been cancelled. Your request has been reverted to Approved status and can be re-processed.'
+              previousStatus: 'Processing Accommodation',
+              updateReason: 'Accommodation processing has been cancelled. Your request has been reverted to Approved status and can be re-processed.',
+              entityTitle: user.purpose || 'Travel/Accommodation Request'
             });
           }
         } catch (notificationError) {
@@ -274,17 +273,16 @@ export const POST = withAuth(async function(request: NextRequest) {
               `${new Date(Math.min(...userBookings.map(b => new Date(b.date).getTime()))).toLocaleDateString()} - ${new Date(Math.max(...userBookings.map(b => new Date(b.date).getTime()))).toLocaleDateString()}` :
               new Date(userBookings[0].date).toLocaleDateString();
 
-            await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
+            await UnifiedNotificationService.notifyStatusUpdate({
               entityType: 'accommodation',
               entityId: user.trf_id || userKey,
+              requestorId: user.id,
               requestorName: user.name || user.requestor_name || 'User',
               requestorEmail: user.email,
-              requestorId: user.id,
-              department: 'Unknown',
-              purpose: `Accommodation booking${bookingCount > 1 ? 's' : ''} for ${dateRange}`,
               newStatus: 'Cancelled',
-              approverName: 'Accommodation Administrator',
-              comments: `${bookingCount} accommodation booking${bookingCount > 1 ? 's have' : ' has'} been cancelled by the administrator. Please contact accommodation services if you need to make new arrangements.`
+              previousStatus: 'Confirmed',
+              updateReason: `${bookingCount} accommodation booking${bookingCount > 1 ? 's have' : ' has'} been cancelled by the administrator. Please contact accommodation services if you need to make new arrangements.`,
+              entityTitle: `Accommodation booking${bookingCount > 1 ? 's' : ''} for ${dateRange}`
             });
 
             console.log(`✅ Sent cancellation notification to ${user.email} for ${bookingCount} booking(s)`);

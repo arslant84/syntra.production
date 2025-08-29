@@ -46,6 +46,7 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
   const userFormSchema = React.useMemo(() => getUserFormSchema(isEdit), [isEdit]);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [isFormInitialized, setIsFormInitialized] = React.useState(false);
   const { toast } = useToast();
 
   const form = useForm<UserFormValues>({
@@ -63,12 +64,10 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
   });
 
   React.useEffect(() => {
+    setIsFormInitialized(false); // Reset initialization flag when user changes
+    
     if (editingUser && availableRoles.length > 0) {
-      console.log("Editing user in form:", editingUser);
-      console.log("User gender:", editingUser.gender);
-      console.log("Available roles in form:", availableRoles);
-      console.log("User role_id:", editingUser.role_id);
-      console.log("Available role IDs:", availableRoles.map(r => r.id));
+      console.log("Setting form data for user:", editingUser.name, "Gender:", editingUser.gender);
       
       // More robust role ID comparison - handle null/undefined and string conversion
       let validRoleId = null;
@@ -79,8 +78,6 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
           validRoleId = userRoleId;
         }
       }
-      
-      console.log("Form role_id value:", validRoleId);
       
       const resetData = {
         name: editingUser.name || '',
@@ -93,14 +90,30 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
         password: '',
       };
       
-      console.log("Resetting form with data:", resetData);
+      console.log("Form reset data - Gender will be:", resetData.gender);
       form.reset(resetData);
       
-      // Force update the role_id field specifically
+      // Force update fields immediately
+      form.setValue('role_id', validRoleId);
+      console.log("✅ ROLE_ID SET TO:", validRoleId);
+      
+      if (editingUser.gender) {
+        form.setValue('gender', editingUser.gender);
+        console.log("✅ GENDER SET TO:", editingUser.gender);
+      } else {
+        form.setValue('gender', null);
+        console.log("✅ GENDER SET TO: null (no gender specified)");
+      }
+      
+      // Check what the form actually contains after setting
       setTimeout(() => {
-        console.log("Current form values after reset:", form.getValues());
-        form.setValue('role_id', validRoleId);
-      }, 100);
+        const formValues = form.getValues();
+        console.log("🔍 COMPLETE FORM VALUES:", formValues);
+        console.log("🔍 FORM GENDER SPECIFICALLY:", formValues.gender);
+        console.log("🔍 FORM ROLE_ID SPECIFICALLY:", formValues.role_id);
+      }, 50);
+      
+      setIsFormInitialized(true);
     } else if (!editingUser) {
       form.reset({
         name: '',
@@ -115,6 +128,12 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
     }
     setSubmitError(null);
   }, [editingUser, form, availableRoles]);
+
+  // Watch form gender value for debugging
+  const watchGender = form.watch('gender');
+  React.useEffect(() => {
+    console.log('📊 Form gender value changed to:', watchGender);
+  }, [watchGender]);
 
   const handleSubmit = async (values: UserFormValues) => {
     setIsSubmitting(true);
@@ -202,13 +221,24 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
           name="role_id"
           render={({ field }) => {
             const currentValue = field.value === null || field.value === undefined ? NULL_ROLE_VALUE : String(field.value);
-            console.log("Role field render - field.value:", field.value, "currentValue:", currentValue);
+            const matchingRole = availableRoles.find(r => String(r.id) === currentValue);
+            
+            // Debug logging for role field
+            if (editingUser) {
+              console.log(`🔍 Role Debug for ${editingUser.name}:`, {
+                'editingUser.role_id': editingUser.role_id,
+                'editingUser.roleName': editingUser.roleName,
+                'field.value': field.value,
+                'currentValue': currentValue,
+                'matchingRole': matchingRole?.name || 'NOT FOUND'
+              });
+            }
             
             return (
               <FormItem>
                 <FormLabel>Role</FormLabel>
                 <Select
-                  key={`role-select-${editingUser?.id || 'new'}`}
+                  key={`role-select-${editingUser?.id || 'new'}-${isFormInitialized ? 'init' : 'loading'}-${currentValue}`}
                   onValueChange={(value) => {
                     console.log("Role select onChange:", value);
                     field.onChange(value === NULL_ROLE_VALUE ? null : value);
@@ -219,7 +249,7 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
                     <SelectTrigger>
                       <SelectValue placeholder="Select a role">
                         {currentValue === NULL_ROLE_VALUE ? "No Role" : 
-                         availableRoles.find(r => String(r.id) === currentValue)?.name || "Select a role"}
+                         matchingRole?.name || `Unknown Role (${currentValue})`}
                       </SelectValue>
                     </SelectTrigger>
                   </FormControl>
@@ -253,24 +283,45 @@ export default function AddUserForm({ onFormSubmit, onCancel, editingUser, avail
         <FormField
           control={form.control}
           name="gender"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Gender (Optional)</FormLabel>
-              <Select onValueChange={(value) => field.onChange(value === 'null' ? null : value)} value={field.value || 'null'}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select gender" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="null">Not specified</SelectItem>
-                  <SelectItem value="Male">Male</SelectItem>
-                  <SelectItem value="Female">Female</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            const currentValue = field.value === null || field.value === undefined ? 'null' : field.value;
+            
+            // Debug logging - remove after testing
+            if (editingUser) {
+              console.log(`🔍 Gender Debug for ${editingUser.name}:`, {
+                'editingUser.gender': editingUser.gender,
+                'field.value': field.value, 
+                'currentValue': currentValue,
+                'typeof field.value': typeof field.value,
+                'typeof editingUser.gender': typeof editingUser.gender
+              });
+            }
+            
+            return (
+              <FormItem>
+                <FormLabel>Gender (Optional)</FormLabel>
+                <Select 
+                  key={`gender-select-${editingUser?.id || 'new'}-${isFormInitialized ? 'init' : 'loading'}-${currentValue}`}
+                  onValueChange={(value) => field.onChange(value === 'null' ? null : value)} 
+                  value={currentValue}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender">
+                        {currentValue === 'null' ? 'Not specified' : currentValue}
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="null">Not specified</SelectItem>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
         />
         <FormField
           control={form.control}

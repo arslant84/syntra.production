@@ -118,10 +118,8 @@ export class UnifiedNotificationService {
 
       console.log(`👥 Found ${recipients.length} recipients for ${templateName}`);
 
-      // Send email and in-app notifications to each recipient
-      for (const recipient of recipients) {
-        await this.sendToRecipient(recipient, template, params);
-      }
+      // Send single consolidated email with proper TO/CC structure
+      await this.sendWorkflowEmail(recipients, template, params);
 
     } catch (error) {
       console.error(`❌ Error sending template ${templateName}:`, error);
@@ -129,7 +127,95 @@ export class UnifiedNotificationService {
   }
 
   /**
-   * Send notification to a specific recipient
+   * Send workflow email with proper TO/CC structure
+   * TO: Primary action recipient (approver for approval stages, requestor for completion)
+   * CC: Requestor (for transparency on all approval stages)
+   */
+  private static async sendWorkflowEmail(
+    recipients: NotificationRecipient[],
+    template: NotificationTemplate,
+    params: WorkflowNotificationParams
+  ): Promise<void> {
+    try {
+      // Separate recipients by type
+      const approvers = recipients.filter(r => r.role !== 'Requestor');
+      const requestors = recipients.filter(r => r.role === 'Requestor');
+      
+      let toRecipients: string[] = [];
+      let ccRecipients: string[] = [];
+      
+      // Determine TO/CC based on template type and workflow stage
+      if (template.recipientType === 'approver' && approvers.length > 0) {
+        // Approval stage: TO = Approvers, CC = Requestor
+        toRecipients = approvers.map(a => a.email).filter(email => email);
+        ccRecipients = requestors.map(r => r.email).filter(email => email);
+        console.log(`📧 APPROVAL STAGE: TO=${toRecipients.join(', ')}, CC=${ccRecipients.join(', ')}`);
+        
+      } else if (template.recipientType === 'requestor' && requestors.length > 0) {
+        // Completion/rejection stage: TO = Requestor only
+        toRecipients = requestors.map(r => r.email).filter(email => email);
+        ccRecipients = []; // No CC needed for final notifications
+        console.log(`📧 COMPLETION STAGE: TO=${toRecipients.join(', ')}`);
+        
+      } else {
+        console.warn(`⚠️  No valid recipients for template ${template.name}`);
+        return;
+      }
+      
+      if (toRecipients.length === 0) {
+        console.warn(`⚠️  No TO recipients found for ${template.name}`);
+        return;
+      }
+      
+      // Build template variables (use first recipient for context)
+      const primaryRecipient = [...approvers, ...requestors][0];
+      const variables = this.buildTemplateVariables(primaryRecipient, params);
+      
+      // Process template
+      const subject = this.processTemplate(template.subject, variables);
+      const body = this.processTemplate(template.body, variables);
+      
+      // Send single consolidated email
+      await emailService.sendEmail({
+        to: toRecipients.join(', '),
+        cc: ccRecipients.length > 0 ? ccRecipients.join(', ') : undefined,
+        subject,
+        html: body,
+        from: process.env.DEFAULT_FROM_EMAIL || 'TMS System <noreplyvmspctsb@gmail.com>'
+      });
+      
+      console.log(`✅ WORKFLOW EMAIL SENT: ${template.name}`);
+      console.log(`   📧 TO: ${toRecipients.join(', ')}`);
+      if (ccRecipients.length > 0) {
+        console.log(`   📧 CC: ${ccRecipients.join(', ')}`);
+      }
+      
+      // Also create in-app notifications for all recipients
+      for (const recipient of recipients) {
+        if (template.notificationType === 'system' || template.notificationType === 'both') {
+          await NotificationService.createNotification({
+            userId: recipient.userId,
+            title: subject,
+            message: this.stripHtml(body).substring(0, 500) + '...',
+            type: this.getNotificationType(params.eventType),
+            category: 'workflow_approval',
+            priority: this.getNotificationPriority(params.eventType),
+            relatedEntityType: params.entityType,
+            relatedEntityId: params.entityId,
+            actionRequired: recipient.role !== 'Requestor',
+            actionUrl: variables.approvalUrl || variables.viewUrl
+          });
+        }
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error sending workflow email for ${template.name}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send notification to a specific recipient (DEPRECATED - kept for backward compatibility)
    */
   private static async sendToRecipient(
     recipient: NotificationRecipient,
@@ -152,7 +238,7 @@ export class UnifiedNotificationService {
           to: recipient.email,
           subject,
           html: body,
-          from: process.env.DEFAULT_FROM_EMAIL || 'VMS System <noreplyvmspctsb@gmail.com>'
+          from: process.env.DEFAULT_FROM_EMAIL || 'TMS System <noreplyvmspctsb@gmail.com>'
         });
         console.log(`📧 Email sent to ${recipient.email}`);
       }
@@ -231,6 +317,21 @@ export class UnifiedNotificationService {
       if (template.recipientType === 'approver' || template.recipientType === 'both') {
         const approvers = await this.getApproversForWorkflowStep(params);
         recipients.push(...approvers);
+        
+        // For approval stages, ALWAYS include the original requestor as CC
+        if (template.recipientType === 'approver' && params.requestorId && params.requestorName) {
+          // Add requestor if not already included
+          const requestorExists = recipients.some(r => r.userId === params.requestorId);
+          if (!requestorExists) {
+            recipients.push({
+              userId: params.requestorId,
+              name: params.requestorName,
+              email: params.requestorEmail || '',
+              role: 'Requestor',
+              department: params.department
+            });
+          }
+        }
       }
 
     } catch (error) {
@@ -379,34 +480,43 @@ export class UnifiedNotificationService {
    */
   private static getTemplateNamesForEvent(eventType: string, currentStatus: string): string[] {
     const templates: string[] = [];
+    
+    // Extract entity type from event (e.g., 'trf_submitted' -> 'trf')
+    const entityType = eventType.split('_')[0];
 
-    // Handle submission events - send to both approver and requestor
+    // Map workflow stages to specific template names
+    // Each stage sends exactly ONE email to the appropriate recipient
+    
     if (eventType.includes('submitted')) {
-      templates.push(`${eventType}_approver`);
-      templates.push(`${eventType}_requestor`);
-    }
-    // Handle approval events - send progress to requestor and next step to next approver
-    else if (eventType.includes('approved_focal')) {
-      templates.push(`${eventType}_requestor`);
-      templates.push(`${eventType}_next_approver`);
-    }
-    else if (eventType.includes('approved_manager')) {
-      templates.push(`${eventType}_requestor`);
-      templates.push(`${eventType}_next_approver`);
-    }
-    // Handle final approval
-    else if (eventType.includes('fully_approved') || currentStatus === 'Approved') {
-      templates.push(`${eventType.replace('approved', 'fully_approved')}_requestor`);
-    }
-    // Handle rejections
-    else if (eventType.includes('rejected')) {
-      templates.push(`${eventType}_requestor`);
-    }
-    // Default - try to find exact template name
-    else {
+      // Stage 1: Request submitted → Department Focal (TO: Focal, CC: Requestor)
+      templates.push(`${entityType}_submitted_to_focal`);
+      
+    } else if (currentStatus === 'Pending Line Manager' || currentStatus === 'Pending Line Manager/HOD') {
+      // Stage 2: Focal approved → Line Manager (TO: Manager, CC: Requestor)
+      templates.push(`${entityType}_focal_approved_to_manager`);
+      
+    } else if (currentStatus === 'Pending HOD') {
+      // Stage 3: Manager approved → HOD (TO: HOD, CC: Requestor)
+      templates.push(`${entityType}_manager_approved_to_hod`);
+      
+    } else if (currentStatus === 'Approved') {
+      // Stage 4: HOD approved → Admin Processing (TO: Admin, CC: Requestor)
+      templates.push(`${entityType}_hod_approved_to_admin`);
+      
+    } else if (currentStatus === 'Completed' || currentStatus === 'Processed' || eventType.includes('completed')) {
+      // Stage 5: Admin completed → Requestor (TO: Requestor)
+      templates.push(`${entityType}_admin_completed_to_requestor`);
+      
+    } else if (eventType.includes('rejected')) {
+      // Rejection → Requestor (TO: Requestor)
+      templates.push(`${entityType}_rejected_requestor`);
+      
+    } else {
+      // Fallback: try exact template name for backward compatibility
       templates.push(eventType);
     }
 
+    console.log(`🎯 TEMPLATE_ROUTING: Event '${eventType}', Status '${currentStatus}' → Templates: [${templates.join(', ')}]`);
     return templates;
   }
 
@@ -422,7 +532,8 @@ export class UnifiedNotificationService {
       },
       'visa': {
         'Pending Department Focal': 'approve_visa_focal',
-        'Pending Line Manager/HOD': 'approve_visa_manager',
+        'Pending Line Manager': 'approve_visa_manager',
+        'Pending HOD': 'approve_visa_hod',
         'Pending Visa Clerk': 'process_visa_applications'
       },
       'claims': {
@@ -635,11 +746,11 @@ export class UnifiedNotificationService {
               
               <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
               <p style="font-size: 12px; color: #6c757d;">
-                This is an automated confirmation from the VMS System. You do not need to take any further action for this request.
+                This is an automated confirmation from the TMS System. You do not need to take any further action for this request.
               </p>
             </div>
           `,
-          from: process.env.DEFAULT_FROM_EMAIL || 'VMS System <noreplyvmspctsb@gmail.com>'
+          from: process.env.DEFAULT_FROM_EMAIL || 'TMS System <noreplyvmspctsb@gmail.com>'
         });
       }
 

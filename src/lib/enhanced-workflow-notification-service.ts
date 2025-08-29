@@ -40,7 +40,7 @@ export class EnhancedWorkflowNotificationService {
     secure: false,
     user: 'noreplyvmspctsb@gmail.com',
     pass: 'efftvmcddjcetvnn',
-    from: 'VMS System <noreplyvmspctsb@gmail.com>'
+    from: 'TMS System <noreplyvmspctsb@gmail.com>'
   };
 
   /**
@@ -676,7 +676,7 @@ export class EnhancedWorkflowNotificationService {
         </div>
         
         <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #6c757d;">
-          <p>This is an automated notification from the VMS System. Please do not reply to this email.</p>
+          <p>This is an automated notification from the TMS System. Please do not reply to this email.</p>
         </div>
       </div>
     `;

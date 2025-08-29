@@ -8,7 +8,7 @@ import { generateRequestId } from '@/utils/requestIdGenerator';
 import { TSRAutoGenerationService } from '@/lib/tsr-auto-generation-service';
 import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { NotificationService } from '@/lib/notification-service';
-import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 import { hasPermission } from '@/lib/session-utils';
 import { generateUniversalUserFilterSQL, shouldBypassUserFilter } from '@/lib/universal-user-matching';
 import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
@@ -716,22 +716,19 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
         console.log(`  - Requestor Email: ${requestorEmail}`);
         console.log(`  - Requestor ID: ${session.id}`);
         
-        // Check if EnhancedWorkflowNotificationService is available
-        if (!EnhancedWorkflowNotificationService) {
-          throw new Error('EnhancedWorkflowNotificationService is not available');
-        }
+        console.log(`🔔 TRF_NOTIFICATION: Calling UnifiedNotificationService.sendWorkflowNotification`);
         
-        console.log(`🔔 TRF_NOTIFICATION: Calling EnhancedWorkflowNotificationService.sendSubmissionNotification`);
-        
-        // Send enhanced workflow notification (only to Department Focal + CC requestor)
-        await EnhancedWorkflowNotificationService.sendSubmissionNotification({
+        // Send workflow notification using unified notification system
+        await UnifiedNotificationService.sendWorkflowNotification({
+          eventType: 'trf_submitted',
           entityType: 'trf',
           entityId: trfRequestId,
           requestorName: requestorNameVal || 'User',
           requestorEmail,
           requestorId: session.id,
-          department: departmentVal,
-          purpose: purposeVal
+          department: departmentVal || 'Unknown',
+          currentStatus: 'Pending Department Focal',
+          entityTitle: `Travel Request - ${purposeVal || 'Business Travel'}`
         });
 
         console.log(`✅ TRF_NOTIFICATION: Successfully created enhanced workflow notifications for TRF ${trfRequestId}`);

@@ -3,7 +3,7 @@
 
 import { sql } from '@/lib/db';
 import { WebSocketService } from './websocket-service';
-import { WorkflowEmailService } from './workflow-email-service';
+import { UnifiedNotificationService } from './unified-notification-service';
 
 export interface CreateNotificationParams {
   userId: string;
@@ -294,9 +294,9 @@ export class NotificationService {
       accommodation: 'Accommodation Request'
     };
 
-    // Send email notification using workflow email service
+    // Send email notification using unified notification service
     try {
-      await WorkflowEmailService.sendWorkflowNotification({
+      await UnifiedNotificationService.sendWorkflowNotification({
         eventType: `${params.entityType}_submitted`,
         entityType: params.entityType,
         entityId: params.entityId,

@@ -19,7 +19,9 @@ export async function POST(request: NextRequest) {
     
     switch (testType) {
       case 'submission':
-        // Test: Initial submission → Department Focal
+        // Test: Initial submission → Department Focal ONLY
+        console.log(`🧪 CORRECTED_WORKFLOW_TEST: Testing submission routing`);
+        console.log(`🧪 Expected: TO = Department Focal (${department}), CC = ${requestorEmail}`);
         result = await WorkflowEmailService.sendSubmissionNotification({
           entityType,
           entityId,

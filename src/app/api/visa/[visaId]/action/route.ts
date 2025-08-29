@@ -5,7 +5,7 @@ import { sql } from '@/lib/db';
 import type { VisaStatus } from '@/types/visa';
 import { hasPermission } from '@/lib/permissions';
 import { NotificationService } from '@/lib/notification-service';
-import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 
 const visaActionSchema = z.object({
   action: z.enum(["approve", "reject", "mark_processing", "upload_visa", "cancel"]),
@@ -17,14 +17,15 @@ const visaActionSchema = z.object({
 
 // Define the visa approval workflow sequence (matching TSR pattern)
 const visaApprovalWorkflow: Record<string, VisaStatus | null> = {
-  "Pending Department Focal": "Pending Line Manager/HOD",
-  "Pending Line Manager/HOD": "Pending Visa Clerk",
+  "Pending Department Focal": "Pending Line Manager",
+  "Pending Line Manager": "Pending HOD",
+  "Pending HOD": "Pending Visa Clerk",
   "Pending Visa Clerk": "Processing with Embassy", // Visa clerk marks as processing
   "Processing with Embassy": "Approved", // Processing can lead to approval
 };
 
 const terminalVisaStatuses: VisaStatus[] = ["Approved", "Rejected", "Cancelled"];
-const cancellableStatuses: VisaStatus[] = ["Pending Department Focal", "Pending Line Manager/HOD", "Pending Visa Clerk", "Draft"];
+const cancellableStatuses: VisaStatus[] = ["Pending Department Focal", "Pending Line Manager", "Pending HOD", "Pending Visa Clerk", "Draft"];
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
   const { visaId } = await params;
@@ -183,19 +184,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (visaDetails.length > 0) {
         const visaInfo = visaDetails[0];
         
-        // Send enhanced workflow notification for status change
-        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
-          entityType: 'visa',
-          entityId: visaId,
-          requestorName: visaInfo.applicant_name || 'User',
-          requestorEmail: visaInfo.email,
-          requestorId: visaInfo.user_id,
-          department: visaInfo.department,
-          purpose: `Visa application for ${visaInfo.destination || 'travel'}`,
-          newStatus: updated.status,
-          approverName: approverName,
-          comments: comments
-        });
+        // Send 5-stage workflow notification
+        if (action === 'approve') {
+          await UnifiedNotificationService.notifyApproval({
+            entityType: 'visa',
+            entityId: visaId,
+            requestorId: visaInfo.user_id,
+            requestorName: visaInfo.applicant_name || 'User',
+            requestorEmail: visaInfo.email,
+            currentStatus: updated.status,
+            previousStatus: currentStatus,
+            approverName: approverName,
+            approverRole: approverRole,
+            entityTitle: `Visa Application - ${visaInfo.destination || 'Travel'}`,
+            comments: comments
+          });
+        } else if (action === 'reject') {
+          await UnifiedNotificationService.notifyRejection({
+            entityType: 'visa',
+            entityId: visaId,
+            requestorId: visaInfo.user_id,
+            requestorName: visaInfo.applicant_name || 'User',
+            requestorEmail: visaInfo.email,
+            approverName: approverName,
+            approverRole: approverRole,
+            rejectionReason: comments || 'No reason provided',
+            entityTitle: `Visa Application - ${visaInfo.destination || 'Travel'}`
+          });
+        }
 
         console.log(`✅ Created enhanced workflow notifications for visa ${visaId} ${action} by ${approverName}`);
       }

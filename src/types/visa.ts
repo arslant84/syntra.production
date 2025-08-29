@@ -3,7 +3,8 @@ export type VisaPurpose = 'Business Trip' | 'Expatriate Relocation' | '';
 export type VisaStatus = 
   | 'Draft' 
   | 'Pending Department Focal' 
-  | 'Pending Line Manager/HOD' 
+  | 'Pending Line Manager'
+  | 'Pending HOD' 
   | 'Pending Visa Clerk' 
   | 'Processing with Embassy' 
   | 'Approved' 

@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { sql } from '@/lib/db';
 import type { TravelRequestForm, TrfStatus } from '@/types/trf';
 import { NotificationService } from '@/lib/notification-service';
-import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
 import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -233,19 +232,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             });
           }
           
-          // Also send legacy enhanced workflow notification for compatibility
-          await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
-            entityType: 'trf',
-            entityId: trfId,
-            requestorName: trfInfo.requestor_name || 'User',
-            requestorEmail: trfInfo.email,
-            requestorId: trfInfo.user_id,
-            department: trfInfo.department,
-            purpose: trfInfo.purpose,
-            newStatus: updated.status,
-            approverName: approverName,
-            comments: comments
-          });
+          // REMOVED: Legacy enhanced workflow notification to prevent duplicates
+          // Only using UnifiedNotificationService now for clean, single email per stage
         }
 
         console.log(`✅ TRF_ACTION_NOTIFICATION: Sent async workflow notifications for TRF ${trfId} ${action} by ${approverName}`);

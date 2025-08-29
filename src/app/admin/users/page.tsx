@@ -218,15 +218,12 @@ export default function UserManagementPage() {
         fetchUsers(isEditMode ? currentPage : 1); // Refresh current page on edit, go to first on add
         handleCloseUserModal();
     } catch (error) {
-        console.error(`Error in handleUserFormSubmit (UserManagementPage / ${isEditMode ? 'edit' : 'add'}) before re-throw:`, error);
-        console.error('Error type:', typeof error);
-        console.error('Error constructor:', error?.constructor?.name);
-        console.error('Error keys:', error ? Object.keys(error) : 'error is falsy');
-        console.error('Error instanceof Error:', error instanceof Error);
+        // Log error for debugging (simplified)
+        console.error(`Error in handleUserFormSubmit (${isEditMode ? 'edit' : 'add'} mode):`, error instanceof Error ? error.message : error);
         
         // Handle null/undefined errors
         if (!error) {
-            throw new Error("An unknown error occurred (error was null/undefined)");
+            throw new Error("An unknown error occurred");
         }
         
         // If error is already a proper Error instance, just re-throw it

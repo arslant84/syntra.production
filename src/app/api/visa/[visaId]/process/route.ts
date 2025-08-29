@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { withAuth } from '@/lib/api-protection';
 import { hasAnyPermission } from '@/lib/session-utils';
-import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 
 const processVisaSchema = z.object({
   action: z.enum(["process", "complete"]),
@@ -154,19 +154,33 @@ export const POST = withAuth(async function(request: NextRequest, { params }: { 
       if (visaDetails.length > 0) {
         const visaInfo = visaDetails[0];
         
-        // Send enhanced workflow notification for status change
-        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
-          entityType: 'visa',
-          entityId: visaId,
-          requestorName: visaInfo.requestor_name || 'User',
-          requestorEmail: visaInfo.email,
-          requestorId: visaInfo.user_id_ref,
-          department: visaInfo.staff_id,
-          purpose: visaInfo.travel_purpose,
-          newStatus: updated.status,
-          approverName: 'Visa Administrator',
-          comments: comments
-        });
+        // Send 5-stage workflow notification
+        if (action === 'complete') {
+          // This is the final admin completion stage
+          await UnifiedNotificationService.notifyAdminCompletion({
+            entityType: 'visa',
+            entityId: visaId,
+            requestorId: visaInfo.user_id_ref,
+            requestorName: visaInfo.requestor_name || 'User',
+            requestorEmail: visaInfo.email,
+            adminName: 'Visa Administrator',
+            entityTitle: visaInfo.travel_purpose || `Visa Application ${visaId}`,
+            completionDetails: comments || 'Visa processing completed with embassy result'
+          });
+        } else {
+          // For processing, notify status change
+          await UnifiedNotificationService.notifyStatusUpdate({
+            entityType: 'visa',
+            entityId: visaId,
+            requestorId: visaInfo.user_id_ref,
+            requestorName: visaInfo.requestor_name || 'User',
+            requestorEmail: visaInfo.email,
+            newStatus: updated.status,
+            previousStatus: currentVisa.status,
+            updateReason: 'Visa processing started by administrator',
+            entityTitle: visaInfo.travel_purpose || `Visa Application ${visaId}`
+          });
+        }
 
         console.log(`✅ Created enhanced workflow notifications for visa ${visaId} ${action} by Visa Admin`);
       }

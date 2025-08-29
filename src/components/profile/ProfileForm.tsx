@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,15 +21,30 @@ export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const userProfileContext = useOptionalUserProfile();
+  
+  // Use context user if available, otherwise fallback to prop user
+  const currentUser = userProfileContext?.user || user;
+  
   const [formData, setFormData] = useState({
-    name: user.name,
-    gender: user.gender || '',
-    phone: user.phone || '',
-    profile_photo: user.profile_photo || null
+    name: currentUser.name,
+    gender: currentUser.gender || '',
+    phone: currentUser.phone || '',
+    profile_photo: currentUser.profile_photo || null
   });
-  const [previewImage, setPreviewImage] = useState<string | null>(user.profile_photo || null);
+  const [previewImage, setPreviewImage] = useState<string | null>(currentUser.profile_photo || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Update form data when currentUser changes (e.g., after successful update)
+  useEffect(() => {
+    setFormData({
+      name: currentUser.name,
+      gender: currentUser.gender || '',
+      phone: currentUser.phone || '',
+      profile_photo: currentUser.profile_photo || null
+    });
+    setPreviewImage(currentUser.profile_photo || null);
+  }, [currentUser]);
 
   const getInitials = (name: string) => {
     if (!name) return '';
@@ -133,12 +148,12 @@ export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
 
   const handleCancel = () => {
     setFormData({
-      name: user.name,
-      gender: user.gender || '',
-      phone: user.phone || '',
-      profile_photo: user.profile_photo || null
+      name: currentUser.name,
+      gender: currentUser.gender || '',
+      phone: currentUser.phone || '',
+      profile_photo: currentUser.profile_photo || null
     });
-    setPreviewImage(user.profile_photo || null);
+    setPreviewImage(currentUser.profile_photo || null);
     setIsEditing(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -163,8 +178,8 @@ export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
         <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
           <div className="relative">
             <Avatar className="h-24 w-24">
-              <AvatarImage src={previewImage || undefined} alt={user.name} />
-              <AvatarFallback className="text-2xl">{getInitials(user.name)}</AvatarFallback>
+              <AvatarImage src={previewImage || undefined} alt={currentUser.name} />
+              <AvatarFallback className="text-2xl">{getInitials(currentUser.name)}</AvatarFallback>
             </Avatar>
             {isEditing && (
               <Button
@@ -177,8 +192,8 @@ export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
             )}
           </div>
           <div className="text-center sm:text-left">
-            <h2 className="text-2xl font-semibold">{user.name}</h2>
-            <p className="text-muted-foreground">{user.email}</p>
+            <h2 className="text-2xl font-semibold">{currentUser.name}</h2>
+            <p className="text-muted-foreground">{currentUser.email}</p>
             {isEditing && (
               <div className="mt-2 space-x-2">
                 <Button
@@ -217,7 +232,7 @@ export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
             <Label htmlFor="name">Full Name</Label>
             <Input
               id="name"
-              value={isEditing ? formData.name : user.name}
+              value={isEditing ? formData.name : currentUser.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               disabled={!isEditing}
               className={isEditing ? '' : 'cursor-default'}
@@ -228,7 +243,7 @@ export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
             <Label htmlFor="phone">Phone Number</Label>
             <Input
               id="phone"
-              value={isEditing ? formData.phone : (user.phone || 'Not provided')}
+              value={isEditing ? formData.phone : (currentUser.phone || 'Not provided')}
               onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
               disabled={!isEditing}
               placeholder="Enter phone number"
@@ -240,7 +255,7 @@ export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
             <Label htmlFor="gender">Gender</Label>
             <Input
               id="gender"
-              value={isEditing ? formData.gender : (user.gender || 'Not provided')}
+              value={isEditing ? formData.gender : (currentUser.gender || 'Not provided')}
               onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
               disabled={!isEditing}
               placeholder="Enter gender"
@@ -251,27 +266,27 @@ export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
           {/* Read-only Fields */}
           <div>
             <Label htmlFor="email">Email</Label>
-            <Input id="email" value={user.email} disabled className="cursor-default" />
+            <Input id="email" value={currentUser.email} disabled className="cursor-default" />
           </div>
           
           <div>
             <Label htmlFor="role">Role</Label>
-            <Input id="role" value={user.role || 'N/A'} disabled className="cursor-default" />
+            <Input id="role" value={currentUser.role || 'N/A'} disabled className="cursor-default" />
           </div>
           
           <div>
             <Label htmlFor="department">Department</Label>
-            <Input id="department" value={user.department || 'N/A'} disabled className="cursor-default" />
+            <Input id="department" value={currentUser.department || 'N/A'} disabled className="cursor-default" />
           </div>
           
           <div>
             <Label htmlFor="staffId">Staff ID</Label>
-            <Input id="staffId" value={user.staff_id || 'N/A'} disabled className="cursor-default" />
+            <Input id="staffId" value={currentUser.staff_id || 'N/A'} disabled className="cursor-default" />
           </div>
           
           <div>
             <Label htmlFor="status">Status</Label>
-            <Input id="status" value={user.status || 'N/A'} disabled className="cursor-default" />
+            <Input id="status" value={currentUser.status || 'N/A'} disabled className="cursor-default" />
           </div>
         </div>
 

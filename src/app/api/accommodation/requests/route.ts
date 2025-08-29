@@ -6,7 +6,7 @@ import { formatISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 import { requireAuth, createAuthError } from '@/lib/auth-utils';
 import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
-import { NotificationService } from '@/lib/notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 import { generateUniversalUserFilter, shouldBypassUserFilter } from '@/lib/universal-user-matching';
 import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from '@/lib/request-deduplication';
 
@@ -148,41 +148,21 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`🔔 ACCOMMODATION_NOTIFICATION: Starting async notification process for accommodation ${accomRequestId}`);
         
-        // First get the requestor's department from their user record
-        let requestorDepartment = 'Unknown';
-        if (data.requestorId) {
-          const requestorInfo = await sql`
-            SELECT department FROM users WHERE staff_id = ${data.requestorId} OR email = ${data.requestorId} LIMIT 1
-          `;
-          if (requestorInfo.length > 0) {
-            requestorDepartment = requestorInfo[0].department || 'Unknown';
-          }
-        }
-
-        // Find Department Focals with accommodation approval permission in the same department
-        const departmentFocals = await sql`
-          SELECT u.id, u.name 
-          FROM users u
-          INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-          INNER JOIN permissions p ON rp.permission_id = p.id
-          WHERE p.name = 'approve_trf_focal'
-            AND u.department = ${requestorDepartment}
-            AND u.status = 'Active'
-        `;
-
-        for (const focal of departmentFocals) {
-          await NotificationService.createApprovalRequest({
-            approverId: focal.id,
-            requestorName: data.requestorName,
-            entityType: 'accommodation',
-            entityId: accomRequestId,
-            entityTitle: `Accommodation Request at ${data.location}`
-          });
-        }
+        // Send unified workflow notification 
+        await UnifiedNotificationService.sendWorkflowNotification({
+          eventType: 'accommodation_submitted',
+          entityType: 'accommodation',
+          entityId: accomRequestId,
+          currentStatus: 'Pending Department Focal',
+          requestorName: data.requestorName,
+          requestorEmail: user.email,
+          department: data.department || 'Unknown',
+          entityTitle: `Accommodation Request at ${data.location}`,
+          entityDates: `${data.requestedCheckInDate.toISOString().split('T')[0]} to ${data.requestedCheckOutDate.toISOString().split('T')[0]}`,
+          accommodationPurpose: `Accommodation at ${data.location}`
+        });
         
-        if (departmentFocals.length > 0) {
-          console.log(`✅ ACCOMMODATION_NOTIFICATION: Sent async notifications for accommodation ${accomRequestId} to ${departmentFocals.length} department focals`);
-        }
+        console.log(`✅ ACCOMMODATION_NOTIFICATION: Sent workflow notification for accommodation ${accomRequestId}`);
       } catch (notificationError) {
         console.error(`❌ ACCOMMODATION_NOTIFICATION: Error sending async notifications for accommodation ${accomRequestId}:`, notificationError);
         // Notification failures don't affect the submitted request

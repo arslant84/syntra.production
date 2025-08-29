@@ -4,7 +4,7 @@
 UPDATE notification_templates 
 SET 
     subject = 'Transport Request Submitted: {entityId}',
-    body = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;"><h2 style="color: #333;">Transport Request Submitted</h2><p>Dear Approver,</p><p><strong>{requestorName}</strong> has submitted a new transport request that requires your approval:</p><div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;"><p><strong>Request ID:</strong> {entityId}</p><p><strong>Requestor:</strong> {requestorName}</p><p><strong>Department:</strong> {department}</p><p><strong>Status:</strong> {currentStatus}</p></div><p>Please review this request at your earliest convenience.</p>{approvalButtons}<hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;"><p style="font-size: 12px; color: #666;">This is an automated notification from the VMS System. Please do not reply to this email.</p></div>'
+    body = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;"><h2 style="color: #333;">Transport Request Submitted</h2><p>Dear Approver,</p><p><strong>{requestorName}</strong> has submitted a new transport request that requires your approval:</p><div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;"><p><strong>Request ID:</strong> {entityId}</p><p><strong>Requestor:</strong> {requestorName}</p><p><strong>Department:</strong> {department}</p><p><strong>Status:</strong> {currentStatus}</p></div><p>Please review this request at your earliest convenience.</p>{approvalButtons}<hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;"><p style="font-size: 12px; color: #666;">This is an automated notification from the TMS System. Please do not reply to this email.</p></div>'
 WHERE name = 'new_transport_request';
 
 -- Insert transport approval template if it doesn't exist
@@ -39,7 +39,7 @@ VALUES (
         <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
         
         <p style="font-size: 12px; color: #666;">
-            This is an automated notification from the VMS System. 
+            This is an automated notification from the TMS System. 
             Please do not reply to this email.
         </p>
     </div>'
@@ -83,7 +83,7 @@ VALUES (
         <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
         
         <p style="font-size: 12px; color: #666;">
-            This is an automated notification from the VMS System. 
+            This is an automated notification from the TMS System. 
             Please do not reply to this email.
         </p>
     </div>'
@@ -121,7 +121,7 @@ VALUES (
         <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
         
         <p style="font-size: 12px; color: #666;">
-            This is an automated notification from the VMS System. 
+            This is an automated notification from the TMS System. 
             Please do not reply to this email.
         </p>
     </div>'
@@ -158,7 +158,7 @@ VALUES (
         <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
         
         <p style="font-size: 12px; color: #666;">
-            This is an automated notification from the VMS System. 
+            This is an automated notification from the TMS System. 
             Please do not reply to this email.
         </p>
     </div>'
@@ -195,7 +195,7 @@ VALUES (
         <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
         
         <p style="font-size: 12px; color: #666;">
-            This is an automated notification from the VMS System. 
+            This is an automated notification from the TMS System. 
             Please do not reply to this email.
         </p>
     </div>'

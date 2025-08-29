@@ -237,16 +237,17 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
       try {
         console.log(`🔔 CLAIMS_NOTIFICATION: Starting async notification process for claim ${claimRequestId}`);
         
-        await UnifiedNotificationService.notifySubmission({
+        // Send workflow notification using unified notification system
+        await UnifiedNotificationService.sendWorkflowNotification({
+          eventType: 'claim_submitted',
           entityType: 'claims',
           entityId: claimRequestId,
-          requestorId: session.id,
           requestorName: data.headerDetails.staffName,
           requestorEmail: session.email,
-          department: data.headerDetails.departmentCode,
-          entityTitle: `${data.headerDetails.documentType} - ${data.bankDetails.purposeOfClaim}`,
-          entityAmount: data.financialSummary.totalAdvanceClaimAmount.toString(),
-          entityDates: formatISO(data.headerDetails.claimForMonthOf, {representation: 'date'})
+          requestorId: session.id,
+          department: data.headerDetails.departmentCode || 'Unknown',
+          currentStatus: 'Pending Department Focal',
+          entityTitle: `${data.headerDetails.documentType} - ${data.bankDetails.purposeOfClaim}`
         });
         
         console.log(`✅ CLAIMS_NOTIFICATION: Sent async workflow notifications for claim ${claimRequestId}`);

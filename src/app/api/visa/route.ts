@@ -6,7 +6,7 @@ import { formatISO, parseISO } from 'date-fns';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 import { withAuth, canViewAllData, canViewDomainData, canViewApprovalData, getUserIdentifier } from '@/lib/api-protection';
 import { hasPermission, hasAnyPermission } from '@/lib/session-utils';
-import { NotificationService } from '@/lib/notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 import { generateUniversalUserFilter, shouldBypassUserFilter } from '@/lib/universal-user-matching';
 import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
 import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
@@ -138,33 +138,20 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
       try {
         console.log(`🔔 VISA_NOTIFICATION: Starting async notification process for visa ${visaRequestId}`);
         
-        // Use requestor's department from session (avoid database query)
-        const requestorDepartment = session.department || 'Unknown';
-
-        // Find Department Focals with visa approval permission in the same department
-        const departmentFocals = await sql`
-          SELECT u.id, u.name 
-          FROM users u
-          INNER JOIN role_permissions rp ON u.role_id = rp.role_id
-          INNER JOIN permissions p ON rp.permission_id = p.id
-          WHERE p.name = 'approve_trf_focal'
-            AND u.department = ${requestorDepartment}
-            AND u.status = 'Active'
-        `;
-
-        for (const focal of departmentFocals) {
-          await NotificationService.createApprovalRequest({
-            approverId: focal.id,
-            requestorName: data.applicantName,
-            entityType: 'visa',
-            entityId: visaRequestId,
-            entityTitle: `Visa Application to ${data.destination || 'Unknown Destination'}`
-          });
-        }
+        // Send workflow notification using unified notification system
+        await UnifiedNotificationService.sendWorkflowNotification({
+          eventType: 'visa_submitted',
+          entityType: 'visa',
+          entityId: visaRequestId,
+          requestorName: data.applicantName,
+          requestorEmail: session.email,
+          requestorId: session.id,
+          department: session.department || 'Unknown',
+          currentStatus: 'Pending Department Focal',
+          entityTitle: `Visa Application to ${data.destination || 'Unknown Destination'}`
+        });
         
-        if (departmentFocals.length > 0) {
-          console.log(`✅ VISA_NOTIFICATION: Created approval notifications for visa ${visaRequestId} to ${departmentFocals.length} department focals`);
-        }
+        console.log(`✅ VISA_NOTIFICATION: Sent workflow notification for visa ${visaRequestId}`);
       } catch (notificationError) {
         console.error(`❌ VISA_NOTIFICATION: Error sending async notifications for visa ${visaRequestId}:`, notificationError);
         // Notification failures don't affect the submitted visa application

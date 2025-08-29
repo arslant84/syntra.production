@@ -5,7 +5,7 @@ import { TransportService } from '@/lib/transport-service';
 import { hasPermission } from '@/lib/permissions';
 import { sql } from '@/lib/db';
 import { NotificationService } from '@/lib/notification-service';
-import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 
 interface RouteParams {
   params: Promise<{
@@ -69,18 +69,34 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const transportInfo = transportDetails[0];
         
         // Send enhanced workflow notification for status change
-        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
-          entityType: 'transport',
-          entityId: transportId,
-          requestorName: transportInfo.requestor_name || 'User',
-          requestorEmail: transportInfo.email,
-          requestorId: transportInfo.created_by,
-          department: transportInfo.department,
-          purpose: transportInfo.purpose,
-          newStatus: updatedTransportRequest.status,
-          approverName: approverName,
-          comments: comments
-        });
+        // Send 5-stage workflow notification
+        if (action === 'approve') {
+          await UnifiedNotificationService.notifyApproval({
+            entityType: 'transport',
+            entityId: transportId,
+            requestorId: transportInfo.user_id,
+            requestorName: transportInfo.requestor_name || 'User',
+            requestorEmail: transportInfo.email,
+            currentStatus: updatedTransportRequest.status,
+            previousStatus: 'Pending Approval',
+            approverName: approverName,
+            approverRole: approverRole,
+            entityTitle: `Transport Request - ${transportInfo.purpose || 'Transport Service'}`,
+            comments: comments
+          });
+        } else if (action === 'reject') {
+          await UnifiedNotificationService.notifyRejection({
+            entityType: 'transport',
+            entityId: transportId,
+            requestorId: transportInfo.user_id,
+            requestorName: transportInfo.requestor_name || 'User',
+            requestorEmail: transportInfo.email,
+            approverName: approverName,
+            approverRole: approverRole,
+            rejectionReason: comments || 'No reason provided',
+            entityTitle: `Transport Request - ${transportInfo.purpose || 'Transport Service'}`
+          });
+        }
 
         console.log(`✅ Created enhanced workflow notifications for transport ${transportId} ${action} action`);
       }

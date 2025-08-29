@@ -46,7 +46,7 @@ VALUES (
     </div>
     
     <div style="background-color: #6c757d; color: white; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px;">
-        This is an automated notification from the VMS System.<br>
+        This is an automated notification from the TMS System.<br>
         Please do not reply to this email.
     </div>
 </div>',
@@ -97,7 +97,7 @@ VALUES (
     </div>
     
     <div style="background-color: #6c757d; color: white; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px;">
-        This is an automated notification from the VMS System.<br>
+        This is an automated notification from the TMS System.<br>
         Please do not reply to this email.
     </div>
 </div>',
@@ -147,7 +147,7 @@ VALUES (
     </div>
     
     <div style="background-color: #6c757d; color: white; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px;">
-        This is an automated notification from the VMS System.<br>
+        This is an automated notification from the TMS System.<br>
         Please do not reply to this email.
     </div>
 </div>',
@@ -196,7 +196,7 @@ VALUES (
     </div>
     
     <div style="background-color: #6c757d; color: white; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px;">
-        This is an automated notification from the VMS System.<br>
+        This is an automated notification from the TMS System.<br>
         Please do not reply to this email.
     </div>
 </div>',
@@ -248,7 +248,7 @@ VALUES (
     </div>
     
     <div style="background-color: #6c757d; color: white; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px;">
-        This is an automated notification from the VMS System.<br>
+        This is an automated notification from the TMS System.<br>
         Please do not reply to this email.
     </div>
 </div>',
@@ -302,7 +302,7 @@ VALUES (
     </div>
     
     <div style="background-color: #6c757d; color: white; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px;">
-        This is an automated notification from the VMS System.<br>
+        This is an automated notification from the TMS System.<br>
         Please do not reply to this email.
     </div>
 </div>',
@@ -356,7 +356,7 @@ VALUES (
     </div>
     
     <div style="background-color: #6c757d; color: white; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px;">
-        This is an automated notification from the VMS System.<br>
+        This is an automated notification from the TMS System.<br>
         Please do not reply to this email.
     </div>
 </div>',

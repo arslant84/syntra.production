@@ -4,7 +4,7 @@ import { sql } from '@/lib/db';
 import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
 import { NotificationService } from '@/lib/notification-service';
-import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 
 const actionSchema = z.object({
   action: z.enum(['approve', 'reject', 'cancel']),
@@ -133,19 +133,34 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       if (accommodationDetails.length > 0) {
         const accommodationInfo = accommodationDetails[0];
         
-        // Send enhanced workflow notification for status change
-        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
-          entityType: 'accommodation',
-          entityId: requestId,
-          requestorName: accommodationInfo.requestor_name || 'User',
-          requestorEmail: accommodationInfo.email,
-          requestorId: accommodationInfo.user_id,
-          department: accommodationInfo.department,
-          purpose: 'Accommodation request',
-          newStatus: newStatus,
-          approverName: approverName || 'Administrator',
-          comments: comments
-        });
+        // Send 5-stage workflow notification
+        if (action === 'approve') {
+          await UnifiedNotificationService.notifyApproval({
+            entityType: 'accommodation',
+            entityId: requestId,
+            requestorId: accommodationInfo.user_id,
+            requestorName: accommodationInfo.requestor_name || 'User',
+            requestorEmail: accommodationInfo.email,
+            currentStatus: updatedRequest.status,
+            previousStatus: currentRequest.status,
+            approverName: approverName,
+            approverRole: approverRole,
+            entityTitle: 'Accommodation Request',
+            comments: comments
+          });
+        } else if (action === 'reject') {
+          await UnifiedNotificationService.notifyRejection({
+            entityType: 'accommodation',
+            entityId: requestId,
+            requestorId: accommodationInfo.user_id,
+            requestorName: accommodationInfo.requestor_name || 'User',
+            requestorEmail: accommodationInfo.email,
+            approverName: approverName,
+            approverRole: approverRole,
+            rejectionReason: comments || 'No reason provided',
+            entityTitle: 'Accommodation Request'
+          });
+        }
 
         console.log(`✅ Created enhanced workflow notifications for accommodation ${requestId} ${action} by ${approverName || 'Administrator'}`);
       }

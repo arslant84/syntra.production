@@ -2,7 +2,7 @@ import { sql } from './db';
 import { TransportRequestForm, TransportRequestSummary, TransportDetails, TransportApprovalStep } from '@/types/transport';
 import { generateRequestId } from '@/utils/requestIdGenerator';
 
-import { WorkflowEmailService } from './workflow-email-service';
+import { UnifiedNotificationService } from './unified-notification-service';
 import { NotificationService } from './notification-service';
 import { NotificationEventType } from '@/types/notifications';
 import { EnhancedWorkflowNotificationService } from './enhanced-workflow-notification-service';
@@ -117,15 +117,17 @@ export class TransportService {
           
           console.log(`🔔 TRANSPORT_SERVICE_NOTIFICATION: Requestor email: ${requestorEmail}, Department: ${requestData.department}`);
 
-          // Send enhanced workflow notification (only to Department Focal + CC requestor)
-          await EnhancedWorkflowNotificationService.sendSubmissionNotification({
+          // Send workflow notification using unified notification system
+          await UnifiedNotificationService.sendWorkflowNotification({
+            eventType: 'transport_submitted',
             entityType: 'transport',
             entityId: transportId,
             requestorName: requestData.requestorName || 'User',
             requestorEmail,
             requestorId: userId,
-            department: requestData.department,
-            purpose: requestData.purpose
+            department: requestData.department || 'Unknown',
+            currentStatus: 'Pending Department Focal',
+            entityTitle: `Transport Request - ${requestData.purpose || 'Transport Service'}`
           });
 
           console.log(`✅ TRANSPORT_SERVICE_NOTIFICATION: Sent async workflow notification for transport request: ${transportId}`);

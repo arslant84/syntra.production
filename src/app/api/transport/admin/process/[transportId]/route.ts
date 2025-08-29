@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { hasPermission } from '@/lib/permissions';
-import { EnhancedWorkflowNotificationService } from '@/lib/enhanced-workflow-notification-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 
 const processTransportSchema = z.object({
   action: z.enum(["process", "complete"]),
@@ -135,19 +135,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (transportDetails.length > 0) {
         const transportInfo = transportDetails[0];
         
-        // Send enhanced workflow notification for status change
-        await EnhancedWorkflowNotificationService.sendStatusChangeNotification({
-          entityType: 'transport',
-          entityId: transportId,
-          requestorName: transportInfo.requestor_name || 'User',
-          requestorEmail: transportInfo.email,
-          requestorId: transportInfo.user_id,
-          department: transportInfo.department,
-          purpose: transportInfo.purpose,
-          newStatus: updated.status,
-          approverName: 'Transport Admin',
-          comments: comments
-        });
+        // Send 5-stage workflow notification
+        if (action === 'complete') {
+          // This is the final admin completion stage
+          await UnifiedNotificationService.notifyAdminCompletion({
+            entityType: 'transport',
+            entityId: transportId,
+            requestorId: transportInfo.user_id,
+            requestorName: transportInfo.requestor_name || 'User',
+            requestorEmail: transportInfo.email,
+            adminName: 'Transport Admin',
+            entityTitle: transportInfo.purpose || `Transport Request ${transportId}`,
+            completionDetails: comments || 'Transport request completed with booking details'
+          });
+        } else {
+          // For processing, notify status change
+          await UnifiedNotificationService.notifyStatusUpdate({
+            entityType: 'transport',
+            entityId: transportId,
+            requestorId: transportInfo.user_id,
+            requestorName: transportInfo.requestor_name || 'User',
+            requestorEmail: transportInfo.email,
+            newStatus: updated.status,
+            previousStatus: currentTransport.status,
+            updateReason: 'Transport processing started by admin',
+            entityTitle: transportInfo.purpose || `Transport Request ${transportId}`
+          });
+        }
 
         console.log(`✅ Created enhanced workflow notifications for transport ${transportId} ${action} by Transport Admin`);
       }

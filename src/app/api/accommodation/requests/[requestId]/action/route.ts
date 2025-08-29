@@ -124,7 +124,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
       // Get accommodation request details including requestor information
       const accommodationDetails = await sql`
-        SELECT tr.staff_id, tr.requestor_name, u.email, u.id as user_id, u.department
+        SELECT tr.staff_id, tr.requestor_name, tr.department, tr.purpose, tr.estimated_cost, 
+               u.email, u.id as user_id, u.department as user_department
         FROM travel_requests tr
         LEFT JOIN users u ON (tr.staff_id = u.staff_id OR tr.staff_id = u.id OR tr.staff_id = u.email)
         WHERE tr.id = ${requestId}
@@ -141,11 +142,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             requestorId: accommodationInfo.user_id,
             requestorName: accommodationInfo.requestor_name || 'User',
             requestorEmail: accommodationInfo.email,
-            currentStatus: updatedRequest.status,
-            previousStatus: currentRequest.status,
-            approverName: approverName,
-            approverRole: approverRole,
-            entityTitle: 'Accommodation Request',
+            department: accommodationInfo.user_department || accommodationInfo.department,
+            currentStatus: newStatus,
+            previousStatus: currentStatus,
+            approverName: approverName || 'System',
+            approverRole: approverRole || 'Administrator',
+            entityTitle: `Accommodation Request - ${accommodationInfo.purpose || 'Business Travel'}`,
+            entityAmount: accommodationInfo.estimated_cost ? accommodationInfo.estimated_cost.toString() : '0',
+            accommodationPurpose: accommodationInfo.purpose || 'Business accommodation',
             comments: comments
           });
         } else if (action === 'reject') {
@@ -155,10 +159,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             requestorId: accommodationInfo.user_id,
             requestorName: accommodationInfo.requestor_name || 'User',
             requestorEmail: accommodationInfo.email,
-            approverName: approverName,
-            approverRole: approverRole,
+            department: accommodationInfo.user_department || accommodationInfo.department,
+            approverName: approverName || 'System',
+            approverRole: approverRole || 'Administrator',
             rejectionReason: comments || 'No reason provided',
-            entityTitle: 'Accommodation Request'
+            entityTitle: `Accommodation Request - ${accommodationInfo.purpose || 'Business Travel'}`,
+            accommodationPurpose: accommodationInfo.purpose || 'Business accommodation'
           });
         }
 

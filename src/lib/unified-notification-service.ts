@@ -141,6 +141,10 @@ export class UnifiedNotificationService {
       const approvers = recipients.filter(r => r.role !== 'Requestor');
       const requestors = recipients.filter(r => r.role === 'Requestor');
       
+      console.log(`🔍 EMAIL_DEBUG: Total recipients=${recipients.length}, Approvers=${approvers.length}, Requestors=${requestors.length}`);
+      console.log(`📋 APPROVERS: ${approvers.map(a => `${a.name}(${a.role})`).join(', ')}`);
+      console.log(`📋 REQUESTORS: ${requestors.map(r => `${r.name}(${r.role})`).join(', ')}`);
+      
       let toRecipients: string[] = [];
       let ccRecipients: string[] = [];
       
@@ -359,6 +363,21 @@ export class UnifiedNotificationService {
       }
 
       console.log(`🔍 Looking for users with permission: ${permission} in department: ${params.department}`);
+      console.log(`🎯 WORKFLOW_CONTEXT: Entity=${params.entityType}, Status=${params.currentStatus}, EventType=${params.eventType}`);
+      
+      if (params.entityType === 'claims') {
+        console.log(`🧪 CLAIMS_DEBUG: Current=${params.currentStatus}, Previous=${params.previousStatus}, Permission=${permission}`);
+      }
+      
+      if (params.entityType === 'trf') {
+        console.log(`🧪 TRF_DEBUG: Current=${params.currentStatus}, Previous=${params.previousStatus}, Permission=${permission}`);
+        console.log(`🧪 TRF_CONTEXT: EntityId=${params.entityId}, RequestorName=${params.requestorName}`);
+      }
+      
+      if (params.entityType === 'transport') {
+        console.log(`🧪 TRANSPORT_DEBUG: Current=${params.currentStatus}, Previous=${params.previousStatus}, Permission=${permission}`);
+        console.log(`🧪 TRANSPORT_CONTEXT: EntityId=${params.entityId}, RequestorName=${params.requestorName}`);
+      }
 
       // Get users with required permission
       let query = `
@@ -381,7 +400,10 @@ export class UnifiedNotificationService {
 
       const result = await sql.unsafe(query, queryParams);
 
-      for (const user of result) {
+      // Filter to prioritize specific roles over admin roles for workflow notifications
+      const filteredUsers = this.filterApproversForWorkflow(result, permission, params.currentStatus);
+
+      for (const user of filteredUsers) {
         approvers.push({
           userId: user.id,
           name: user.name,
@@ -389,15 +411,69 @@ export class UnifiedNotificationService {
           role: user.role,
           department: user.department
         });
+        console.log(`👤 APPROVER FOUND: ${user.name} (${user.role}) - ${user.email}`);
       }
 
-      console.log(`👥 Found ${approvers.length} approvers with permission ${permission}`);
+      console.log(`👥 Found ${approvers.length} approvers with permission ${permission} (after filtering)`);
 
     } catch (error) {
       console.error('Error getting approvers:', error);
     }
 
     return approvers;
+  }
+
+  /**
+   * Filter approvers to prioritize specific roles over admin roles for workflow notifications
+   */
+  private static filterApproversForWorkflow(users: any[], permission: string, currentStatus?: string): any[] {
+    if (users.length <= 1) return users;
+
+    // Define role priorities for different permissions
+    const rolePriorities: Record<string, string[]> = {
+      'approve_trf_focal': ['Department Focal'],
+      'approve_trf_manager': ['Line Manager'],
+      'approve_trf_hod': ['HOD'],
+      'approve_visa_focal': ['Department Focal'],
+      'approve_visa_manager': ['Line Manager'], 
+      'approve_visa_hod': ['HOD'],
+      'approve_claims_focal': ['Department Focal'],
+      'approve_claims_manager': ['Line Manager'],
+      'approve_claims_hod': ['HOD'],
+      'approve_accommodation_focal': ['Department Focal'],
+      'approve_accommodation_manager': ['Line Manager'],
+      'approve_accommodation_hod': ['HOD'],
+      'process_visa_applications': ['Visa Clerk']
+    };
+
+    // Handle transport requests differently - they use same permission but different roles per stage
+    if (permission === 'approve_transport_requests' && currentStatus) {
+      if (currentStatus === 'Pending Department Focal') {
+        rolePriorities[permission] = ['Department Focal'];
+      } else if (currentStatus === 'Pending Line Manager') {
+        rolePriorities[permission] = ['Line Manager'];
+      } else if (currentStatus === 'Pending HOD') {
+        rolePriorities[permission] = ['HOD'];
+      } else {
+        rolePriorities[permission] = ['Transport Admin']; // Fallback
+      }
+    }
+
+
+    const preferredRoles = rolePriorities[permission] || [];
+    
+    // First, try to find users with preferred roles
+    for (const preferredRole of preferredRoles) {
+      const preferredUsers = users.filter(u => u.role === preferredRole);
+      if (preferredUsers.length > 0) {
+        console.log(`🎯 FILTERED: Using ${preferredUsers.length} users with role '${preferredRole}' instead of all ${users.length} users with permission`);
+        return preferredUsers;
+      }
+    }
+
+    // If no preferred roles found, return all users (fallback)
+    console.log(`⚠️  FALLBACK: No preferred role found for permission '${permission}', using all ${users.length} users`);
+    return users;
   }
 
   /**
@@ -417,10 +493,12 @@ export class UnifiedNotificationService {
       entityAmount: params.entityAmount || '',
       entityDates: params.entityDates || '',
       
+      // Department information
+      department: params.department || 'Unknown',
+      
       // Requestor information
       requestorName: params.requestorName,
       requestorEmail: params.requestorEmail || '',
-      department: params.department || 'Unknown',
       staffId: params.staffId || '',
       
       // Recipient information  
@@ -440,11 +518,24 @@ export class UnifiedNotificationService {
       
       // Entity-specific fields
       travelPurpose: params.travelPurpose || '',
-      travelDates: params.entityDates || '',
+      travelDates: params.entityDates || params.travelDates || '',
       claimPurpose: params.claimPurpose || '',
       claimAmount: params.entityAmount || '',
       transportPurpose: params.transportPurpose || '',
       accommodationPurpose: params.accommodationPurpose || '',
+      
+      // Visa-specific fields
+      destination: (params as any).destination || '',
+      employeeId: (params as any).employeeId || params.staffId || '',
+      
+      // Transport-specific fields
+      travelDate: (params as any).travelDate || '',
+      route: (params as any).route || '',
+      
+      // Accommodation-specific fields
+      checkinDate: (params as any).checkinDate || '',
+      checkoutDate: (params as any).checkoutDate || '',
+      location: (params as any).location || '',
       
       // URLs
       approvalUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/approve/${params.entityId}`,

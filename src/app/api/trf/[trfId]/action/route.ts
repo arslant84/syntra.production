@@ -183,12 +183,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         // Create enhanced workflow notifications with approval confirmation
         const session = await getServerSession(authOptions);
         
-        // Get TRF details including requestor information
+        // Get TRF details including requestor information and travel dates
         const trfDetails = await sql`
-          SELECT tr.staff_id, tr.requestor_name, tr.department, tr.purpose, u.email, u.id as user_id
+          SELECT tr.staff_id, tr.requestor_name, tr.department, tr.purpose, tr.estimated_cost, u.email, u.id as user_id,
+                 MIN(its.segment_date) as start_date, MAX(its.segment_date) as end_date
           FROM travel_requests tr
           LEFT JOIN users u ON (tr.staff_id = u.staff_id OR tr.staff_id = u.id OR tr.staff_id = u.email)
+          LEFT JOIN trf_itinerary_segments its ON tr.id = its.trf_id
           WHERE tr.id = ${trfId}
+          GROUP BY tr.staff_id, tr.requestor_name, tr.department, tr.purpose, tr.estimated_cost, u.email, u.id
         `;
 
         if (trfDetails.length > 0) {
@@ -207,6 +210,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               requestorId: trfInfo.user_id,
               requestorName: trfInfo.requestor_name || 'User',
               requestorEmail: trfInfo.email,
+              department: trfInfo.department,
               currentStatus: updated.status,
               previousStatus: currentTrf.status,
               approverName: approverName,
@@ -214,7 +218,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               approverId: session?.user?.id,
               approverEmail: session?.user?.email,
               nextApprover: nextApprover,
-              entityTitle: trfInfo.purpose || `Travel Request ${trfId}`,
+              entityTitle: `Travel Request - ${trfInfo.purpose || 'Business Travel'}`,
+              entityAmount: trfInfo.estimated_cost ? trfInfo.estimated_cost.toString() : '',
+              entityDates: trfInfo.start_date && trfInfo.end_date 
+                ? `${trfInfo.start_date} to ${trfInfo.end_date}` 
+                : trfInfo.start_date 
+                ? `From ${trfInfo.start_date}` 
+                : '',
+              travelPurpose: trfInfo.purpose || 'Business Travel',
               comments: comments
             });
           } else if (action === 'reject') {
@@ -225,10 +236,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               requestorId: trfInfo.user_id,
               requestorName: trfInfo.requestor_name || 'User',
               requestorEmail: trfInfo.email,
+              department: trfInfo.department,
               approverName: approverName,
               approverRole: approverRole,
               rejectionReason: comments || 'No reason provided',
-              entityTitle: trfInfo.purpose || `Travel Request ${trfId}`
+              entityTitle: `Travel Request - ${trfInfo.purpose || 'Business Travel'}`,
+              travelPurpose: trfInfo.purpose || 'Business Travel',
+              travelDates: trfInfo.start_date && trfInfo.end_date 
+                ? `${trfInfo.start_date} to ${trfInfo.end_date}` 
+                : trfInfo.start_date 
+                ? `From ${trfInfo.start_date}` 
+                : 'Not specified'
             });
           }
           

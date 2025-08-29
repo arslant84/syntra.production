@@ -111,7 +111,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         
         // Get the claim requestor information including document_number
         const claimDetails = await sql`
-          SELECT staff_name, staff_no, department_code, document_number, document_type, purpose_of_claim
+          SELECT staff_name, staff_no, department_code, document_number, document_type, purpose_of_claim, total_advance_claim_amount
           FROM expense_claims 
           WHERE id = ${claimId}
         `;
@@ -146,19 +146,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               requestorId: requestorUser[0]?.id || '',
               requestorName: claimInfo.staff_name,
               requestorEmail: requestorUser[0]?.email || '',
+              department: claimInfo.department_code || 'Unknown',
               approverName: validationResult.data.approverName || 'System',
               approverRole: validationResult.data.approverRole || 'Approver',
               rejectionReason: comments || 'No reason provided',
-              entityTitle: `${claimInfo.document_number || claimId} - ${claimInfo.purpose_of_claim || claimInfo.document_type || 'Expense Claim'}`
+              entityTitle: `${claimInfo.document_number || claimId} - ${claimInfo.purpose_of_claim || claimInfo.document_type || 'Expense Claim'}`,
+              claimPurpose: claimInfo.purpose_of_claim || 'Not specified',
+              entityAmount: claimInfo.total_advance_claim_amount ? claimInfo.total_advance_claim_amount.toString() : '0'
             });
           } else {
             // Handle approval notification (includes progression to next step)
             await UnifiedNotificationService.notifyApproval({
               entityType: 'claims',
-              entityId: claimId, // Keep UUID for URL compatibility
+              entityId: claimInfo.document_number || claimId, // Use document_number for display
               requestorId: requestorUser[0]?.id || '',
               requestorName: claimInfo.staff_name,
               requestorEmail: requestorUser[0]?.email || '',
+              department: claimInfo.department_code || 'Unknown',
               currentStatus: nextStatus,
               previousStatus: currentClaim.status,
               approverName: validationResult.data.approverName || 'System',
@@ -166,7 +170,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               nextApprover: nextStatus === 'Pending HOD Approval' ? 'HOD' : 
                            nextStatus === 'Pending Finance Approval' ? 'Finance' : 
                            nextStatus === 'Approved' ? 'Completed' : 'Next Approver',
-              entityTitle: `${claimInfo.document_number || claimId} - ${claimInfo.purpose_of_claim || claimInfo.document_type || 'Expense Claim'}`,
+              entityTitle: `Expense Claim - ${claimInfo.purpose_of_claim || claimInfo.document_type || 'General'}`,
+              entityAmount: claimInfo.total_advance_claim_amount ? claimInfo.total_advance_claim_amount.toString() : '0',
+              claimPurpose: claimInfo.purpose_of_claim || 'Not specified',
               comments: comments
             });
           }

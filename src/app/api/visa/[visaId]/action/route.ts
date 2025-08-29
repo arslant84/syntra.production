@@ -175,7 +175,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     try {
       // Get visa application details including requestor information
       const visaDetails = await sql`
-        SELECT va.staff_id, va.requestor_name, va.destination, u.email, u.id as user_id, u.department
+        SELECT va.staff_id, va.requestor_name, va.destination, va.travel_purpose, 
+               va.trip_start_date, va.trip_end_date, va.department,
+               u.email, u.id as user_id, u.department as user_department
         FROM visa_applications va
         LEFT JOIN users u ON (va.staff_id = u.staff_id OR va.staff_id = u.id OR va.staff_id = u.email)
         WHERE va.id = ${visaId}
@@ -192,11 +194,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             requestorId: visaInfo.user_id,
             requestorName: visaInfo.requestor_name || 'User',
             requestorEmail: visaInfo.email,
+            department: visaInfo.user_department || visaInfo.department,
             currentStatus: updated.status,
             previousStatus: currentStatus,
             approverName: approverName,
             approverRole: approverRole,
             entityTitle: `Visa Application - ${visaInfo.destination || 'Travel'}`,
+            travelPurpose: visaInfo.travel_purpose || 'Business Travel',
+            travelDates: visaInfo.trip_start_date && visaInfo.trip_end_date 
+              ? `${visaInfo.trip_start_date} to ${visaInfo.trip_end_date}` 
+              : visaInfo.trip_start_date 
+              ? `From ${visaInfo.trip_start_date}` 
+              : 'Not specified',
+            destination: visaInfo.destination || 'Not specified',
+            employeeId: visaInfo.staff_id || 'Not specified',
             comments: comments
           });
         } else if (action === 'reject') {
@@ -206,10 +217,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             requestorId: visaInfo.user_id,
             requestorName: visaInfo.requestor_name || 'User',
             requestorEmail: visaInfo.email,
+            department: visaInfo.user_department || visaInfo.department,
             approverName: approverName,
             approverRole: approverRole,
             rejectionReason: comments || 'No reason provided',
-            entityTitle: `Visa Application - ${visaInfo.destination || 'Travel'}`
+            entityTitle: `Visa Application - ${visaInfo.destination || 'Travel'}`,
+            travelPurpose: visaInfo.travel_purpose || 'Business Travel',
+            travelDates: visaInfo.trip_start_date && visaInfo.trip_end_date 
+              ? `${visaInfo.trip_start_date} to ${visaInfo.trip_end_date}` 
+              : visaInfo.trip_start_date 
+              ? `From ${visaInfo.trip_start_date}` 
+              : 'Not specified',
+            destination: visaInfo.destination || 'Not specified',
+            employeeId: visaInfo.staff_id || 'Not specified'
           });
         }
 

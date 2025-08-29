@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
       // Get the transport request details including requestor information
       const transportDetails = await sql`
-        SELECT tr.created_by, tr.requestor_name, tr.department, tr.purpose, u.email
+        SELECT tr.created_by, tr.requestor_name, tr.department, tr.purpose, u.email, u.id as user_id
         FROM transport_requests tr
         LEFT JOIN users u ON tr.created_by = u.id
         WHERE tr.id = ${transportId}
@@ -77,11 +77,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             requestorId: transportInfo.user_id,
             requestorName: transportInfo.requestor_name || 'User',
             requestorEmail: transportInfo.email,
+            department: transportInfo.department,
             currentStatus: updatedTransportRequest.status,
             previousStatus: 'Pending Approval',
             approverName: approverName,
             approverRole: approverRole,
             entityTitle: `Transport Request - ${transportInfo.purpose || 'Transport Service'}`,
+            transportPurpose: transportInfo.purpose || 'Not specified',
             comments: comments
           });
         } else if (action === 'reject') {
@@ -91,10 +93,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             requestorId: transportInfo.user_id,
             requestorName: transportInfo.requestor_name || 'User',
             requestorEmail: transportInfo.email,
+            department: transportInfo.department,
             approverName: approverName,
             approverRole: approverRole,
             rejectionReason: comments || 'No reason provided',
-            entityTitle: `Transport Request - ${transportInfo.purpose || 'Transport Service'}`
+            entityTitle: `Transport Request - ${transportInfo.purpose || 'Transport Service'}`,
+            transportPurpose: transportInfo.purpose || 'Not specified'
           });
         }
 

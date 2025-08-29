@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 const PUBLIC_PATHS = ['/login', '/api/auth', '/_next', '/favicon.ico'];
+const PUBLIC_FILE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.ico', '.webp'];
 
 // Role-based access control configuration
 const ROLE_ACCESS_RULES = {
@@ -86,6 +87,11 @@ export async function middleware(request: NextRequest) {
 
   // Allow public paths
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  // Allow public static files
+  if (PUBLIC_FILE_EXTENSIONS.some((ext) => pathname.endsWith(ext))) {
     return NextResponse.next();
   }
 

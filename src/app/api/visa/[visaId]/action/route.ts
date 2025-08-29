@@ -175,7 +175,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     try {
       // Get visa application details including requestor information
       const visaDetails = await sql`
-        SELECT va.staff_id, va.applicant_name, va.destination, u.email, u.id as user_id, u.department
+        SELECT va.staff_id, va.requestor_name, va.destination, u.email, u.id as user_id, u.department
         FROM visa_applications va
         LEFT JOIN users u ON (va.staff_id = u.staff_id OR va.staff_id = u.id OR va.staff_id = u.email)
         WHERE va.id = ${visaId}
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             entityType: 'visa',
             entityId: visaId,
             requestorId: visaInfo.user_id,
-            requestorName: visaInfo.applicant_name || 'User',
+            requestorName: visaInfo.requestor_name || 'User',
             requestorEmail: visaInfo.email,
             currentStatus: updated.status,
             previousStatus: currentStatus,
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             entityType: 'visa',
             entityId: visaId,
             requestorId: visaInfo.user_id,
-            requestorName: visaInfo.applicant_name || 'User',
+            requestorName: visaInfo.requestor_name || 'User',
             requestorEmail: visaInfo.email,
             approverName: approverName,
             approverRole: approverRole,

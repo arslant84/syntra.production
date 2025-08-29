@@ -110,12 +110,11 @@
     @apply border-border;
   }
   body {
-    @apply text-foreground;
+    @apply bg-background text-foreground;
     line-height: 1.5; /* Set default line height */
-    /* Background styles moved to layout.tsx */
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold; /* Changed from font-bold to font-semibold for a slightly softer look */
+    @apply font-semibold;
   }
   h1 { @apply text-2xl; } 
   h2 { @apply text-xl; } 
@@ -127,12 +126,10 @@
     height: 8px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-muted/50;
-    border-radius: 10px;
+    @apply bg-muted/50 rounded-lg;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-primary/50;
-    border-radius: 10px;
+    @apply bg-primary/50 rounded-lg;
   }
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-primary/70;

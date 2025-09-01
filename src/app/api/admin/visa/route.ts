@@ -1,33 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { hasPermission } from '@/lib/permissions';
 import { sql } from '@/lib/db';
+import { withAuth } from '@/lib/api-protection';
+import { hasPermission } from '@/lib/session-utils';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function(request: NextRequest) {
+  const session = (request as any).user;
+  
+  // Check if user has permission to manage visas
+  if (!hasPermission(session, 'process_visa_applications') && !hasPermission(session, 'admin_all')) {
+    return NextResponse.json({ error: 'Unauthorized - insufficient permissions for visa admin' }, { status: 403 });
+  }
+
+  console.log(`API_ADMIN_VISA_GET: Admin ${session.role} (${session.email}) accessing visa data`);
+
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user has permission to manage visas (admin view) - using transport/claims permissions for now
-    if (!await hasPermission('manage_transport') && !await hasPermission('view_all_transport') && !await hasPermission('manage_claims') && !await hasPermission('view_all_claims')) {
-      return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
-    }
-
     const url = new URL(request.url);
     const statuses = url.searchParams.get('statuses');
     
+    // Ensure we have a valid SQL connection
+    const { getSql } = await import('@/lib/db');
+    const sqlInstance = getSql();
+    
     let query;
-    let params: any[] = [];
     
     // If specific statuses are requested
     if (statuses) {
       const statusArray = statuses.split(',');
       
-      query = sql`
+      query = sqlInstance`
         SELECT 
           va.id,
           va.requestor_name as requestorName,
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       `;
     } else {
       // Default behavior - return all visas summary
-      query = sql`
+      query = sqlInstance`
         SELECT 
           va.id,
           va.requestor_name as requestorName,
@@ -85,4 +85,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

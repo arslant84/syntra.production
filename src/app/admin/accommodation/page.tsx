@@ -34,11 +34,32 @@ export default function AccommodationAdminPage() {
       setIsLoading(true);
       // Use limit and specific fields to improve performance
       const response = await fetch('/api/admin/accommodation?limit=100&processing=false');
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch accommodation requests');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Accommodation requests fetch failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        
+        // If it's an authentication error, don't spam the console
+        if (response.status === 401 || response.status === 403) {
+          console.warn('Authentication required for accommodation requests');
+          return;
+        }
+        
+        throw new Error(`Failed to fetch accommodation requests: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
+      
+      // Handle API errors gracefully
+      if (data.error) {
+        console.warn('API returned error:', data.error, data.details || '');
+        // Still continue with empty data rather than throwing
+      }
+      
       let requests = [];
       
       // Handle both paginated and direct array responses
@@ -75,9 +96,15 @@ export default function AccommodationAdminPage() {
         ).length,
       };
       setStats(newStats);
-    } catch (error) {
-      console.error('Failed to fetch accommodation requests:', error);
+    } catch (error: any) {
+      console.error('Failed to fetch accommodation requests:', {
+        message: error.message,
+        stack: error.stack
+      });
+      
+      // Set fallback stats and empty requests
       setStats({ total: 0, pending: 0, approved: 0, processing: 0, completed: 0, rejected: 0 });
+      setAccommodationRequests([]);
     } finally {
       setIsLoading(false);
     }

@@ -44,12 +44,26 @@ export default function FlightsAdminPage() {
     
     try {
       const response = await fetch('/api/admin/flights?stats=true');
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch flight statistics');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Flight statistics fetch failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        
+        // If it's an authentication error, don't spam the console
+        if (response.status === 401 || response.status === 403) {
+          console.warn('Authentication required for flight statistics');
+          return;
+        }
+        
+        throw new Error(`Failed to fetch flight statistics: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      const apiStats = data.stats;
+      const apiStats = data.stats || {};
       
       // Calculate statistics from API response
       const newStats = {
@@ -60,8 +74,13 @@ export default function FlightsAdminPage() {
         rejected: apiStats.rejected || 0
       };
       setStats(newStats);
-    } catch (error) {
-      console.error('Failed to fetch flight statistics:', error);
+    } catch (error: any) {
+      console.error('Failed to fetch flight statistics:', {
+        message: error.message,
+        stack: error.stack
+      });
+      
+      // Set fallback stats
       setStats({ total: 0, pending: 0, booked: 0, completed: 0, rejected: 0 });
     }
   }, [role, userId, sessionLoading]);
@@ -75,11 +94,31 @@ export default function FlightsAdminPage() {
       setIsLoading(true);
       // Fetch all TSRs that require flights from the admin flight endpoint
       const response = await fetch('/api/admin/flights');
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch flight applications');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Flight applications fetch failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        
+        // If it's an authentication error, don't spam the console
+        if (response.status === 401 || response.status === 403) {
+          console.warn('Authentication required for flight applications');
+          return;
+        }
+        
+        throw new Error(`Failed to fetch flight applications: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
+      
+      // Handle API errors gracefully
+      if (data.error) {
+        console.warn('API returned error:', data.error, data.details || '');
+        // Still continue with empty data rather than throwing
+      }
       
       // Format the TSR data for display (all TSRs regardless of approval status)
       const formattedApplications = (data.trfs || []).map((trf: any) => ({
@@ -95,8 +134,13 @@ export default function FlightsAdminPage() {
       }));
       
       setApplications(formattedApplications);
-    } catch (error) {
-      console.error('Failed to fetch flight applications:', error);
+    } catch (error: any) {
+      console.error('Failed to fetch flight applications:', {
+        message: error.message,
+        stack: error.stack
+      });
+      
+      // Set fallback applications
       setApplications([]);
     } finally {
       setIsLoading(false);

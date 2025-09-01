@@ -37,6 +37,7 @@ export interface WorkflowNotificationParams {
   entityAmount?: string;
   entityDates?: string; // formatted date range
   travelPurpose?: string;
+  travelType?: string; // e.g., 'Overseas', 'Home Leave Passage', 'Local'
   claimPurpose?: string;
   transportPurpose?: string;
   accommodationPurpose?: string;
@@ -355,7 +356,7 @@ export class UnifiedNotificationService {
 
     try {
       // Determine required permission based on entity type and status
-      const permission = this.getRequiredPermissionForStatus(params.entityType, params.currentStatus);
+      const permission = await this.getRequiredPermissionForStatus(params.entityType, params.currentStatus, params.travelType, params.entityId);
       
       if (!permission) {
         console.warn(`No permission mapping for ${params.entityType} status: ${params.currentStatus}`);
@@ -443,7 +444,8 @@ export class UnifiedNotificationService {
       'approve_accommodation_focal': ['Department Focal'],
       'approve_accommodation_manager': ['Line Manager'],
       'approve_accommodation_hod': ['HOD'],
-      'process_visa_applications': ['Visa Clerk']
+      'process_visa_applications': ['Visa Clerk'],
+      'process_flights': ['Ticketing Admin']
     };
 
     // Handle transport requests differently - they use same permission but different roles per stage
@@ -614,12 +616,13 @@ export class UnifiedNotificationService {
   /**
    * Get required permission for workflow status
    */
-  private static getRequiredPermissionForStatus(entityType: string, status: string): string | null {
+  private static async getRequiredPermissionForStatus(entityType: string, status: string, travelType?: string, entityId?: string): Promise<string | null> {
     const permissionMap: Record<string, Record<string, string>> = {
       'trf': {
         'Pending Department Focal': 'approve_trf_focal',
         'Pending Line Manager': 'approve_trf_manager', 
-        'Pending HOD': 'approve_trf_hod'
+        'Pending HOD': 'approve_trf_hod',
+        'Approved': null // Will be handled specially in the method
       },
       'visa': {
         'Pending Department Focal': 'approve_visa_focal',
@@ -646,7 +649,47 @@ export class UnifiedNotificationService {
       }
     };
 
-    return permissionMap[entityType]?.[status] || null;
+    const permission = permissionMap[entityType]?.[status];
+    
+    // Handle TRF 'Approved' status specially (needs async flight check)
+    if (entityType === 'trf' && status === 'Approved' && entityId) {
+      return await this.getApprovedTrfPermission(entityId, travelType);
+    }
+    
+    return permission || null;
+  }
+
+  /**
+   * Get appropriate permission for approved TRF based on travel type and flight requirements
+   */
+  private static async getApprovedTrfPermission(trfId: string, travelType?: string): Promise<string | null> {
+    // Check if TSR has flights by travel type
+    if (travelType && ['Overseas', 'Home Leave Passage'].includes(travelType)) {
+      return 'process_flights';
+    }
+    
+    // Also check if TSR has flight numbers in itinerary segments (for Domestic/External with flights)
+    try {
+      const { sql } = await import('./db');
+      const flightSegments = await sql`
+        SELECT COUNT(*) as flight_count
+        FROM trf_itinerary_segments 
+        WHERE trf_id = ${trfId} 
+        AND flight_number IS NOT NULL 
+        AND flight_number <> ''
+      `;
+      
+      if (flightSegments[0]?.flight_count > 0) {
+        console.log(`TSR ${trfId} has ${flightSegments[0].flight_count} flight segments - routing to flights admin`);
+        return 'process_flights';
+      }
+    } catch (error) {
+      console.error(`Error checking flight segments for TSR ${trfId}:`, error);
+      // Fallback to travel_type only if DB check fails
+    }
+    
+    // For other travel types without flights, don't send to flights admin
+    return null;
   }
 
   /**
@@ -712,6 +755,7 @@ export class UnifiedNotificationService {
     approverEmail?: string;
     nextApprover?: string;
     entityTitle: string;
+    travelType?: string;
     comments?: string;
   }): Promise<void> {
     const eventType = this.getApprovalEventType(params.entityType, params.previousStatus);
@@ -730,6 +774,7 @@ export class UnifiedNotificationService {
       approverRole: params.approverRole,
       nextApprover: params.nextApprover,
       entityTitle: params.entityTitle,
+      travelType: params.travelType,
       comments: params.comments
     });
 

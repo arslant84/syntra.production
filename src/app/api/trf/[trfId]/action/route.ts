@@ -226,6 +226,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 ? `From ${trfInfo.start_date}` 
                 : '',
               travelPurpose: trfInfo.purpose || 'Business Travel',
+              travelType: trfInfo.travel_type,
               comments: comments
             });
           } else if (action === 'reject') {

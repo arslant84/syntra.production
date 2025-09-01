@@ -192,6 +192,7 @@ export default function ClaimsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Claim ID</TableHead>
+                    <TableHead>Requestor</TableHead>
                     <TableHead>Purpose</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
@@ -203,6 +204,7 @@ export default function ClaimsPage() {
                   {filteredClaims.map((claim) => (
                     <TableRow key={claim.id}>
                       <TableCell className="font-medium">{claim.document_number || claim.documentNumber || claim.id}</TableCell>
+                      <TableCell>{claim.staff_name || claim.requestorName || 'N/A'}</TableCell>
                       <TableCell>{claim.purpose}</TableCell>
                       <TableCell>{formatCurrencyForTable(claim.amount)}</TableCell>
                       <TableCell><StatusBadge status={claim.status} showIcon /></TableCell>

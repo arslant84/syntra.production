@@ -152,6 +152,7 @@ export default function VisaApplicationsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Visa ID</TableHead>
+                    <TableHead>Requestor</TableHead>
                     <TableHead>Purpose</TableHead>
                     <TableHead>Destination</TableHead>
                     <TableHead>Trip Dates</TableHead>
@@ -164,6 +165,7 @@ export default function VisaApplicationsPage() {
                   {filteredApplications.map((app) => (
                     <TableRow key={app.id}>
                       <TableCell className="font-medium">{app.id}</TableCell>
+                      <TableCell>{app.applicantName || app.requestorName || 'N/A'}</TableCell>
                       <TableCell>{app.travelPurpose}</TableCell>
                       <TableCell>
                         {app.travelPurpose === 'Expatriate Relocation' ? 'Home Country' : (app.destination || 'N/A')}

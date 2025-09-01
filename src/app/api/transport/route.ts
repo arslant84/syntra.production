@@ -26,27 +26,23 @@ export const GET = withAuth(async function(request: NextRequest) {
     if (summary === 'true') {
       let allTransportRequests;
       
-      // Strict filtering for summary - only true system admins can see all data
+      // Universal filtering for summary - same as main logic
       const userIdentifier = await getUserIdentifier(session);
-      const isSystemAdmin = session.role === 'System Administrator' || session.role === 'Admin';
       let userId = userIdentifier.userId; // Default: filter by user
       
-      if (isSystemAdmin) {
-        console.log(`API_TRANSPORT_GET: System Admin ${session.role} can view all transport requests for summary`);
-        userId = null; // Only system admins see all data
-      } else {
-        console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport summary with strict filtering`);
-        // All other users (including Line Managers, HODs, etc.) see only their own requests
-      }
+      // Summary pages are personal views, so never bypass user filtering regardless of role
+      console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport summary with strict filtering`);
+      // ALL users (including System Administrators) see only their own requests in summary
       
       if (fromDate && toDate) {
         allTransportRequests = await TransportService.getTransportRequestsByDateRange(
           new Date(fromDate), 
           new Date(toDate),
-          userId
+          userId,
+          session
         );
       } else {
-        allTransportRequests = await TransportService.getAllTransportRequests(userId);
+        allTransportRequests = await TransportService.getAllTransportRequests(userId, session);
       }
 
       const statusByMonth: { [key: string]: { month: string; pending: number; approved: number; rejected: number } } = {};
@@ -73,23 +69,20 @@ export const GET = withAuth(async function(request: NextRequest) {
       return NextResponse.json({ statusByMonth: sortedMonths });
     }
     
-    // Strict user filtering system for personal views
+    // Universal user filtering system - same as TSR API
     const userIdentifier = await getUserIdentifier(session);
     let userId = userIdentifier.userId; // Default: always filter by user
     
     console.log(`API_TRANSPORT_GET: Session details - role: ${session.role}, userId: ${userId}, email: ${session.email}`);
     
-    // Only bypass user filtering for true admin roles and only when viewing approval queues with status filters
-    const isApprovalQueue = statuses && statuses.trim() !== '';
-    const isSystemAdmin = session.role === 'System Administrator' || session.role === 'Admin';
-    
-    if (isApprovalQueue && isSystemAdmin) {
-      console.log(`API_TRANSPORT_GET: System Admin ${session.role} viewing approval queue - no user filter`);
-      userId = null; // System admins can see all requests in approval queues
+    // Use the same shouldBypassUserFilter logic as TSR API for consistency
+    if (shouldBypassUserFilter(session, statuses)) {
+      console.log(`API_TRANSPORT_GET: Admin ${session.role} viewing approval queue - no user filter`);
+      userId = null; // Admins viewing approval queue see all requests
     } else {
       console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport requests with strict filtering (${userId})`);
-      // All other users (including Line Managers, HODs, etc.) see only their own requests on personal pages
-      // This ensures Line Managers see only their own requests on /transport page, not all requests
+      // ALL users (including System Administrators) see only their own requests on personal pages
+      // Personal pages should never bypass user filtering regardless of role
     }
     
     // If statuses are specified, fetch all transport requests with those statuses (for approval queue)
@@ -109,7 +102,7 @@ export const GET = withAuth(async function(request: NextRequest) {
     const cacheKey = userCacheKey(userId || 'admin', 'transport-requests');
     const transportRequests = await withCache(
       cacheKey,
-      () => TransportService.getAllTransportRequests(userId),
+      () => TransportService.getAllTransportRequests(userId, session),
       CACHE_TTL.USER_REQUESTS
     );
     

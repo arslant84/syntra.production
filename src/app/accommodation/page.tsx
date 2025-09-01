@@ -126,6 +126,7 @@ export default function AccommodationRequestsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Request ID</TableHead>
+                    <TableHead>Requestor</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Dates</TableHead>
                     <TableHead>Status</TableHead>
@@ -137,6 +138,7 @@ export default function AccommodationRequestsPage() {
                   {filteredRequests.map((req) => (
                     <TableRow key={req.id}>
                       <TableCell className="font-medium">{req.id}</TableCell>
+                      <TableCell>{req.requestorName || 'N/A'}</TableCell>
                       <TableCell>{req.location}</TableCell>
                       <TableCell>
                         {format(req.requestedCheckInDate, 'PPP')} - {format(req.requestedCheckOutDate, 'PPP')}

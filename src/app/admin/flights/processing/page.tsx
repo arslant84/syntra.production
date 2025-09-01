@@ -750,8 +750,8 @@ export default function FlightsProcessingPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {bookedFlights.map((flight) => (
-                      <TableRow key={flight.id}>
+                    {bookedFlights.map((flight, index) => (
+                      <TableRow key={flight.id ? `flight-${flight.id}` : `trf-${flight.trfId}-${index}`}>
                         <TableCell className="font-medium">{flight.trfId}</TableCell>
                         <TableCell>{flight.requestorName}</TableCell>
                         <TableCell>{flight.flightNumber}</TableCell>

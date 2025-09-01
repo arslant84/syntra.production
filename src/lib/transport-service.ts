@@ -439,12 +439,21 @@ export class TransportService {
   }
 
   // Get all transport requests (with optional user filtering)
-  static async getAllTransportRequests(userId?: string): Promise<TransportRequestSummary[]> {
+  static async getAllTransportRequests(userId?: string, session?: any): Promise<TransportRequestSummary[]> {
     try {
       let result;
-      if (userId) {
-        // STRICT filtering for personal views - only show requests created by this specific user
-        // This fixes the issue where users see other users' transport requests on their profile
+      if (userId && session) {
+        // Use universal user filtering based on requestor identity, not just created_by
+        // This ensures users see requests where THEY are the actual requestor
+        const { generateUniversalUserFilterSQL } = await import('@/lib/universal-user-matching');
+        
+        const userFilter = generateUniversalUserFilterSQL(session, sql, 'tr', {
+          staffIdField: 'staff_id',
+          nameField: 'requestor_name',
+          emailField: null,
+          userIdField: null
+        });
+        
         result = await sql`
           SELECT 
             tr.id,
@@ -455,7 +464,7 @@ export class TransportService {
             tr.created_at as submitted_at,
             tr.tsr_reference
           FROM transport_requests tr
-          WHERE tr.created_by = ${userId}
+          WHERE ${userFilter}
           ORDER BY tr.created_at DESC
         `;
       } else {
@@ -490,11 +499,20 @@ export class TransportService {
   }
 
   // Get transport requests by date range (with optional user filtering)
-  static async getTransportRequestsByDateRange(fromDate: Date, toDate: Date, userId?: string): Promise<TransportRequestSummary[]> {
+  static async getTransportRequestsByDateRange(fromDate: Date, toDate: Date, userId?: string, session?: any): Promise<TransportRequestSummary[]> {
     try {
       let result;
-      if (userId) {
-        // STRICT filtering for personal views - only show requests created by this specific user
+      if (userId && session) {
+        // Use universal user filtering based on requestor identity, not just created_by
+        const { generateUniversalUserFilterSQL } = await import('@/lib/universal-user-matching');
+        
+        const userFilter = generateUniversalUserFilterSQL(session, sql, 'tr', {
+          staffIdField: 'staff_id',
+          nameField: 'requestor_name',
+          emailField: null,
+          userIdField: null
+        });
+        
         result = await sql`
           SELECT 
             tr.id,
@@ -506,7 +524,7 @@ export class TransportService {
             tr.tsr_reference
           FROM transport_requests tr
           WHERE tr.created_at >= ${fromDate.toISOString()} AND tr.created_at <= ${toDate.toISOString()}
-            AND tr.created_by = ${userId}
+            AND ${userFilter}
           ORDER BY tr.created_at DESC
         `;
       } else {

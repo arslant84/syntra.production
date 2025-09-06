@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,9 @@ export default function AccommodationAdminPage() {
   const { role, userId, isLoading: sessionLoading } = useSessionPermissions();
   const [accommodationRequests, setAccommodationRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastFetch, setLastFetch] = useState<number>(0);
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -25,15 +28,22 @@ export default function AccommodationAdminPage() {
     rejected: 0
   });
 
-  const fetchAccommodationRequests = useCallback(async () => {
+  const fetchAccommodationRequests = useCallback(async (forceRefresh = false) => {
     if (sessionLoading || !role) {
+      return;
+    }
+    
+    // Check cache validity
+    const now = Date.now();
+    if (!forceRefresh && accommodationRequests.length > 0 && (now - lastFetch) < CACHE_DURATION) {
+      console.log('Using cached accommodation requests');
       return;
     }
     
     try {
       setIsLoading(true);
-      // Use limit and specific fields to improve performance
-      const response = await fetch('/api/admin/accommodation?limit=100&processing=false');
+      // Reduced limit for faster initial load
+      const response = await fetch('/api/admin/accommodation?limit=25&processing=false');
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -77,8 +87,9 @@ export default function AccommodationAdminPage() {
       );
       
       setAccommodationRequests(filteredRequests);
+      setLastFetch(now);
       
-      // Calculate statistics
+      // Calculate statistics using useMemo for performance
       const newStats = {
         total: filteredRequests.length,
         pending: filteredRequests.filter(req => 
@@ -108,11 +119,11 @@ export default function AccommodationAdminPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [role, userId, sessionLoading]);
+  }, [role, userId, sessionLoading, accommodationRequests.length, lastFetch]);
 
-  const fetchTrfsAwaitingAccommodation = useCallback(async () => {
-    // Placeholder for maintaining compatibility with components
-  }, []);
+  const handleDataRefresh = useCallback(() => {
+    fetchAccommodationRequests(true); // Force refresh
+  }, [fetchAccommodationRequests]);
 
   useEffect(() => {
     fetchAccommodationRequests();
@@ -189,11 +200,11 @@ export default function AccommodationAdminPage() {
         </TabsList>
 
         <TabsContent value="locations" className="space-y-4">
-          <LocationManagement onLocationChange={() => fetchTrfsAwaitingAccommodation()} />
+          <LocationManagement onLocationChange={handleDataRefresh} />
         </TabsContent>
 
         <TabsContent value="rooms" className="space-y-4">
-          <RoomManagement onRoomChange={() => fetchTrfsAwaitingAccommodation()} />
+          <RoomManagement onRoomChange={handleDataRefresh} />
         </TabsContent>
       </Tabs>
     </div>

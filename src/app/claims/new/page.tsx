@@ -8,11 +8,13 @@ import { ReceiptText } from "lucide-react"; // Using a more relevant icon
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useUserDetails } from '@/hooks/use-user-details';
+import { useUserProfile } from '@/hooks/use-user-profile';
 
 export default function NewClaimPage() {
   const { toast } = useToast();
   const router = useRouter();
   const { userDetails, loading: userDetailsLoading } = useUserDetails();
+  const { user: userProfile, loading: userProfileLoading } = useUserProfile();
   const [initialClaimData, setInitialClaimData] = useState<Partial<ExpenseClaim>>(null);
 
   const handleSubmitClaim = async (data: ExpenseClaim) => {
@@ -62,21 +64,29 @@ export default function NewClaimPage() {
 
   // Initialize claim data with user details when available
   useEffect(() => {
-    if (userDetails && !userDetailsLoading) {
+    if (!userDetailsLoading && !userProfileLoading && (userDetails || userProfile)) {
+      console.log("Auto-populating claims data:", { userDetails, userProfile });
+      
+      const staffName = userProfile?.name || userDetails?.requestorName || "";
+      const staffNo = userProfile?.staff_id || userDetails?.staffId || "";
+      const departmentCode = userProfile?.department || userDetails?.department || "";
+      
+      console.log("Auto-populate values:", { staffName, staffNo, departmentCode });
+      
       const newInitialData: Partial<ExpenseClaim> = {
         headerDetails: {
           documentType: "",
           documentNumber: "",
           claimForMonthOf: null,
-          staffName: userDetails.requestorName || "",
-          staffNo: userDetails.staffId || "",
+          staffName,
+          staffNo,
           gred: "",
           staffType: "",
           executiveStatus: "",
-          departmentCode: userDetails.department || "",
+          departmentCode,
           deptCostCenterCode: "",
           location: "",
-          telExt: "",
+          telExt: userProfile?.phone || "",
           startTimeFromHome: "",
           timeOfArrivalAtHome: "",
         },
@@ -109,7 +119,7 @@ export default function NewClaimPage() {
       };
       setInitialClaimData(newInitialData);
     }
-  }, [userDetails, userDetailsLoading]);
+  }, [userDetails, userDetailsLoading, userProfile, userProfileLoading]);
 
   return (
     <div className="w-full px-2 md:px-6 py-8 space-y-8">

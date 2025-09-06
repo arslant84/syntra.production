@@ -1,6 +1,6 @@
 // Test API endpoint for workflow notification system
 import { NextRequest, NextResponse } from 'next/server';
-import { WorkflowEmailService } from '@/lib/workflow-email-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 import { NotificationService } from '@/lib/notification-service';
 
 export async function POST(request: NextRequest) {
@@ -29,12 +29,14 @@ export async function POST(request: NextRequest) {
           department
         });
         
-        result = await WorkflowEmailService.sendSubmissionNotification({
+        result = await UnifiedNotificationService.notifySubmission({
           entityType,
           entityId,
+          requestorId: 'test-user-id',
           requestorName,
           requestorEmail,
-          department
+          department,
+          entityTitle: `Test ${entityType} - ${entityId}`
         });
         
         console.log('Submission notification completed');
@@ -42,27 +44,33 @@ export async function POST(request: NextRequest) {
 
       case 'approval':
         // Test approval notification
-        result = await WorkflowEmailService.sendApprovalNotification({
+        result = await UnifiedNotificationService.notifyApproval({
           entityType,
           entityId,
+          requestorId: 'test-user-id',
           requestorName,
           requestorEmail,
-          newStatus: 'Approved',
+          currentStatus: 'Approved',
+          previousStatus: 'Pending Department Focal',
           approverName: 'Manager Smith',
+          approverRole: 'Line Manager',
+          entityTitle: `Test ${entityType} - ${entityId}`,
           comments: 'Approved for business travel'
         });
         break;
 
       case 'rejection':
         // Test rejection notification
-        result = await WorkflowEmailService.sendApprovalNotification({
+        result = await UnifiedNotificationService.notifyRejection({
           entityType,
           entityId,
+          requestorId: 'test-user-id',
           requestorName,
           requestorEmail,
-          newStatus: 'Rejected',
           approverName: 'Manager Smith',
-          comments: 'Insufficient justification provided'
+          approverRole: 'Line Manager',
+          rejectionReason: 'Insufficient justification provided',
+          entityTitle: `Test ${entityType} - ${entityId}`
         });
         break;
 

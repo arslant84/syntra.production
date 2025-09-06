@@ -22,6 +22,7 @@ export const APPROVAL_ROLES = [
   ROLES.LINE_MANAGER, 
   ROLES.HOD,
   ROLES.FINANCE_CLERK,
+  ROLES.ACCOMMODATION_ADMIN,
   ROLES.ADMIN,
   ROLES.SYSTEM_ADMINISTRATOR
 ];
@@ -66,6 +67,13 @@ export function getApprovalQueueFilters(userRole: string | null): {
     [ROLES.VISA_CLERK]: [
       'Pending Visa Clerk'
     ],
+    [ROLES.ACCOMMODATION_ADMIN]: [
+      'Accommodation Assigned',
+      'Approved',
+      'Pending Accommodation Admin',
+      'Pending Accommodation',
+      'Pending Booking'
+    ],
     [ROLES.ADMIN]: [
       'Pending Department Focal',
       'Pending Focal Approval',
@@ -76,7 +84,11 @@ export function getApprovalQueueFilters(userRole: string | null): {
       'Pending HOD Approval',
       'Pending Finance Approval',
       'Pending Visa Clerk',
-      'Pending Verification'
+      'Pending Verification',
+      'Accommodation Assigned',
+      'Pending Accommodation Admin',
+      'Pending Accommodation',
+      'Pending Booking'
     ],
     [ROLES.SYSTEM_ADMINISTRATOR]: [
       'Pending Department Focal',
@@ -88,7 +100,11 @@ export function getApprovalQueueFilters(userRole: string | null): {
       'Pending HOD Approval',
       'Pending Finance Approval',
       'Pending Visa Clerk',
-      'Pending Verification'
+      'Pending Verification',
+      'Accommodation Assigned',
+      'Pending Accommodation Admin',
+      'Pending Accommodation',
+      'Pending Booking'
     ]
   };
 

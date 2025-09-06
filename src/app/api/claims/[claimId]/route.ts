@@ -505,3 +505,60 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Failed to revise expense claim.', details: error.message }, { status: 500 });
   }
 }
+
+// DELETE /api/claims/[claimId] - Delete a claim
+export async function DELETE(request: NextRequest, { params }: { params: { claimId: string } }) {
+  const { claimId } = params;
+  
+  if (!claimId) {
+    return NextResponse.json({ error: 'Claim ID is required' }, { status: 400 });
+  }
+
+  console.log("API_CLAIMS_DELETE: Deleting claim with ID:", claimId);
+
+  try {
+    // Use transaction to ensure all related data is deleted atomically
+    await sql.begin(async tx => {
+      // First check if claim exists and get its status
+      const claimCheck = await tx`
+        SELECT id, status, document_number FROM expense_claims WHERE id = ${claimId}
+      `;
+
+      if (claimCheck.length === 0) {
+        throw new Error(`Claim with ID ${claimId} not found`);
+      }
+
+      const claim = claimCheck[0];
+      
+      // Only allow deletion of certain statuses (same as DELETABLE_STATUSES in frontend)
+      const deletableStatuses = ['Draft', 'Pending Department Focal', 'Pending Verification', 'Rejected'];
+      if (!deletableStatuses.includes(claim.status)) {
+        throw new Error(`Cannot delete claim with status: ${claim.status}. Only drafts, pending verification, and rejected claims can be deleted.`);
+      }
+
+      console.log(`API_CLAIMS_DELETE: Deleting claim ${claim.document_number} with status ${claim.status}`);
+
+      // Delete related records first (foreign key constraints)
+      await tx`DELETE FROM expense_claim_fx_rates WHERE claim_id = ${claimId}`;
+      await tx`DELETE FROM expense_claim_items WHERE claim_id = ${claimId}`;
+      await tx`DELETE FROM claims_approval_steps WHERE claim_id = ${claimId}`;
+      
+      // Finally delete the main claim record
+      await tx`DELETE FROM expense_claims WHERE id = ${claimId}`;
+      
+      console.log("API_CLAIMS_DELETE: Claim and all related data deleted successfully");
+    });
+
+    return NextResponse.json({ 
+      message: 'Claim deleted successfully',
+      claimId: claimId 
+    }, { status: 200 });
+
+  } catch (error: any) {
+    console.error("API_CLAIMS_DELETE_ERROR:", error.message, error.stack);
+    return NextResponse.json({ 
+      error: 'Failed to delete claim', 
+      details: error.message 
+    }, { status: 500 });
+  }
+}

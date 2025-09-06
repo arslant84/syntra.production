@@ -58,15 +58,40 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Create notifications using enhanced workflow notification system
     try {
       // Get the transport request details including requestor information
+      // Try multiple ways to find the actual requestor's email
       const transportDetails = await sql`
-        SELECT tr.created_by, tr.requestor_name, tr.department, tr.purpose, u.email, u.id as user_id
+        SELECT 
+          tr.created_by, 
+          tr.requestor_name, 
+          tr.department, 
+          tr.purpose,
+          tr.staff_id,
+          tr.email as direct_email,
+          u.email as created_by_email,
+          u2.email as staff_match_email,
+          u3.email as name_match_email,
+          COALESCE(tr.email, u.email, u2.email, u3.email) as email,
+          COALESCE(tr.created_by, u.id, u2.id, u3.id) as user_id
         FROM transport_requests tr
         LEFT JOIN users u ON tr.created_by = u.id
+        LEFT JOIN users u2 ON tr.staff_id IS NOT NULL AND tr.staff_id = u2.staff_id
+        LEFT JOIN users u3 ON tr.requestor_name IS NOT NULL AND LOWER(tr.requestor_name) = LOWER(u3.name)
         WHERE tr.id = ${transportId}
       `;
 
       if (transportDetails.length > 0) {
         const transportInfo = transportDetails[0];
+        
+        // Debug requestor email resolution
+        console.log(`🔍 TRANSPORT_EMAIL_DEBUG: Transport ${transportId}`);
+        console.log(`   📧 Direct email: ${transportInfo.direct_email}`);
+        console.log(`   📧 Created-by email: ${transportInfo.created_by_email}`);
+        console.log(`   📧 Staff match email: ${transportInfo.staff_match_email}`);
+        console.log(`   📧 Name match email: ${transportInfo.name_match_email}`);
+        console.log(`   📧 Final resolved email: ${transportInfo.email}`);
+        console.log(`   👤 Requestor name: ${transportInfo.requestor_name}`);
+        console.log(`   🆔 Staff ID: ${transportInfo.staff_id}`);
+        console.log(`   🆔 User ID: ${transportInfo.user_id}`);
         
         // Send enhanced workflow notification for status change
         // Send 5-stage workflow notification

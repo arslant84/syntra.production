@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { WorkflowEmailService } from '@/lib/workflow-email-service';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,84 +22,94 @@ export async function POST(request: NextRequest) {
         // Test: Initial submission → Department Focal ONLY
         console.log(`🧪 CORRECTED_WORKFLOW_TEST: Testing submission routing`);
         console.log(`🧪 Expected: TO = Department Focal (${department}), CC = ${requestorEmail}`);
-        result = await WorkflowEmailService.sendSubmissionNotification({
+        result = await UnifiedNotificationService.notifySubmission({
           entityType,
           entityId,
+          requestorId: 'test-user-id',
           requestorName,
           requestorEmail,
-          department
+          department,
+          entityTitle: `Test ${entityType} - ${entityId}`
         });
         break;
 
       case 'department_focal_approval':
         // Test: Department Focal → Line Manager
-        result = await WorkflowEmailService.sendStatusChangeNotification({
+        result = await UnifiedNotificationService.notifyApproval({
           entityType,
           entityId,
+          requestorId: 'test-user-id',
           requestorName,
           requestorEmail,
-          fromStatus: 'Pending Department Focal',
-          toStatus: 'Pending Line Manager',
-          department,
-          changedBy: 'Department Focal',
+          currentStatus: 'Pending Line Manager',
+          previousStatus: 'Pending Department Focal',
+          approverName: 'Department Focal',
+          approverRole: 'Department Focal',
+          entityTitle: `Test ${entityType} - ${entityId}`,
           comments: 'Approved by department focal'
         });
         break;
 
       case 'line_manager_approval':
         // Test: Line Manager → HOD
-        result = await WorkflowEmailService.sendStatusChangeNotification({
+        result = await UnifiedNotificationService.notifyApproval({
           entityType,
           entityId,
+          requestorId: 'test-user-id',
           requestorName,
           requestorEmail,
-          fromStatus: 'Pending Line Manager',
-          toStatus: 'Pending HOD',
-          department,
-          changedBy: 'Line Manager',
+          currentStatus: 'Pending HOD',
+          previousStatus: 'Pending Line Manager',
+          approverName: 'Line Manager',
+          approverRole: 'Line Manager',
+          entityTitle: `Test ${entityType} - ${entityId}`,
           comments: 'Approved by line manager'
         });
         break;
 
       case 'hod_approval':
         // Test: HOD → Processing
-        result = await WorkflowEmailService.sendStatusChangeNotification({
+        result = await UnifiedNotificationService.notifyApproval({
           entityType,
           entityId,
+          requestorId: 'test-user-id',
           requestorName,
           requestorEmail,
-          fromStatus: 'Pending HOD',
-          toStatus: 'Approved',
-          department,
-          changedBy: 'HOD',
+          currentStatus: 'Approved',
+          previousStatus: 'Pending HOD',
+          approverName: 'HOD',
+          approverRole: 'HOD',
+          entityTitle: `Test ${entityType} - ${entityId}`,
           comments: 'Final approval by HOD'
         });
         break;
 
       case 'processing':
         // Test: Processing notification
-        result = await WorkflowEmailService.sendProcessingNotification({
+        result = await UnifiedNotificationService.notifyStatusUpdate({
           entityType,
           entityId,
+          requestorId: 'test-user-id',
           requestorName,
           requestorEmail,
-          processingAction: 'Flight booking initiated',
-          processorName: 'Travel Admin',
-          department,
-          details: 'Flight booking in progress'
+          newStatus: 'Processing',
+          previousStatus: 'Approved',
+          updateReason: 'Flight booking initiated - Flight booking in progress',
+          entityTitle: `Test ${entityType} - ${entityId}`
         });
         break;
 
       case 'completion':
         // Test: Final completion
-        result = await WorkflowEmailService.sendCompletionNotification({
+        result = await UnifiedNotificationService.notifyAdminCompletion({
           entityType,
           entityId,
+          requestorId: 'test-user-id',
           requestorName,
           requestorEmail,
-          department,
-          completionDetails: 'All bookings completed successfully',
-          completedBy: 'Travel Admin'
+          adminName: 'Travel Admin',
+          entityTitle: `Test ${entityType} - ${entityId}`,
+          completionDetails: 'All bookings completed successfully'
         });
         break;
 
@@ -108,53 +118,59 @@ export async function POST(request: NextRequest) {
         console.log(`🔄 WORKFLOW_TEST: Running complete workflow simulation...`);
         
         // Stage 1: Submission
-        await WorkflowEmailService.sendSubmissionNotification({
-          entityType, entityId, requestorName, requestorEmail, department
+        await UnifiedNotificationService.notifySubmission({
+          entityType, entityId, requestorId: 'test-user-id', requestorName, requestorEmail, department,
+          entityTitle: `Test ${entityType} - ${entityId}`
         });
         
         // Wait briefly between stages (optional)
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Stage 2: Department Focal Approval
-        await WorkflowEmailService.sendStatusChangeNotification({
-          entityType, entityId, requestorName, requestorEmail,
-          fromStatus: 'Pending Department Focal', toStatus: 'Pending Line Manager',
-          department, changedBy: 'Department Focal'
+        await UnifiedNotificationService.notifyApproval({
+          entityType, entityId, requestorId: 'test-user-id', requestorName, requestorEmail,
+          currentStatus: 'Pending Line Manager', previousStatus: 'Pending Department Focal',
+          approverName: 'Department Focal', approverRole: 'Department Focal',
+          entityTitle: `Test ${entityType} - ${entityId}`
         });
         
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Stage 3: Line Manager Approval
-        await WorkflowEmailService.sendStatusChangeNotification({
-          entityType, entityId, requestorName, requestorEmail,
-          fromStatus: 'Pending Line Manager', toStatus: 'Pending HOD',
-          department, changedBy: 'Line Manager'
+        await UnifiedNotificationService.notifyApproval({
+          entityType, entityId, requestorId: 'test-user-id', requestorName, requestorEmail,
+          currentStatus: 'Pending HOD', previousStatus: 'Pending Line Manager',
+          approverName: 'Line Manager', approverRole: 'Line Manager',
+          entityTitle: `Test ${entityType} - ${entityId}`
         });
         
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Stage 4: HOD Approval
-        await WorkflowEmailService.sendStatusChangeNotification({
-          entityType, entityId, requestorName, requestorEmail,
-          fromStatus: 'Pending HOD', toStatus: 'Approved',
-          department, changedBy: 'HOD'
+        await UnifiedNotificationService.notifyApproval({
+          entityType, entityId, requestorId: 'test-user-id', requestorName, requestorEmail,
+          currentStatus: 'Approved', previousStatus: 'Pending HOD',
+          approverName: 'HOD', approverRole: 'HOD',
+          entityTitle: `Test ${entityType} - ${entityId}`
         });
         
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Stage 5: Processing
-        await WorkflowEmailService.sendProcessingNotification({
-          entityType, entityId, requestorName, requestorEmail,
-          processingAction: 'Processing started', processorName: 'Processing Admin',
-          department
+        await UnifiedNotificationService.notifyStatusUpdate({
+          entityType, entityId, requestorId: 'test-user-id', requestorName, requestorEmail,
+          newStatus: 'Processing', previousStatus: 'Approved',
+          updateReason: 'Processing started by Processing Admin',
+          entityTitle: `Test ${entityType} - ${entityId}`
         });
         
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Stage 6: Completion
-        await WorkflowEmailService.sendCompletionNotification({
-          entityType, entityId, requestorName, requestorEmail,
-          department, completedBy: 'Processing Admin'
+        await UnifiedNotificationService.notifyAdminCompletion({
+          entityType, entityId, requestorId: 'test-user-id', requestorName, requestorEmail,
+          adminName: 'Processing Admin', entityTitle: `Test ${entityType} - ${entityId}`,
+          completionDetails: 'Complete workflow simulation completed'
         });
         
         result = { message: 'Complete workflow simulation completed successfully' };

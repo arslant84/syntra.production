@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -57,21 +57,42 @@ export default function RoomManagement({ onRoomChange }: RoomManagementProps) {
   
   const { toast } = useToast();
 
-  // Fetch data on component mount
+  // Fetch data on component mount with optimized loading
   useEffect(() => {
-    fetchStaffHouses();
-    fetchRooms();
+    const timer = setTimeout(() => {
+      Promise.all([
+        fetchStaffHouses(),
+        fetchRooms()
+      ]).catch(console.error);
+    }, 150); // Slight delay to avoid concurrent requests with LocationManagement
+    
+    return () => clearTimeout(timer);
   }, []);
 
   const fetchStaffHouses = async () => {
     try {
-      const response = await fetch('/api/accommodation/admin/locations');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      
+      const response = await fetch('/api/accommodation/admin/locations', {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'max-age=300'
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
         throw new Error('Failed to fetch locations');
       }
       const data = await response.json();
       setStaffHouses(data.locations || []);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn('Staff houses fetch timed out');
+        return;
+      }
       console.error('Error fetching locations:', error);
       toast({
         title: 'Error',
@@ -82,15 +103,32 @@ export default function RoomManagement({ onRoomChange }: RoomManagementProps) {
   };
 
   const fetchRooms = async () => {
+    if (isLoading) return; // Prevent concurrent requests
+    
     setIsLoading(true);
     try {
-      const response = await fetch('/api/accommodation/admin/rooms');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch('/api/accommodation/admin/rooms', {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'max-age=300'
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
         throw new Error('Failed to fetch rooms');
       }
       const data = await response.json();
       setRooms(data.rooms || []);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn('Rooms fetch timed out');
+        return;
+      }
       console.error('Error fetching rooms:', error);
       toast({
         title: 'Error',
@@ -162,7 +200,9 @@ export default function RoomManagement({ onRoomChange }: RoomManagementProps) {
       });
       setSelectedRoom(null);
       setIsDialogOpen(false);
-      fetchRooms();
+      
+      // Optimistic update
+      setTimeout(fetchRooms, 100);
       
       // Notify parent component if needed
       if (onRoomChange) {
@@ -214,7 +254,10 @@ export default function RoomManagement({ onRoomChange }: RoomManagementProps) {
       // Reset and refresh
       setSelectedRoom(null);
       setIsDeleteDialogOpen(false);
-      fetchRooms();
+      
+      // Optimistic update
+      setRooms(prev => prev.filter(room => room.id !== selectedRoom.id));
+      setTimeout(fetchRooms, 100);
       
       // Notify parent component if needed
       if (onRoomChange) {
@@ -265,24 +308,29 @@ export default function RoomManagement({ onRoomChange }: RoomManagementProps) {
     }
   };
 
-  // Filter rooms based on selected location and staff house
-  const filteredRooms = rooms.filter(room => {
-    if (filterLocation !== 'all' && room.location !== filterLocation) {
-      return false;
-    }
-    if (filterStaffHouse !== 'all' && room.staffHouseId !== filterStaffHouse) {
-      return false;
-    }
-    return true;
-  });
+  // Memoized filtered rooms for performance
+  const filteredRooms = useMemo(() => {
+    return rooms.filter(room => {
+      if (filterLocation !== 'all' && room.location !== filterLocation) {
+        return false;
+      }
+      if (filterStaffHouse !== 'all' && room.staffHouseId !== filterStaffHouse) {
+        return false;
+      }
+      return true;
+    });
+  }, [rooms, filterLocation, filterStaffHouse]);
 
-  // Get unique locations from staff houses
-  const uniqueLocations = Array.from(new Set(staffHouses.map(house => house.location)));
+  // Memoized computed values for performance
+  const uniqueLocations = useMemo(() => {
+    return Array.from(new Set(staffHouses.map(house => house.location)));
+  }, [staffHouses]);
 
-  // Get staff houses filtered by selected location
-  const filteredStaffHouses = filterLocation === 'all' 
-    ? staffHouses 
-    : staffHouses.filter(house => house.location === filterLocation);
+  const filteredStaffHouses = useMemo(() => {
+    return filterLocation === 'all' 
+      ? staffHouses 
+      : staffHouses.filter(house => house.location === filterLocation);
+  }, [staffHouses, filterLocation]);
 
   return (
     <Card className="w-full">

@@ -347,22 +347,8 @@ export class NotificationService {
 
     const message = `Your ${params.entityType.toUpperCase()} ${params.entityId} ${statusMessages[params.status.toLowerCase()] || `status updated to ${params.status}`}${params.approverName ? ` by ${params.approverName}` : ''}${params.comments ? `. Comments: ${params.comments}` : ''}`;
 
-    // Send email notification using workflow email service
-    try {
-      await WorkflowEmailService.sendApprovalNotification({
-        entityType: params.entityType,
-        entityId: params.entityId,
-        requestorName: params.requestorName || 'User',
-        requestorEmail: params.requestorEmail,
-        requestorId: params.requestorId,
-        newStatus: params.status,
-        approverName: params.approverName || 'System',
-        comments: params.comments
-      });
-    } catch (emailError) {
-      console.error('Failed to send status update email:', emailError);
-      // Don't fail the notification creation due to email errors
-    }
+    // Email notifications are now handled by UnifiedNotificationService in the calling code
+    // This method only creates in-app notifications
 
     return this.createNotification({
       userId: params.requestorId,

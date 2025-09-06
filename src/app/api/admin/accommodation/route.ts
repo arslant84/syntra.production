@@ -40,7 +40,7 @@ export const GET = withAuth(async function(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
-  const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit') || '50', 10) || 50));
+  const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit') || '25', 10) || 25));
   const searchTerm = searchParams.get('search')?.trim();
   const statusFilter = searchParams.get('status')?.trim();
   const statusesToFetch = searchParams.get('statuses')?.split(',').map(s => s.trim()).filter(Boolean);
@@ -101,6 +101,7 @@ export const GET = withAuth(async function(request: NextRequest) {
     
     let accommodationRequests;
     try {
+      // Optimized query - fetch core data first, then booking info if needed
       const accommodationQuery = sqlInstance`
         SELECT 
           tr.id, 
@@ -118,28 +119,59 @@ export const GET = withAuth(async function(request: NextRequest) {
           ad.check_out_time AS "checkOutTime",
           ad.place_of_stay AS "placeOfStay",
           ad.estimated_cost_per_night AS "estimatedCostPerNight",
-          ad.remarks,
-          COALESCE(booking_counts.booking_count, 0) AS "bookingCount",
-          booking_counts.assigned_room_info AS "assignedRoomInfo"
+          ad.remarks
         FROM travel_requests tr
         LEFT JOIN trf_accommodation_details ad ON tr.id = ad.trf_id
-        LEFT JOIN (
-          SELECT 
-            ab.trf_id,
-            COUNT(*) AS booking_count,
-            STRING_AGG(DISTINCT COALESCE(ash.name, '') || ' - ' || COALESCE(ar.name, ''), ', ') AS assigned_room_info
-          FROM accommodation_bookings ab
-          LEFT JOIN accommodation_rooms ar ON ab.room_id = ar.id
-          LEFT JOIN accommodation_staff_houses ash ON ab.staff_house_id = ash.id
-          WHERE ab.status != 'Cancelled'
-          GROUP BY ab.trf_id
-        ) booking_counts ON tr.id = booking_counts.trf_id
         ${whereClause}
         ORDER BY ${sqlInstance(dbSortColumn)} ${dbSortOrder} NULLS LAST
         LIMIT ${limit} OFFSET ${offset}
       `;
       
       accommodationRequests = await accommodationQuery;
+      
+      // Only fetch booking counts if needed and for visible records
+      if (accommodationRequests.length > 0 && !processing) {
+        const trfIds = accommodationRequests.map((req: any) => req.id);
+        try {
+          const bookingCounts = await sqlInstance`
+            SELECT 
+              ab.trf_id,
+              COUNT(*) AS booking_count,
+              STRING_AGG(DISTINCT COALESCE(ash.name, '') || ' - ' || COALESCE(ar.name, ''), ', ') AS assigned_room_info
+            FROM accommodation_bookings ab
+            LEFT JOIN accommodation_rooms ar ON ab.room_id = ar.id
+            LEFT JOIN accommodation_staff_houses ash ON ab.staff_house_id = ash.id
+            WHERE ab.trf_id IN ${sql(trfIds)} AND ab.status != 'Cancelled'
+            GROUP BY ab.trf_id
+          `;
+          
+          // Merge booking counts with requests
+          const bookingMap = new Map(bookingCounts.map((bc: any) => [bc.trf_id, bc]));
+          accommodationRequests = accommodationRequests.map((req: any) => {
+            const booking = bookingMap.get(req.id);
+            return {
+              ...req,
+              bookingCount: booking ? Number(booking.booking_count) : 0,
+              assignedRoomInfo: booking?.assigned_room_info || null
+            };
+          });
+        } catch (bookingError: any) {
+          console.warn('Error fetching booking counts:', bookingError);
+          // Continue without booking info
+          accommodationRequests = accommodationRequests.map((req: any) => ({
+            ...req,
+            bookingCount: 0,
+            assignedRoomInfo: null
+          }));
+        }
+      } else {
+        // Add default booking info for processing queries
+        accommodationRequests = accommodationRequests.map((req: any) => ({
+          ...req,
+          bookingCount: 0,
+          assignedRoomInfo: null
+        }));
+      }
     } catch (queryError: any) {
       console.error('Error executing accommodation query:', queryError);
       
@@ -181,6 +213,13 @@ export const GET = withAuth(async function(request: NextRequest) {
           ORDER BY ${sqlInstance(dbSortColumn)} ${dbSortOrder} NULLS LAST
           LIMIT ${limit} OFFSET ${offset}
         `;
+        
+        // Add default booking info for fallback
+        accommodationRequests = accommodationRequests.map((req: any) => ({
+          ...req,
+          bookingCount: 0,
+          assignedRoomInfo: null
+        }));
       } catch (fallbackError: any) {
         console.error('Fallback query also failed:', fallbackError);
         return NextResponse.json({

@@ -152,13 +152,21 @@ export class UnifiedNotificationService {
       // Determine TO/CC based on template type and workflow stage
       if (template.recipientType === 'approver' && approvers.length > 0) {
         // Approval stage: TO = Approvers, CC = Requestor
-        toRecipients = approvers.map(a => a.email).filter(email => email);
-        ccRecipients = requestors.map(r => r.email).filter(email => email);
-        console.log(`📧 APPROVAL STAGE: TO=${toRecipients.join(', ')}, CC=${ccRecipients.join(', ')}`);
+        toRecipients = approvers.map(a => a.email).filter(email => email && email.trim() !== '');
+        ccRecipients = requestors.map(r => r.email).filter(email => email && email.trim() !== '');
+        
+        console.log(`📧 APPROVAL STAGE - Template: ${template.name}`);
+        console.log(`   📧 TO Recipients: ${toRecipients.length > 0 ? toRecipients.join(', ') : '[NONE]'}`);
+        console.log(`   📧 CC Recipients: ${ccRecipients.length > 0 ? ccRecipients.join(', ') : '[NONE - MISSING REQUESTOR CC!]'}`);
+        
+        if (ccRecipients.length === 0) {
+          console.error(`❌ CRITICAL: No CC recipients found! Requestor should be CC'd on approval emails.`);
+          console.error(`   🔍 Available requestors: ${requestors.map(r => `${r.name}(${r.email})`).join(', ')}`);
+        }
         
       } else if (template.recipientType === 'requestor' && requestors.length > 0) {
         // Completion/rejection stage: TO = Requestor only
-        toRecipients = requestors.map(r => r.email).filter(email => email);
+        toRecipients = requestors.map(r => r.email).filter(email => email && email.trim() !== '');
         ccRecipients = []; // No CC needed for final notifications
         console.log(`📧 COMPLETION STAGE: TO=${toRecipients.join(', ')}`);
         
@@ -327,15 +335,23 @@ export class UnifiedNotificationService {
         if (template.recipientType === 'approver' && params.requestorId && params.requestorName) {
           // Add requestor if not already included
           const requestorExists = recipients.some(r => r.userId === params.requestorId);
+          console.log(`🔍 CC_DEBUG: Entity=${params.entityType}, Template=${template.name}`);
+          console.log(`   👤 Requestor ID: ${params.requestorId}, Name: ${params.requestorName}, Email: ${params.requestorEmail}`);
+          console.log(`   ✅ Requestor already in list: ${requestorExists}`);
+          
           if (!requestorExists) {
-            recipients.push({
+            const requestorRecipient = {
               userId: params.requestorId,
               name: params.requestorName,
               email: params.requestorEmail || '',
               role: 'Requestor',
               department: params.department
-            });
+            };
+            recipients.push(requestorRecipient);
+            console.log(`   ➕ Added requestor to recipients: ${requestorRecipient.name} (${requestorRecipient.email})`);
           }
+        } else {
+          console.log(`🚫 CC_DEBUG: Requestor NOT added - Template=${template.recipientType}, RequestorID=${params.requestorId}, RequestorName=${params.requestorName}`);
         }
       }
 
@@ -445,7 +461,8 @@ export class UnifiedNotificationService {
       'approve_accommodation_manager': ['Line Manager'],
       'approve_accommodation_hod': ['HOD'],
       'process_visa_applications': ['Visa Clerk'],
-      'process_flights': ['Ticketing Admin']
+      'process_flights': ['Ticketing Admin'],
+      'manage_transport_requests': ['Transport Admin']
     };
 
     // Handle transport requests differently - they use same permission but different roles per stage
@@ -515,7 +532,7 @@ export class UnifiedNotificationService {
       comments: params.comments || '',
       rejectionReason: params.rejectionReason || '',
       approverRole: params.approverRole || recipient.role || '',
-      previousApprover: params.previousApprover || '',
+      previousApprover: params.previousApprover || this.getPreviousApprover(params.previousStatus),
       nextApprover: params.nextApprover || '',
       
       // Entity-specific fields
@@ -592,11 +609,11 @@ export class UnifiedNotificationService {
       // Stage 3: Manager approved → HOD (TO: HOD, CC: Requestor)
       templates.push(`${entityType}_manager_approved_to_hod`);
       
-    } else if (currentStatus === 'Approved') {
+    } else if (currentStatus === 'Approved' || currentStatus === 'Processing with Transport Admin') {
       // Stage 4: HOD approved → Admin Processing (TO: Admin, CC: Requestor)
       templates.push(`${entityType}_hod_approved_to_admin`);
       
-    } else if (currentStatus === 'Completed' || currentStatus === 'Processed' || eventType.includes('completed')) {
+    } else if (currentStatus === 'Completed' || currentStatus === 'Processed' || eventType.includes('completed') || eventType.includes('admin_completed_to_requestor')) {
       // Stage 5: Admin completed → Requestor (TO: Requestor)
       templates.push(`${entityType}_admin_completed_to_requestor`);
       
@@ -635,12 +652,14 @@ export class UnifiedNotificationService {
         'Pending Line Manager': 'approve_claims_manager',
         'Pending HOD': 'approve_claims_hod',
         'Pending HOD Approval': 'approve_claims_hod',
-        'Pending Finance Approval': 'approve_claims_finance'
+        'Approved': 'process_finance_admin', // Finance Admin processing
+        'Pending Finance Approval': 'approve_claims_finance' // Legacy - should not be used
       },
       'transport': {
         'Pending Department Focal': 'approve_transport_requests',
         'Pending Line Manager': 'approve_transport_requests',
-        'Pending HOD': 'approve_transport_requests'
+        'Pending HOD': 'approve_transport_requests',
+        'Processing with Transport Admin': 'manage_transport_requests'
       },
       'accommodation': {
         'Pending Department Focal': 'approve_accommodation_focal',
@@ -711,6 +730,25 @@ export class UnifiedNotificationService {
   }
 
   /**
+   * Get previous approver role based on status
+   */
+  private static getPreviousApprover(previousStatus?: string): string {
+    if (!previousStatus) return '';
+    
+    const statusMap: Record<string, string> = {
+      'Pending Department Focal': '',
+      'Pending Line Manager': 'Department Focal',
+      'Pending HOD': 'Line Manager',
+      'Approved': 'HOD',
+      'Processing with Transport Admin': 'HOD',
+      'Pending Finance Approval': 'HOD',
+      'Processed': 'Finance Admin'
+    };
+    
+    return statusMap[previousStatus] || '';
+  }
+
+  /**
    * Convenience methods for common workflow events
    */
 
@@ -724,6 +762,7 @@ export class UnifiedNotificationService {
     entityTitle: string;
     entityAmount?: string;
     entityDates?: string;
+    purpose?: string; // Generic purpose field for all entity types
   }): Promise<void> {
     await this.sendWorkflowNotification({
       eventType: `${params.entityType}_submitted`,
@@ -737,7 +776,12 @@ export class UnifiedNotificationService {
       entityTitle: params.entityTitle,
       entityAmount: params.entityAmount,
       entityDates: params.entityDates,
-      nextApprover: 'Department Focal'
+      nextApprover: 'Department Focal',
+      // Map purpose to entity-specific fields
+      claimPurpose: params.entityType === 'claims' ? params.purpose : undefined,
+      travelPurpose: params.entityType === 'trf' ? params.purpose : undefined,
+      transportPurpose: params.entityType === 'transport' ? params.purpose : undefined,
+      accommodationPurpose: params.entityType === 'accommodation' ? params.purpose : undefined
     });
   }
 
@@ -755,8 +799,11 @@ export class UnifiedNotificationService {
     approverEmail?: string;
     nextApprover?: string;
     entityTitle: string;
+    entityAmount?: string;
     travelType?: string;
+    claimPurpose?: string;
     comments?: string;
+    department?: string;
   }): Promise<void> {
     const eventType = this.getApprovalEventType(params.entityType, params.previousStatus);
     
@@ -770,11 +817,14 @@ export class UnifiedNotificationService {
       requestorId: params.requestorId,
       requestorName: params.requestorName,
       requestorEmail: params.requestorEmail,
+      department: params.department,
       approverName: params.approverName,
       approverRole: params.approverRole,
       nextApprover: params.nextApprover,
       entityTitle: params.entityTitle,
+      entityAmount: params.entityAmount,
       travelType: params.travelType,
+      claimPurpose: params.claimPurpose,
       comments: params.comments
     });
 
@@ -932,6 +982,80 @@ export class UnifiedNotificationService {
       return `${entityType}_fully_approved`;
     }
     return `${entityType}_approved`;
+  }
+
+  /**
+   * Send admin completion notification to the original requestor
+   */
+  static async notifyAdminCompletion(params: {
+    entityType: 'trf' | 'visa' | 'claims' | 'transport' | 'accommodation';
+    entityId: string;
+    requestorId: string;
+    requestorName: string;
+    requestorEmail?: string;
+    adminName: string;
+    entityTitle: string;
+    completionDetails?: string;
+  }): Promise<void> {
+    try {
+      console.log(`🎯 ADMIN_COMPLETION: Sending completion notification for ${params.entityType} ${params.entityId} to requestor ${params.requestorName}`);
+      
+      await this.sendWorkflowNotification({
+        eventType: `${params.entityType}_admin_completed_to_requestor`,
+        entityType: params.entityType,
+        entityId: params.entityId,
+        currentStatus: 'Completed',
+        requestorId: params.requestorId,
+        requestorName: params.requestorName,
+        requestorEmail: params.requestorEmail,
+        approverName: params.adminName,
+        approverRole: 'Admin',
+        entityTitle: params.entityTitle,
+        comments: params.completionDetails
+      });
+
+      console.log(`✅ ADMIN_COMPLETION: Successfully sent completion notification for ${params.entityType} ${params.entityId}`);
+    } catch (error) {
+      console.error(`❌ ADMIN_COMPLETION: Error sending completion notification for ${params.entityType} ${params.entityId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send status update notification for workflow changes
+   */
+  static async notifyStatusUpdate(params: {
+    entityType: 'trf' | 'visa' | 'claims' | 'transport' | 'accommodation';
+    entityId: string;
+    requestorId: string;
+    requestorName: string;
+    requestorEmail?: string;
+    newStatus: string;
+    previousStatus: string;
+    updateReason: string;
+    entityTitle: string;
+  }): Promise<void> {
+    try {
+      console.log(`🔄 STATUS_UPDATE: Sending status update notification for ${params.entityType} ${params.entityId}: ${params.previousStatus} → ${params.newStatus}`);
+      
+      await this.sendWorkflowNotification({
+        eventType: `${params.entityType}_status_update`,
+        entityType: params.entityType,
+        entityId: params.entityId,
+        currentStatus: params.newStatus,
+        previousStatus: params.previousStatus,
+        requestorId: params.requestorId,
+        requestorName: params.requestorName,
+        requestorEmail: params.requestorEmail,
+        entityTitle: params.entityTitle,
+        comments: params.updateReason
+      });
+
+      console.log(`✅ STATUS_UPDATE: Successfully sent status update notification for ${params.entityType} ${params.entityId}`);
+    } catch (error) {
+      console.error(`❌ STATUS_UPDATE: Error sending status update notification for ${params.entityType} ${params.entityId}:`, error);
+      // Don't throw - status updates are informational
+    }
   }
 }
 

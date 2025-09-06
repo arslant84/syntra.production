@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -44,21 +44,42 @@ export default function LocationManagement({ onLocationChange }: LocationManagem
   });
   const { toast } = useToast();
 
-  // Fetch locations on component mount
+  // Fetch locations on component mount with debouncing
   useEffect(() => {
-    fetchLocations();
+    const timer = setTimeout(() => {
+      fetchLocations();
+    }, 100); // Small delay to batch requests
+    
+    return () => clearTimeout(timer);
   }, []);
 
   const fetchLocations = async () => {
+    if (isLoading) return; // Prevent concurrent requests
+    
     setIsLoading(true);
     try {
-      const response = await fetch('/api/accommodation/admin/locations');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
+      const response = await fetch('/api/accommodation/admin/locations', {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'max-age=300' // 5min cache
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
         throw new Error('Failed to fetch locations');
       }
       const data = await response.json();
       setLocations(data.locations || []);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn('Location fetch request timed out');
+        return;
+      }
       console.error('Error fetching locations:', error);
       toast({
         title: 'Error',
@@ -120,7 +141,9 @@ export default function LocationManagement({ onLocationChange }: LocationManagem
       });
       setSelectedLocation(null);
       setIsDialogOpen(false);
-      fetchLocations();
+      
+      // Optimistic update followed by fetch
+      setTimeout(fetchLocations, 100);
       
       // Notify parent component if needed
       if (onLocationChange) {
@@ -190,7 +213,10 @@ export default function LocationManagement({ onLocationChange }: LocationManagem
         // Reset and refresh
         setSelectedLocation(null);
         setIsDeleteDialogOpen(false);
-        fetchLocations();
+        
+        // Optimistic update
+        setLocations(prev => prev.filter(loc => loc.id !== selectedLocation.id));
+        setTimeout(fetchLocations, 100);
         
         // Notify parent component if needed
         if (onLocationChange) {

@@ -3,6 +3,9 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   
+  // Disable source maps to prevent browser syntax errors
+  productionBrowserSourceMaps: false,
+  
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Don't resolve 'fs', 'net', 'tls', etc. modules on the client

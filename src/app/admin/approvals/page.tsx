@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useTransition } from 'react';
+import React, { useState, useEffect, useCallback, useTransition, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   AlertTriangle as AlertTriangleIcon, 
@@ -59,13 +59,24 @@ export default function AdminApprovalsPage() {
   const [approvalComments, setApprovalComments] = useState(""); 
   const [selectedItemForAction, setSelectedItemForAction] = useState<ApprovableItem | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'trf' | 'claim' | 'visa' | 'accommodation' | 'transport'>('all');
+  const [lastFetch, setLastFetch] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const CACHE_DURATION = 3 * 60 * 1000; // 3 minutes cache
+  const PAGE_SIZE = 20;
 
   const { toast } = useToast();
   const { user, role, isLoading: sessionLoading, isAuthenticated } = useSessionPermissions();
 
-  const fetchPendingItems = useCallback(async () => {
+  const fetchPendingItems = useCallback(async (forceRefresh = false, pageNum = 1) => {
     if (sessionLoading || !role) {
       return; // Don't fetch while session is loading or role is not available
+    }
+    
+    // Check cache validity
+    const now = Date.now();
+    if (!forceRefresh && pendingItems.length > 0 && (now - lastFetch) < CACHE_DURATION && pageNum === 1) {
+      console.log('Using cached approval items');
+      return;
     }
     
     setIsLoading(true);
@@ -85,163 +96,45 @@ export default function AdminApprovalsPage() {
       // Create an array to hold all approvable items
       let allPendingItems: ApprovableItem[] = [];
       
-      // 1. Fetch pending TRFs (filter by role-specific statuses)
-      const trfStatusesToFetch = roleSpecificStatuses.join(',');
+      console.log(`AdminApprovalsPage: Using unified API endpoint for page ${pageNum}`);
       
-      if (trfStatusesToFetch) {
-        console.log(`AdminApprovalsPage: Fetching TRFs with statuses: ${trfStatusesToFetch}`);
-        const trfResponse = await fetch(`/api/trf?statuses=${encodeURIComponent(trfStatusesToFetch)}&limit=50&excludeTravelType=Accommodation`);
-        
-        if (trfResponse.ok) {
-        const trfData = await trfResponse.json();
-        console.log("AdminApprovalsPage: Fetched TRFs data:", trfData);
-        
-        // Map TRF data to the common ApprovableItem format
-        const trfItems = (trfData.trfs || []).map((trf: any) => ({
-          id: trf.id,
-          requestorName: trf.requestorName,
-          itemType: 'TSR' as const,
-          purpose: trf.purpose,
-          status: trf.status,
-          submittedAt: trf.submittedAt,
-          travelType: trf.travelType,
-          destination: trf.destination || trf.country
-        }));
-        
-          allPendingItems = [...allPendingItems, ...trfItems];
-        }
+      // Use the new unified approvals endpoint
+      const typeFilter = activeTab === 'all' ? '' : `&type=${activeTab === 'trf' ? 'trf' : activeTab}`;
+      const response = await fetch(`/api/admin/approvals?page=${pageNum}&limit=${PAGE_SIZE}${typeFilter}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch approval items: ${response.status} ${response.statusText}`);
       }
       
-      // 2. Fetch pending claims (filter by role-specific statuses)
-      const claimStatusesToFetch = roleSpecificStatuses.join(',');
+      const data = await response.json();
       
-      if (claimStatusesToFetch) {
-        console.log(`AdminApprovalsPage: Fetching Claims with statuses: ${claimStatusesToFetch}`);
-        
-        const claimResponse = await fetch(`/api/claims?statuses=${encodeURIComponent(claimStatusesToFetch)}&limit=50`);
-        
-        if (claimResponse.ok) {
-        const claimData = await claimResponse.json();
-        console.log("AdminApprovalsPage: Fetched Claims data:", claimData);
-        
-        // Map Claim data to the common ApprovableItem format
-        const claimItems = (Array.isArray(claimData) ? claimData : claimData.claims || []).map((claim: any) => ({
-          id: claim.id,
-          requestorName: claim.requestor,
-          itemType: 'Claim' as const,
-          purpose: claim.purpose,
-          status: claim.status,
-          submittedAt: claim.submittedDate,
-          amount: claim.amount,
-          documentNumber: claim.document_number || claim.documentNumber
-        }));
-        
-          allPendingItems = [...allPendingItems, ...claimItems];
-        }
+      if (data.error) {
+        throw new Error(data.error);
       }
       
-      // 3. Fetch pending visa applications (filter by role-specific statuses) 
-      if (roleSpecificStatuses.length > 0) {
-        console.log(`AdminApprovalsPage: Fetching Visa applications with statuses: ${roleSpecificStatuses.join(',')}`);
-        
-        const visaResponse = await fetch(`/api/visa?statuses=${encodeURIComponent(roleSpecificStatuses.join(','))}&limit=50`);
-        
-        if (visaResponse.ok) {
-          const visaData = await visaResponse.json();
-          console.log("AdminApprovalsPage: Fetched Visa applications data:", visaData);
-          
-          // Map Visa data to the common ApprovableItem format
-          const visaItems = (visaData.visaApplications || []).map((visa: any) => ({
-            id: visa.id,
-            requestorName: visa.applicantName,
-            itemType: 'Visa' as const,
-            purpose: visa.travelPurpose || 'Visa Application',
-            status: visa.status,
-            submittedAt: visa.submittedDate,
-            visaType: visa.visaType,
-            destination: visa.destination
-          }));
-          
-          allPendingItems = [...allPendingItems, ...visaItems];
-        }
-      }
+      // Map the unified response to ApprovableItem format
+      allPendingItems = (data.items || []).map((item: any) => ({
+        id: item.id,
+        requestorName: item.requestorName,
+        itemType: item.itemType as 'TSR' | 'Claim' | 'Visa' | 'Accommodation' | 'Transport',
+        purpose: item.purpose,
+        status: item.status,
+        submittedAt: item.submittedAt,
+        // Type-specific fields
+        ...(item.travelType && { travelType: item.travelType }),
+        ...(item.destination && { destination: item.destination }),
+        ...(item.amount && { amount: item.amount }),
+        ...(item.documentNumber && { documentNumber: item.documentNumber }),
+        ...(item.visaType && { visaType: item.visaType }),
+        ...(item.location && { location: item.location }),
+        ...(item.checkInDate && { checkInDate: item.checkInDate }),
+        ...(item.checkOutDate && { checkOutDate: item.checkOutDate }),
+        ...(item.department && { department: item.department })
+      }));
       
-      // 4. Fetch pending accommodation requests
-      try {
-        const accommodationStatusesToFetch = roleSpecificStatuses.join(',');
-        console.log(`AdminApprovalsPage: Fetching Accommodation requests with statuses: ${accommodationStatusesToFetch}`);
-        
-        const accommodationResponse = await fetch(`/api/accommodation/requests?statuses=${encodeURIComponent(accommodationStatusesToFetch)}&limit=50`);
-        
-        if (accommodationResponse.ok) {
-          const accommodationData = await accommodationResponse.json();
-          console.log("AdminApprovalsPage: Fetched Accommodation requests data:", accommodationData);
-          
-          // Get already fetched TRF IDs to avoid duplicates
-          const existingTrfIds = new Set(allPendingItems.map(item => item.id));
-          
-          // Map Accommodation data to the common ApprovableItem format, but exclude items already fetched as TRFs
-          const accommodationItems = (accommodationData.accommodationRequests || [])
-            .filter((accommodation: any) => !existingTrfIds.has(accommodation.id))
-            .map((accommodation: any) => ({
-              id: accommodation.id,
-              requestorName: accommodation.requestorName,
-              itemType: 'Accommodation' as const,
-              purpose: accommodation.specialRequests || 'Accommodation Request',
-              status: accommodation.status,
-              submittedAt: accommodation.submittedDate,
-              location: accommodation.location,
-              checkInDate: accommodation.requestedCheckInDate,
-              checkOutDate: accommodation.requestedCheckOutDate
-            }));
-          
-          allPendingItems = [...allPendingItems, ...accommodationItems];
-        } else {
-          console.error("AdminApprovalsPage: Error fetching accommodation requests:", accommodationResponse.status, accommodationResponse.statusText);
-        }
-      } catch (err: any) {
-        console.error("AdminApprovalsPage: Exception fetching accommodation requests:", err);
-      }
-
-      // 5. Fetch pending transport requests
-      try {
-        const transportStatusesToFetch = roleSpecificStatuses.join(',');
-        console.log(`AdminApprovalsPage: Fetching Transport requests with statuses: ${transportStatusesToFetch}`);
-        
-        const transportResponse = await fetch(`/api/transport?statuses=${encodeURIComponent(transportStatusesToFetch)}&limit=50`);
-        
-        if (transportResponse.ok) {
-          const transportData = await transportResponse.json();
-          console.log("AdminApprovalsPage: Fetched Transport requests data:", transportData);
-          
-          // Get already fetched IDs to avoid duplicates
-          const existingItemIds = new Set(allPendingItems.map(item => item.id));
-          
-          // Handle both array and object responses, but exclude items already fetched
-          const transportItems = (Array.isArray(transportData) ? transportData : transportData.transportRequests || [])
-            .filter((transport: any) => !existingItemIds.has(transport.id))
-            .map((transport: any) => ({
-              id: transport.id,
-              requestorName: transport.requestorName,
-              itemType: 'Transport' as const,
-              purpose: transport.purpose,
-              status: transport.status,
-              submittedAt: transport.submittedAt || transport.submitted_at || transport.createdAt,
-              department: transport.department
-            }));
-          
-          allPendingItems = [...allPendingItems, ...transportItems];
-        } else {
-          console.error("AdminApprovalsPage: Error fetching transport requests:", transportResponse.status, transportResponse.statusText);
-        }
-      } catch (err: any) {
-        console.error("AdminApprovalsPage: Exception fetching transport requests:", err);
-      }
-      
-      // Sort all items by submission date (newest first)
-      allPendingItems.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-      
-      setPendingItems(allPendingItems);
+      setPendingItems(pageNum === 1 ? allPendingItems : [...pendingItems, ...allPendingItems]);
+      setLastFetch(now);
+      setCurrentPage(pageNum);
       
       if (allPendingItems.length === 0) {
         console.log("AdminApprovalsPage: No pending items found.");
@@ -255,11 +148,22 @@ export default function AdminApprovalsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [role, sessionLoading]);
+  }, [role, sessionLoading, pendingItems.length, lastFetch]);
 
   useEffect(() => {
     fetchPendingItems();
   }, [fetchPendingItems]);
+  
+  const handleRefresh = useCallback(() => {
+    setCurrentPage(1);
+    fetchPendingItems(true, 1);
+  }, [fetchPendingItems]);
+  
+  const loadMore = useCallback(() => {
+    if (!isLoading) {
+      fetchPendingItems(false, currentPage + 1);
+    }
+  }, [fetchPendingItems, currentPage, isLoading]);
 
   const handleAction = async (itemId: string, itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation' | 'Transport', action: "approve" | "reject", comments?: string) => {
     if (!selectedItemForAction || selectedItemForAction.id !== itemId) {
@@ -341,7 +245,7 @@ export default function AdminApprovalsPage() {
           title: `${itemType} ${action === 'approve' ? 'Approved' : 'Rejected'}`,
           description: `${itemType} ID ${itemId} has been ${action === 'approve' ? 'approved' : 'rejected'}.`,
         });
-        fetchPendingItems(); // Re-fetch the list to reflect changes
+        handleRefresh(); // Re-fetch the list to reflect changes
         setSelectedItemForAction(null);
         setRejectionComments("");
         setApprovalComments("");
@@ -358,13 +262,28 @@ export default function AdminApprovalsPage() {
 
   // Using unified status badge system
 
-  // Filter items based on the active tab
-  const filteredItems = pendingItems.filter(item => {
-    if (activeTab === 'all') return true;
-    if (activeTab === 'trf') return item.itemType === 'TSR';
-    if (activeTab === 'transport') return item.itemType === 'Transport';
-    return item.itemType.toLowerCase() === activeTab;
-  });
+  // Memoized filtering for performance
+  const filteredItems = useMemo(() => {
+    return pendingItems.filter(item => {
+      if (activeTab === 'all') return true;
+      if (activeTab === 'trf') return item.itemType === 'TSR';
+      if (activeTab === 'transport') return item.itemType === 'Transport';
+      return item.itemType.toLowerCase() === activeTab;
+    });
+  }, [pendingItems, activeTab]);
+  
+  // Memoized counts for performance
+  const itemCounts = useMemo(() => {
+    const counts = {
+      all: pendingItems.length,
+      trf: pendingItems.filter(i => i.itemType === 'TSR').length,
+      claim: pendingItems.filter(i => i.itemType === 'Claim').length,
+      visa: pendingItems.filter(i => i.itemType === 'Visa').length,
+      accommodation: pendingItems.filter(i => i.itemType === 'Accommodation').length,
+      transport: pendingItems.filter(i => i.itemType === 'Transport').length
+    };
+    return counts;
+  }, [pendingItems]);
 
   // Get the appropriate icon for each item type
   const getItemTypeIcon = (itemType: 'TSR' | 'Claim' | 'Visa' | 'Accommodation' | 'Transport') => {
@@ -400,7 +319,7 @@ export default function AdminApprovalsPage() {
           onClick={() => setActiveTab('all')}
           className="rounded-full"
         >
-          All Items ({pendingItems.length})
+          All Items ({itemCounts.all})
         </Button>
         <Button 
           variant={activeTab === 'trf' ? "default" : "outline"} 
@@ -409,7 +328,7 @@ export default function AdminApprovalsPage() {
           className="rounded-full"
         >
           <Eye className="mr-1 h-4 w-4" />
-          TSRs ({pendingItems.filter(i => i.itemType === 'TSR').length})
+          TSRs ({itemCounts.trf})
         </Button>
         <Button 
           variant={activeTab === 'claim' ? "default" : "outline"} 
@@ -418,7 +337,7 @@ export default function AdminApprovalsPage() {
           className="rounded-full"
         >
           <ReceiptText className="mr-1 h-4 w-4" />
-          Claims ({pendingItems.filter(i => i.itemType === 'Claim').length})
+          Claims ({itemCounts.claim})
         </Button>
         <Button 
           variant={activeTab === 'visa' ? "default" : "outline"} 
@@ -427,7 +346,7 @@ export default function AdminApprovalsPage() {
           className="rounded-full"
         >
           <FileText className="mr-1 h-4 w-4" />
-          Visas ({pendingItems.filter(i => i.itemType === 'Visa').length})
+          Visas ({itemCounts.visa})
         </Button>
         <Button 
           variant={activeTab === 'accommodation' ? "default" : "outline"} 
@@ -436,7 +355,7 @@ export default function AdminApprovalsPage() {
           className="rounded-full"
         >
           <Home className="mr-1 h-4 w-4" />
-          Accommodation ({pendingItems.filter(i => i.itemType === 'Accommodation').length})
+          Accommodation ({itemCounts.accommodation})
         </Button>
         <Button 
           variant={activeTab === 'transport' ? "default" : "outline"} 
@@ -445,14 +364,21 @@ export default function AdminApprovalsPage() {
           className="rounded-full"
         >
           <Truck className="mr-1 h-4 w-4" />
-          Transport ({pendingItems.filter(i => i.itemType === 'Transport').length})
+          Transport ({itemCounts.transport})
         </Button>
       </div>
       
       <Card>
         <CardHeader>
-          <CardTitle>Pending Approvals</CardTitle>
-          <CardDescription>Items awaiting your verification or approval.</CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Pending Approvals</CardTitle>
+              <CardDescription>Items awaiting your verification or approval.</CardDescription>
+            </div>
+            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -460,21 +386,22 @@ export default function AdminApprovalsPage() {
           ) : error ? (
             <div className="text-center py-8"><AlertTriangleIcon className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-2 text-lg font-medium text-destructive">Error Loading Items</h3><p className="mt-1 text-sm text-muted-foreground">{error}</p><Button onClick={fetchPendingItems} className="mt-4">Try Again</Button></div>
           ) : filteredItems.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Type</TableHead>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Requestor</TableHead>
-                  <TableHead>Details</TableHead>
-                  <TableHead>Purpose</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead className="text-center">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredItems.map((item) => (
+            <div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Requestor</TableHead>
+                    <TableHead>Details</TableHead>
+                    <TableHead>Purpose</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredItems.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>
                       <Badge variant="outline" className="flex items-center gap-1">
@@ -601,7 +528,22 @@ export default function AdminApprovalsPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+              
+              {filteredItems.length >= PAGE_SIZE && (
+                <div className="flex justify-center mt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={loadMore} 
+                    disabled={isLoading}
+                    className="w-full max-w-xs"
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Load More Items
+                  </Button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">
               <CheckSquare className="w-16 h-16 text-muted-foreground mb-4" />

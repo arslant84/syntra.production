@@ -59,12 +59,13 @@ export async function GET(request: Request) {
             r.updated_at as "updatedAt"
           FROM 
             accommodation_rooms r
-          JOIN
+          INNER JOIN
             accommodation_staff_houses sh ON r.staff_house_id = sh.id
           WHERE 
             r.staff_house_id = ${staffHouseId}
           ORDER BY 
             r.name
+          LIMIT 500
         `;
       } else {
         roomsQuery = await sql`
@@ -81,10 +82,11 @@ export async function GET(request: Request) {
             r.updated_at as "updatedAt"
           FROM 
             accommodation_rooms r
-          JOIN
+          INNER JOIN
             accommodation_staff_houses sh ON r.staff_house_id = sh.id
           ORDER BY 
             sh.location, sh.name, r.name
+          LIMIT 1000
         `;
       }
 

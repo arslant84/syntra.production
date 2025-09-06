@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format, isValid, formatISO } from "date-fns";
-import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info, ArrowLeft, Edit, Ban, Printer, Loader2, AlertTriangle } from "lucide-react";
+import { ReceiptText, Clock, CheckCircle, XCircle, User, Building, CreditCard, FileText, Calendar, DollarSign, Info, ArrowLeft, Edit, Ban, Printer, Loader2, AlertTriangle, Trash2 } from "lucide-react";
 import { StatusBadge, WorkflowStep } from "@/lib/status-utils";
 import { formatCurrencyForTable } from "@/lib/currency-utils";
 import { Button } from "@/components/ui/button";
@@ -65,8 +65,9 @@ export default function ClaimViewPage() {
   const claimId = params.claimId as string;
   
   // Define which statuses allow editing and cancellation
-  const EDITABLE_STATUSES = ["Pending Verification", "Draft", "Rejected", "Pending Approval"];
-  const CANCELLABLE_STATUSES = ["Pending Verification", "Pending Approval"];
+  const EDITABLE_STATUSES = ["Pending Department Focal", "Pending Verification", "Draft", "Rejected", "Pending Approval"];
+  const CANCELLABLE_STATUSES = ["Pending Department Focal", "Pending Verification", "Pending Approval", "Pending Line Manager", "Pending HOD"];
+  const DELETABLE_STATUSES = ["Draft", "Pending Department Focal", "Pending Verification", "Rejected"];
   const TERMINAL_STATUSES = ["Approved", "Cancelled", "Processed"];
 
   useEffect(() => {
@@ -144,6 +145,36 @@ export default function ClaimViewPage() {
     }
   };
 
+  const handleDeleteClaim = async () => {
+    if (!claim) return;
+  
+    setIsActionPending(true);
+    try {
+      const response = await fetch(`/api/claims/${claimId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || "Failed to delete claim.");
+      }
+
+      toast({ 
+        title: "Claim Deleted", 
+        description: `Claim ${claim.document_number || claimId} has been permanently deleted.` 
+      });
+      router.push('/claims');
+    } catch (err: any) {
+      console.error('Error deleting claim:', err);
+      toast({ 
+        title: "Error Deleting Claim", 
+        description: err.message, 
+        variant: "destructive" 
+      });
+      setIsActionPending(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
@@ -200,16 +231,23 @@ export default function ClaimViewPage() {
   const financialSummary = claim.financialSummary || {};
   const declaration = claim.declaration || {};
 
-  // Determine if the claim can be edited or cancelled based on its status
+  // Determine if the claim can be edited, cancelled or deleted based on its status
   const canEdit = claim && claim.status && 
     EDITABLE_STATUSES.includes(claim.status) && 
     !TERMINAL_STATUSES.includes(claim.status);
 
   console.log("Claim Status:", claim?.status);
+  console.log("EDITABLE_STATUSES:", EDITABLE_STATUSES);
+  console.log("Status included in editable:", EDITABLE_STATUSES.includes(claim?.status));
+  console.log("Not terminal:", !TERMINAL_STATUSES.includes(claim?.status));
   console.log("Can Edit:", canEdit);
     
   const canCancel = claim && claim.status && 
     CANCELLABLE_STATUSES.includes(claim.status) && 
+    !TERMINAL_STATUSES.includes(claim.status);
+
+  const canDelete = claim && claim.status && 
+    DELETABLE_STATUSES.includes(claim.status) && 
     !TERMINAL_STATUSES.includes(claim.status);
 
   const handlePrint = () => {
@@ -262,6 +300,32 @@ export default function ClaimViewPage() {
                         disabled={isActionPending} 
                         className="bg-destructive hover:bg-destructive/90">
                         {isActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Confirm Cancel
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              {canDelete && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={isActionPending}>
+                      <Trash2 className="mr-2 h-4 w-4" /> Delete Claim
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete Claim {claimId}? This action is permanent and cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isActionPending}>Back</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleDeleteClaim} 
+                        disabled={isActionPending} 
+                        className="bg-destructive hover:bg-destructive/90">
+                        {isActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Confirm Delete
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

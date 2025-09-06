@@ -641,14 +641,14 @@ export class TransportService {
     comments?: string
   ): Promise<TransportRequestForm> {
     try {
-      // Define approval workflow sequence (like TRF)
+      // Define approval workflow sequence (like TRF) - FIXED to include Transport Admin
       const approvalWorkflowSequence: Record<string, string | null> = {
         "Pending Department Focal": "Pending Line Manager",
         "Pending Line Manager": "Pending HOD", 
-        "Pending HOD": "Approved"
+        "Pending HOD": "Processing with Transport Admin"
       };
 
-      const terminalStatuses = ["Approved", "Rejected", "Cancelled"];
+      const terminalStatuses = ["Completed", "Rejected", "Cancelled"];
 
       const result = await sql.begin(async (sql) => {
         // Get current transport request

@@ -42,17 +42,20 @@ export async function GET(request: Request) {
         }
       }
 
-      // Fetch all staff houses
+      // Optimized query with room counts for better performance
       const staffHouses = await sql`
         SELECT 
-          id, 
-          name, 
-          location, 
-          address,
-          description
-        FROM accommodation_staff_houses 
+          ash.id, 
+          ash.name, 
+          ash.location, 
+          ash.address,
+          ash.description,
+          COUNT(ar.id) as room_count
+        FROM accommodation_staff_houses ash
+        LEFT JOIN accommodation_rooms ar ON ash.id = ar.staff_house_id
+        GROUP BY ash.id, ash.name, ash.location, ash.address, ash.description
         ORDER BY 
-          location, name
+          ash.location, ash.name
       `;
 
       // Transform the data to match the expected format
@@ -61,7 +64,8 @@ export async function GET(request: Request) {
         name: house.name,
         location: house.location,
         address: house.address,
-        description: house.description
+        description: house.description,
+        roomCount: Number(house.room_count || 0)
       }));
 
       return NextResponse.json({ locations });

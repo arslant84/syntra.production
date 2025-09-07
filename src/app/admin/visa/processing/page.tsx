@@ -83,22 +83,19 @@ const VisaProcessingPage = () => {
   const fetchVisas = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch approved visas (ready for processing)
-      const approvedResponse = await fetch(`/api/admin/visa?statuses=Approved`);
+      // Fetch approved visas (ready for processing) - these are HOD approved applications
+      const approvedResponse = await fetch(`/api/admin/visa?statuses=Processing with Visa Admin`);
       if (approvedResponse.ok) {
         const approvedData = await approvedResponse.json();
         setApprovedVisas(approvedData);
       }
       
-      // Fetch processing visas
-      const processingResponse = await fetch(`/api/admin/visa?statuses=Processing with Embassy`);
-      if (processingResponse.ok) {
-        const processingData = await processingResponse.json();
-        setProcessingVisas(processingData);
-      }
+      // Fetch processing visas (this will be empty now as we removed the intermediate processing status)
+      // Keep for future use if needed, but set to empty for now
+      setProcessingVisas([]);
       
       // Fetch completed visas
-      const completedResponse = await fetch(`/api/admin/visa?statuses=Visa Issued,Visa Rejected`);
+      const completedResponse = await fetch(`/api/admin/visa?statuses=Processed,Rejected`);
       if (completedResponse.ok) {
         const completedData = await completedResponse.json();
         setCompletedVisas(completedData);
@@ -145,7 +142,7 @@ const VisaProcessingPage = () => {
         console.log('Visa application:', visaData.visaApplication);
         console.log('Visa application ID:', visaData.visaApplication?.id);
         setSelectedVisa(visaData.visaApplication);
-        setProcessingAction(visa.status === 'Processing with Embassy' ? 'complete' : 'process');
+        setProcessingAction(visa.status === 'Processing with Visa Admin' ? 'complete' : 'process');
         
         // Reset processing details
         setProcessingDetails({
@@ -185,7 +182,7 @@ const VisaProcessingPage = () => {
           action: processingAction,
           processingDetails: processingAction === 'complete' ? processingDetails : undefined,
           comments: processingAction === 'process' 
-            ? 'Visa processing started with Embassy' 
+            ? 'Visa processing started by Visa Admin' 
             : `Visa processing completed. ${processingDetails.processingNotes || ''}`
         }),
       });
@@ -225,7 +222,7 @@ const VisaProcessingPage = () => {
   // Format visa summary with processing details for completed visas
   const formatVisaSummary = (visa: VisaListItem) => {
     // Show processing details for completed visas (similar to claims processing)
-    if (visa.processingDetails && (visa.status === 'Visa Issued' || visa.status === 'Approved')) {
+    if (visa.processingDetails && (visa.status === 'Processed')) {
       const processing = visa.processingDetails;
       const parts = [];
       if (processing.paymentMethod) parts.push(`Payment: ${processing.paymentMethod}`);
@@ -240,10 +237,9 @@ const VisaProcessingPage = () => {
   
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Approved': return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'Processing with Embassy': return <Clock className="h-4 w-4 text-blue-600" />;
-      case 'Visa Issued': return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'Visa Rejected': return <XCircle className="h-4 w-4 text-red-600" />;
+      case 'Processing with Visa Admin': return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'Processed': return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'Rejected': return <XCircle className="h-4 w-4 text-red-600" />;
       default: return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
     }
   };
@@ -281,7 +277,7 @@ const VisaProcessingPage = () => {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Processing with Embassy</CardTitle>
+            <CardTitle className="text-sm font-medium">Processing</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -323,7 +319,7 @@ const VisaProcessingPage = () => {
               }`}
               onClick={() => setActiveTab('processing')}
             >
-              Processing with Embassy ({tabCounts.processing})
+              Processing ({tabCounts.processing})
             </button>
             <button
               className={`pb-2 px-4 font-medium transition-colors ${
@@ -373,17 +369,13 @@ const VisaProcessingPage = () => {
                           <Eye className="h-4 w-4" />
                         </Link>
                       </Button>
-                      {(visa.status === 'Approved' || visa.status === 'Processing with Embassy') && (
+                      {visa.status === 'Processing with Visa Admin' && (
                         <Button 
                           variant="outline" 
                           size="sm"
                           onClick={() => openProcessingDialog(visa)}
                         >
-                          {visa.status === 'Approved' ? (
-                            <Upload className="h-4 w-4" />
-                          ) : (
-                            <CheckCircle className="h-4 w-4" />
-                          )}
+                          <CheckCircle className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
@@ -405,7 +397,7 @@ const VisaProcessingPage = () => {
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {processingAction === 'complete' ? 'Complete Visa Processing' : 'Start Embassy Processing'}
+              {processingAction === 'complete' ? 'Complete Visa Processing' : 'Process Visa Application'}
             </DialogTitle>
             <DialogDescription>
               {selectedVisa && `Processing visa application ${selectedVisa.id} for ${selectedVisa.requestorName}`}

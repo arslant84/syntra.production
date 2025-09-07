@@ -12,6 +12,7 @@ import { generateUniversalUserFilter, generateUniversalUserFilterSQL, shouldBypa
 import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
 import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from '@/lib/request-deduplication';
+import { formatCurrency } from '@/lib/currency-utils';
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -139,10 +140,8 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     }
     
     // Generate a unified request ID for the claim
-    // Use the claim purpose as context (first word or first few characters)
-    const purposeWords = bankDetails.purposeOfClaim.split(' ');
-    const contextWord = purposeWords[0].length > 5 ? purposeWords[0].substring(0, 5) : purposeWords[0];
-    const claimRequestId = generateRequestId('CLM', contextWord.toUpperCase());
+    // For claims, the generator will create CLM-YYYYMMDD-HHMM-XXXXX-XXXX format
+    const claimRequestId = generateRequestId('CLM', 'CLAIM'); // Context is not used for CLM type
 
     const newClaim = await sql.begin(async tx => {
       const [claim] = await tx`
@@ -246,7 +245,7 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
           requestorId: session.id || session.email,
           department: data.headerDetails.departmentCode || 'Unknown',
           entityTitle: `${data.headerDetails.documentType} - ${data.bankDetails.purposeOfClaim}`,
-          entityAmount: data.financialSummary.totalAdvanceClaimAmount ? data.financialSummary.totalAdvanceClaimAmount.toString() : '0',
+          entityAmount: data.financialSummary.totalAdvanceClaimAmount ? formatCurrency(data.financialSummary.totalAdvanceClaimAmount, 'USD', false) : formatCurrency(0, 'USD', false),
           purpose: data.bankDetails.purposeOfClaim
         });
         

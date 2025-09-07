@@ -15,17 +15,16 @@ const visaActionSchema = z.object({
   visaCopyFilename: z.string().optional().nullable(), // For upload_visa action
 });
 
-// Define the visa approval workflow sequence (matching TSR pattern)
+// Define the visa approval workflow sequence (updated to match transport/claims pattern)
 const visaApprovalWorkflow: Record<string, VisaStatus | null> = {
   "Pending Department Focal": "Pending Line Manager",
   "Pending Line Manager": "Pending HOD",
-  "Pending HOD": "Pending Visa Clerk",
-  "Pending Visa Clerk": "Processing with Embassy", // Visa clerk marks as processing
-  "Processing with Embassy": "Approved", // Processing can lead to approval
+  "Pending HOD": "Processing with Visa Admin", // Like transport: HOD -> Visa Admin
+  "Processing with Visa Admin": "Processed", // Visa Admin completes processing
 };
 
-const terminalVisaStatuses: VisaStatus[] = ["Approved", "Rejected", "Cancelled"];
-const cancellableStatuses: VisaStatus[] = ["Pending Department Focal", "Pending Line Manager", "Pending HOD", "Pending Visa Clerk", "Draft"];
+const terminalVisaStatuses: VisaStatus[] = ["Processed", "Rejected", "Cancelled"];
+const cancellableStatuses: VisaStatus[] = ["Pending Department Focal", "Pending Line Manager", "Pending HOD", "Processing with Visa Admin", "Draft"];
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ visaId: string }> }) {
   const { visaId } = await params;
@@ -100,10 +99,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       notificationMessage = `Your visa application (${visaId}) has been rejected by ${approverName} (${approverRole}). Reason: ${comments}`;
       nextNotificationRecipient = `Requestor`;
     } else if (action === "mark_processing") {
-      if (currentStatus === "Pending Visa Clerk") {
-        nextStatus = "Processing with Embassy";
+      if (currentStatus === "Processing with Visa Admin") {
+        // Visa Admin can mark as processing (no status change, just notification)
         stepStatus = "Processing";
-        notificationMessage = `Your visa application (${visaId}) is now being processed with the embassy.`;
+        notificationMessage = `Your visa application (${visaId}) is being processed by the Visa Admin.`;
         nextNotificationRecipient = `Requestor`;
       } else {
         return NextResponse.json({ error: `Cannot mark as processing from status: ${currentStatus}` }, { status: 400 });
@@ -112,7 +111,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (!visaCopyFilename) {
         return NextResponse.json({ error: "Visa copy filename is required for this action." }, { status: 400 });
       }
-      nextStatus = "Approved";
+      nextStatus = "Processed";
       updateFields.visa_copy_filename = visaCopyFilename;
       stepStatus = "Visa Uploaded";
       notificationMessage = `Your visa application (${visaId}) has been completed and the visa copy has been uploaded.`;
@@ -186,8 +185,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (visaDetails.length > 0) {
         const visaInfo = visaDetails[0];
         
-        // Send 5-stage workflow notification
+        // Send workflow notifications
         if (action === 'approve') {
+          // 1. Standard approval notification (TO: Next approver/Admin, CC: Requestor)
           await UnifiedNotificationService.notifyApproval({
             entityType: 'visa',
             entityId: visaId,
@@ -200,16 +200,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             approverName: approverName,
             approverRole: approverRole,
             entityTitle: `Visa Application - ${visaInfo.destination || 'Travel'}`,
-            travelPurpose: visaInfo.travel_purpose || 'Business Travel',
-            travelDates: visaInfo.trip_start_date && visaInfo.trip_end_date 
-              ? `${visaInfo.trip_start_date} to ${visaInfo.trip_end_date}` 
-              : visaInfo.trip_start_date 
-              ? `From ${visaInfo.trip_start_date}` 
-              : 'Not specified',
+            visaPurpose: visaInfo.travel_purpose || 'Business Travel',
             destination: visaInfo.destination || 'Not specified',
-            employeeId: visaInfo.staff_id || 'Not specified',
+            visaType: 'Business Visa', // Default
             comments: comments
           });
+
+          // 2. SEPARATE notification to requestor when HOD approves (like claims workflow)
+          if (updated.status === 'Processing with Visa Admin' && currentStatus === 'Pending HOD') {
+            await UnifiedNotificationService.sendWorkflowNotification({
+              eventType: 'visa_hod_approved_to_requestor',
+              entityType: 'visa',
+              entityId: visaId,
+              requestorId: visaInfo.user_id,
+              requestorName: visaInfo.requestor_name || 'User',
+              requestorEmail: visaInfo.email,
+              department: visaInfo.user_department || visaInfo.department,
+              currentStatus: updated.status,
+              previousStatus: currentStatus,
+              approverName: approverName,
+              approverRole: approverRole,
+              entityTitle: `Visa Application - ${visaInfo.destination || 'Travel'}`,
+              visaPurpose: visaInfo.travel_purpose || 'Business Travel',
+              destination: visaInfo.destination || 'Not specified',
+              visaType: 'Business Visa',
+              comments: comments
+            });
+          }
         } else if (action === 'reject') {
           await UnifiedNotificationService.notifyRejection({
             entityType: 'visa',

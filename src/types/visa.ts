@@ -5,9 +5,8 @@ export type VisaStatus =
   | 'Pending Department Focal' 
   | 'Pending Line Manager'
   | 'Pending HOD' 
-  | 'Pending Visa Clerk' 
-  | 'Processing with Embassy' 
-  | 'Approved' 
+  | 'Processing with Visa Admin'  // Updated from "Pending Visa Clerk" and "Processing with Embassy"
+  | 'Processed'                   // Updated from "Approved" to match transport/claims workflow
   | 'Rejected' 
   | 'Cancelled'
   | '';

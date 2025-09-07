@@ -2,13 +2,14 @@
  * Request ID Generator Utility
  * 
  * Implements unified request ID naming convention:
- * [TYPE]-[YYYYMMDD-HHMM]-[CONTEXT]-[UNIQUE_ID]
+ * - General format: [TYPE]-[YYYYMMDD-HHMM]-[CONTEXT]-[UNIQUE_ID]
+ * - Claims format: CLM-[YYYYMMDD-HHMM]-[XXXXX]-[XXXX] (no context, double unique IDs)
  * 
  * Examples:
  * - TSR: TSR-20250702-1423-NYC-PCYX
  * - VIS: VIS-20250702-1423-USA-5X9R
  * - ACCOM: ACCOM-20250702-1423-DEL-2Y8P
- * - CLM: CLM-20250702-1423-MED-7Z4Q
+ * - CLM: CLM-20250702-1423-QWSDF-P4Z5 (5+4 character unique IDs)
  * - TRN: TRN-20250702-1423-LOCAL-3K8M
  */
 
@@ -73,8 +74,16 @@ export function generateRequestId(
 ): string {
   const timestamp = formatDateForRequestId(date);
   const validContext = validateContext(context);
-  const uniqueId = generateUniqueId();
   
+  // Special handling for claims - they need XXXXX-XXXX format instead of context-unique
+  if (type === 'CLM') {
+    const uniqueId1 = generateUniqueId(5); // 5 characters
+    const uniqueId2 = generateUniqueId(4); // 4 characters
+    return `${type}-${timestamp}-${uniqueId1}-${uniqueId2}`;
+  }
+  
+  // For other types, use the original format
+  const uniqueId = generateUniqueId();
   return `${type}-${timestamp}-${validContext}-${uniqueId}`;
 }
 
@@ -90,14 +99,28 @@ export function parseRequestId(requestId: string): {
   uniqueId: string;
   date: Date;
 } | null {
-  // Expected format: TYPE-YYYYMMDD-HHMM-CONTEXT-UNIQUEID
   const parts = requestId.split('-');
   
+  // Claims have 5 parts: CLM-YYYYMMDD-HHMM-XXXXX-XXXX
+  // Others have 5 parts: TYPE-YYYYMMDD-HHMM-CONTEXT-UNIQUEID
   if (parts.length !== 5) {
     return null;
   }
   
-  const [type, dateStr, timeStr, context, uniqueId] = parts;
+  const [type, dateStr, timeStr, part3, part4] = parts;
+  
+  let context: string;
+  let uniqueId: string;
+  
+  if (type === 'CLM') {
+    // For claims: part3 is first unique ID, part4 is second unique ID
+    context = 'CLAIM'; // Standard context for claims
+    uniqueId = `${part3}-${part4}`; // Combine both unique parts
+  } else {
+    // For other types: part3 is context, part4 is unique ID
+    context = part3;
+    uniqueId = part4;
+  }
   
   // Validate type
   if (!['TSR', 'VIS', 'ACCOM', 'CLM', 'TRN'].includes(type)) {

@@ -29,7 +29,6 @@ export interface WorkflowNotificationParams {
   approverName?: string;
   approverRole?: string;
   approverEmail?: string;
-  previousApprover?: string;
   nextApprover?: string;
   
   // Entity-specific data
@@ -462,7 +461,8 @@ export class UnifiedNotificationService {
       'approve_accommodation_hod': ['HOD'],
       'process_visa_applications': ['Visa Clerk'],
       'process_flights': ['Ticketing Admin'],
-      'manage_transport_requests': ['Transport Admin']
+      'manage_transport_requests': ['Transport Admin'],
+      'process_claims': ['Finance Clerk', 'Claims Admin', 'Finance Admin']
     };
 
     // Handle transport requests differently - they use same permission but different roles per stage
@@ -532,7 +532,6 @@ export class UnifiedNotificationService {
       comments: params.comments || '',
       rejectionReason: params.rejectionReason || '',
       approverRole: params.approverRole || recipient.role || '',
-      previousApprover: params.previousApprover || this.getPreviousApprover(params.previousStatus),
       nextApprover: params.nextApprover || '',
       
       // Entity-specific fields
@@ -609,7 +608,7 @@ export class UnifiedNotificationService {
       // Stage 3: Manager approved → HOD (TO: HOD, CC: Requestor)
       templates.push(`${entityType}_manager_approved_to_hod`);
       
-    } else if (currentStatus === 'Approved' || currentStatus === 'Processing with Transport Admin') {
+    } else if (currentStatus === 'Approved' || currentStatus === 'Processing with Transport Admin' || currentStatus === 'Processing with Claims Admin' || currentStatus === 'Processing with Visa Admin') {
       // Stage 4: HOD approved → Admin Processing (TO: Admin, CC: Requestor)
       templates.push(`${entityType}_hod_approved_to_admin`);
       
@@ -645,15 +644,16 @@ export class UnifiedNotificationService {
         'Pending Department Focal': 'approve_visa_focal',
         'Pending Line Manager': 'approve_visa_manager',
         'Pending HOD': 'approve_visa_hod',
-        'Pending Visa Clerk': 'process_visa_applications'
+        'Processing with Visa Admin': 'process_visa_applications'
       },
       'claims': {
         'Pending Department Focal': 'approve_claims_focal',
         'Pending Line Manager': 'approve_claims_manager',
         'Pending HOD': 'approve_claims_hod',
         'Pending HOD Approval': 'approve_claims_hod',
-        'Approved': 'process_finance_admin', // Finance Admin processing
-        'Pending Finance Approval': 'approve_claims_finance' // Legacy - should not be used
+        'Processing with Claims Admin': 'process_claims', // Claims Admin processing like transport workflow
+        'Approved': 'process_claims', // Legacy fallback - redirect to Claims Admin
+        'Pending Finance Approval': 'process_claims' // Legacy - redirect to Claims Admin
       },
       'transport': {
         'Pending Department Focal': 'approve_transport_requests',
@@ -729,24 +729,6 @@ export class UnifiedNotificationService {
     return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
-  /**
-   * Get previous approver role based on status
-   */
-  private static getPreviousApprover(previousStatus?: string): string {
-    if (!previousStatus) return '';
-    
-    const statusMap: Record<string, string> = {
-      'Pending Department Focal': '',
-      'Pending Line Manager': 'Department Focal',
-      'Pending HOD': 'Line Manager',
-      'Approved': 'HOD',
-      'Processing with Transport Admin': 'HOD',
-      'Pending Finance Approval': 'HOD',
-      'Processed': 'Finance Admin'
-    };
-    
-    return statusMap[previousStatus] || '';
-  }
 
   /**
    * Convenience methods for common workflow events

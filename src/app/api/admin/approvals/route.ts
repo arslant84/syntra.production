@@ -83,8 +83,9 @@ export const GET = withAuth(async function(request: NextRequest) {
             COALESCE(c.purpose_of_claim, 'Expense Claim') as "purpose",
             c.status,
             COALESCE(c.submitted_at, c.created_at) as "submittedAt",
-            c.balance_claim_repayment as "amount",
-            COALESCE(c.document_number, c.id) as "documentNumber"
+            COALESCE(c.total_advance_claim_amount, 0) as "amount",
+            COALESCE(c.document_number, c.id) as "documentNumber",
+            c.department_code as "department"
           FROM expense_claims c
           WHERE ${statusFilter}
           ORDER BY COALESCE(c.submitted_at, c.created_at) DESC
@@ -219,7 +220,7 @@ export const GET = withAuth(async function(request: NextRequest) {
       submittedAt: item.submittedAt ? formatISO(new Date(item.submittedAt)) : null,
       checkInDate: item.checkInDate ? formatISO(new Date(item.checkInDate)) : null,
       checkOutDate: item.checkOutDate ? formatISO(new Date(item.checkOutDate)) : null,
-      amount: item.amount ? Number(item.amount) : null,
+      amount: item.amount !== null && item.amount !== undefined ? Number(item.amount) : null,
     }));
 
     return NextResponse.json({

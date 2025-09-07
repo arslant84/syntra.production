@@ -123,7 +123,7 @@ export default function AdminApprovalsPage() {
         // Type-specific fields
         ...(item.travelType && { travelType: item.travelType }),
         ...(item.destination && { destination: item.destination }),
-        ...(item.amount && { amount: item.amount }),
+        ...(item.amount !== null && item.amount !== undefined && { amount: item.amount }),
         ...(item.documentNumber && { documentNumber: item.documentNumber }),
         ...(item.visaType && { visaType: item.visaType }),
         ...(item.location && { location: item.location }),
@@ -419,9 +419,14 @@ export default function AdminApprovalsPage() {
                           <span className="font-medium">Travel:</span> {item.travelType} {item.destination && `to ${item.destination}`}
                         </div>
                       )}
-                      {item.itemType === 'Claim' && item.amount && (
+                      {item.itemType === 'Claim' && (
                         <div className="text-xs text-muted-foreground mt-1">
-                          <span className="font-medium">Amount:</span> ${item.amount.toFixed(2)}
+                          <span className="font-medium">Amount:</span> ${(item.amount || 0).toFixed(2)}
+                          {item.department && (
+                            <span className="ml-2">
+                              <span className="font-medium">Dept:</span> {item.department}
+                            </span>
+                          )}
                         </div>
                       )}
                       {item.itemType === 'Visa' && (

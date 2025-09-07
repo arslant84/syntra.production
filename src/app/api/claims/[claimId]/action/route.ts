@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { NotificationService } from '@/lib/notification-service';
 import { UnifiedNotificationService } from '@/lib/unified-notification-service';
+import { formatCurrency } from '@/lib/currency-utils';
 
 // Placeholder for claim actions
 const claimActionSchema = z.object({
@@ -50,13 +51,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
     
-    // Updated workflow: Department Focal → Line Manager → HOD → Finance Admin (direct processing)
+    // Updated workflow: Department Focal → Line Manager → HOD → Claims Admin (direct processing like transport)
     if (effectiveAction === "approve" && currentClaim.status === "Pending Department Focal") nextStatus = "Pending Line Manager";
     else if (effectiveAction === "verify" && currentClaim.status === "Pending Verification") nextStatus = "Pending Line Manager"; // Legacy support
     else if (effectiveAction === "approve_manager" && currentClaim.status === "Pending Line Manager") nextStatus = "Pending HOD";
-    else if (effectiveAction === "approve_hod" && (currentClaim.status === "Pending HOD" || currentClaim.status === "Pending HOD Approval")) nextStatus = "Approved"; // Go directly to Finance Admin for processing
-    else if (effectiveAction === "approve_finance" && currentClaim.status === "Pending Finance Approval") nextStatus = "Approved"; // Legacy support - should not be used
-    else if (effectiveAction === "process_payment" && currentClaim.status === "Approved") nextStatus = "Processed"; // Finance Admin processes
+    else if (effectiveAction === "approve_hod" && (currentClaim.status === "Pending HOD" || currentClaim.status === "Pending HOD Approval")) nextStatus = "Processing with Claims Admin"; // Like transport: go directly to Claims Admin
+    else if (effectiveAction === "approve_finance" && currentClaim.status === "Pending Finance Approval") nextStatus = "Processing with Claims Admin"; // Legacy support - redirect to Claims Admin
+    else if (effectiveAction === "process_payment" && (currentClaim.status === "Approved" || currentClaim.status === "Processing with Claims Admin")) nextStatus = "Processed"; // Claims Admin processes
     else if (effectiveAction === "reject") nextStatus = "Rejected";
     else {
         // Invalid action for current status
@@ -132,10 +133,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             approverRole: validationResult.data.approverRole || 'Approver',
             rejectionReason: comments || 'No reason provided',
             entityTitle: `Expense Claim - ${claimInfo.purpose_of_claim || 'General'}`,
-            entityAmount: claimInfo.total_advance_claim_amount ? claimInfo.total_advance_claim_amount.toString() : '0'
+            entityAmount: claimInfo.total_advance_claim_amount ? formatCurrency(claimInfo.total_advance_claim_amount, 'USD', false) : formatCurrency(0, 'USD', false)
           });
-        } else if (nextStatus === 'Approved' && currentClaim.status === "Pending HOD") {
-          // HOD approved - send notification to Finance Admin for processing
+        } else if (nextStatus === 'Processing with Claims Admin' && currentClaim.status === "Pending HOD") {
+          // HOD approved - send TWO notifications:
+          // 1. To Claims Admin for processing (like transport workflow)
           await UnifiedNotificationService.notifyApproval({
             entityType: 'claims',
             entityId: claimInfo.document_number || claimId,
@@ -148,10 +150,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             approverName: validationResult.data.approverName || 'HOD',
             approverRole: validationResult.data.approverRole || 'HOD',
             entityTitle: `Expense Claim - ${claimInfo.purpose_of_claim || 'General'}`,
-            entityAmount: claimInfo.total_advance_claim_amount ? claimInfo.total_advance_claim_amount.toString() : '0',
+            entityAmount: claimInfo.total_advance_claim_amount ? formatCurrency(claimInfo.total_advance_claim_amount, 'USD', false) : formatCurrency(0, 'USD', false),
             comments: comments,
             // Add purpose for claims
             ...(claimInfo.purpose_of_claim && { claimPurpose: claimInfo.purpose_of_claim })
+          });
+
+          // 2. SEPARATE notification directly to requestor about the approval
+          await UnifiedNotificationService.sendWorkflowNotification({
+            eventType: 'claims_hod_approved_to_requestor',
+            entityType: 'claims',
+            entityId: claimInfo.document_number || claimId,
+            requestorId: claimInfo.user_id || '',
+            requestorName: claimInfo.staff_name,
+            requestorEmail: claimInfo.email,
+            department: claimInfo.department_code || 'Unknown',
+            currentStatus: nextStatus,
+            previousStatus: currentClaim.status,
+            approverName: validationResult.data.approverName || 'HOD',
+            approverRole: validationResult.data.approverRole || 'HOD',
+            entityTitle: `Expense Claim - ${claimInfo.purpose_of_claim || 'General'}`,
+            entityAmount: claimInfo.total_advance_claim_amount ? formatCurrency(claimInfo.total_advance_claim_amount, 'USD', false) : formatCurrency(0, 'USD', false),
+            comments: comments,
+            claimPurpose: claimInfo.purpose_of_claim || 'General'
           });
         } else if (nextStatus === 'Processed') {
           // Finance Admin completed processing - send completion notification to requestor only
@@ -179,7 +200,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             approverName: validationResult.data.approverName || 'System',
             approverRole: validationResult.data.approverRole || 'Approver',
             entityTitle: `Expense Claim - ${claimInfo.purpose_of_claim || 'General'}`,
-            entityAmount: claimInfo.total_advance_claim_amount ? claimInfo.total_advance_claim_amount.toString() : '0',
+            entityAmount: claimInfo.total_advance_claim_amount ? formatCurrency(claimInfo.total_advance_claim_amount, 'USD', false) : formatCurrency(0, 'USD', false),
             comments: comments,
             // Add purpose for claims
             ...(claimInfo.purpose_of_claim && { claimPurpose: claimInfo.purpose_of_claim })

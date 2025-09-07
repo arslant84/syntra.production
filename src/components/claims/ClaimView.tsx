@@ -42,7 +42,7 @@ const DetailItem: React.FC<{ label: string; value?: string | number | boolean | 
   
   if (value === null || value === undefined || (typeof value === 'string' && value.trim() === "" && !isCheckbox)) {
     // Don't skip if it's a checkbox, as we want to show its state
-    // return null; 
+    // For empty values, show "N/A" instead of hiding the field entirely
   }
   
   return (
@@ -52,7 +52,7 @@ const DetailItem: React.FC<{ label: string; value?: string | number | boolean | 
         <Checkbox checked={!!checked} disabled className={cn("mt-1 h-5 w-5", valueClassName)} />
       ) : (
         <span className={cn("text-sm text-foreground break-words", valueCols, valueClassName)}>
-          {String(value === "" ? "N/A" : value)}
+          {value === null || value === undefined || (typeof value === 'string' && value.trim() === "") ? "N/A" : String(value)}
         </span>
       )}
     </div>

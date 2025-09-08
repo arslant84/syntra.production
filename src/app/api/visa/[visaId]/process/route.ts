@@ -105,10 +105,15 @@ export const POST = withAuth(async function(request: NextRequest, { params }: { 
           RETURNING *
         `;
         
-        // Add approval step
+        // Update or insert approval step for Visa Admin
         await tx`
           INSERT INTO visa_approval_steps (visa_id, step_role, step_name, status, step_date, comments)
           VALUES (${visaId}, 'Visa Admin', 'Visa Administrator', ${stepStatus}, NOW(), ${comments || `Visa processing completed with details`})
+          ON CONFLICT (visa_id, step_role) 
+          DO UPDATE SET 
+            status = ${stepStatus},
+            step_date = NOW(),
+            comments = ${comments || `Visa processing completed with details`}
         `;
         
         return updatedVisa;
@@ -128,9 +133,19 @@ export const POST = withAuth(async function(request: NextRequest, { params }: { 
     try {
       // Get visa details including applicant information
       const visaDetails = await sql`
-        SELECT va.user_id, va.requestor_name, va.staff_id, va.travel_purpose, u.email, u.id as user_id_ref
+        SELECT 
+          va.user_id, 
+          va.requestor_name, 
+          va.staff_id, 
+          va.travel_purpose,
+          va.email as direct_email,
+          u.email as user_match_email,
+          u2.email as staff_match_email,
+          COALESCE(va.email, u.email, u2.email) as email,
+          COALESCE(va.user_id, u.id, u2.id) as user_id_ref
         FROM visa_applications va
         LEFT JOIN users u ON va.user_id = u.id
+        LEFT JOIN users u2 ON va.staff_id IS NOT NULL AND va.staff_id = u2.staff_id
         WHERE va.id = ${visaId}
       `;
 
@@ -146,7 +161,7 @@ export const POST = withAuth(async function(request: NextRequest, { params }: { 
             requestorId: visaInfo.user_id_ref,
             requestorName: visaInfo.requestor_name || 'User',
             requestorEmail: visaInfo.email,
-            adminName: 'Visa Administrator',
+            adminName: session.name || session.email || 'Visa Administrator',
             entityTitle: visaInfo.travel_purpose || `Visa Application ${visaId}`,
             completionDetails: comments || 'Visa processing completed by Visa Admin'
           });

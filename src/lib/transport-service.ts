@@ -10,7 +10,7 @@ import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted }
 
 export class TransportService {
   // Create a new transport request
-  static async createTransportRequest(data: Partial<TransportRequestForm>): Promise<TransportRequestForm> {
+  static async createTransportRequest(data: Partial<TransportRequestForm> & { userId?: string }): Promise<TransportRequestForm> {
     const { userId, ...requestData } = data;
     if (!userId) {
       throw new Error('User ID is required to create a transport request');
@@ -43,7 +43,7 @@ export class TransportService {
     const transportId = generateRequestId('TRN', context);
     
     try {
-      const transportRequest = await sql.begin(async (sql) => {
+      const transportRequest = await sql.begin(async (sql: any) => {
         const [request] = await sql`
           INSERT INTO transport_requests (
             id, requestor_name, staff_id, department, position, 
@@ -137,7 +137,11 @@ export class TransportService {
         }
       });
 
-      return this.getTransportRequestById(transportId);
+      const createdRequest = await this.getTransportRequestById(transportId);
+      if (!createdRequest) {
+        throw new Error('Failed to retrieve created transport request');
+      }
+      return createdRequest;
     } catch (error) {
       // Clean up deduplication on error
       markRequestCompleted(requestFingerprint);
@@ -148,7 +152,7 @@ export class TransportService {
   }
 
   // Create transport request without notifications (for auto-generation)
-  static async createTransportRequestWithoutNotifications(data: Partial<TransportRequestForm>): Promise<TransportRequestForm> {
+  static async createTransportRequestWithoutNotifications(data: Partial<TransportRequestForm> & { userId?: string }): Promise<TransportRequestForm> {
     const { userId, ...requestData } = data;
     if (!userId) {
       throw new Error('User ID is required to create a transport request');
@@ -161,7 +165,7 @@ export class TransportService {
     const transportId = generateRequestId('TRN', context);
     
     try {
-      const transportRequest = await sql.begin(async (sql) => {
+      const transportRequest = await sql.begin(async (sql: any) => {
         const [request] = await sql`
           INSERT INTO transport_requests (
             id, requestor_name, staff_id, department, position, 
@@ -215,7 +219,11 @@ export class TransportService {
       // No notifications are sent here - will be handled by caller
       console.log(`✅ TRANSPORT_SERVICE: Transport request created without notifications: ${transportId}`);
 
-      return this.getTransportRequestById(transportId);
+      const createdRequest = await this.getTransportRequestById(transportId);
+      if (!createdRequest) {
+        throw new Error('Failed to retrieve created transport request');
+      }
+      return createdRequest;
     } catch (error) {
       console.error('Error creating transport request without notifications:', error);
       throw new Error('Failed to create transport request without notifications');
@@ -450,8 +458,8 @@ export class TransportService {
         const userFilter = generateUniversalUserFilterSQL(session, sql, 'tr', {
           staffIdField: 'staff_id',
           nameField: 'requestor_name',
-          emailField: null,
-          userIdField: null
+          emailField: undefined,
+          userIdField: undefined
         });
         
         result = await sql`
@@ -509,8 +517,8 @@ export class TransportService {
         const userFilter = generateUniversalUserFilterSQL(session, sql, 'tr', {
           staffIdField: 'staff_id',
           nameField: 'requestor_name',
-          emailField: null,
-          userIdField: null
+          emailField: undefined,
+          userIdField: undefined
         });
         
         result = await sql`
@@ -562,7 +570,7 @@ export class TransportService {
   // Update transport request
   static async updateTransportRequest(id: string, data: Partial<TransportRequestForm>, userId: string): Promise<TransportRequestForm> {
     try {
-      const transportRequest = await sql.begin(async (sql) => {
+      const transportRequest = await sql.begin(async (sql: any) => {
         await sql`
           UPDATE transport_requests SET
             requestor_name = ${data.requestorName},
@@ -603,7 +611,11 @@ export class TransportService {
         // Approval steps are only added when actual approval actions are taken (TRF-style)
       });
 
-      return this.getTransportRequestById(id);
+      const updatedRequest = await this.getTransportRequestById(id);
+      if (!updatedRequest) {
+        throw new Error('Failed to retrieve updated transport request');
+      }
+      return updatedRequest;
     } catch (error) {
       console.error(`Error updating transport request ${id}:`, error);
       throw new Error('Failed to update transport request');
@@ -650,7 +662,7 @@ export class TransportService {
 
       const terminalStatuses = ["Completed", "Rejected", "Cancelled"];
 
-      const result = await sql.begin(async (sql) => {
+      const result = await sql.begin(async (sql: any) => {
         // Get current transport request
         const [transportRequest] = await sql`
           SELECT * FROM transport_requests WHERE id = ${transportRequestId}
@@ -738,8 +750,12 @@ export class TransportService {
         return { success: true };
       });
 
-      return this.getTransportRequestById(transportRequestId);
-    } catch (error) {
+      const updatedRequest = await this.getTransportRequestById(transportRequestId);
+      if (!updatedRequest) {
+        throw new Error('Failed to retrieve updated transport request after approval action');
+      }
+      return updatedRequest;
+    } catch (error: any) {
       console.error(`Error processing approval action for transport request ${transportRequestId}:`, error);
       throw new Error(`Failed to process approval action: ${error.message}`);
     }

@@ -95,12 +95,12 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
 
     const [newVisaApp] = await sql`
       INSERT INTO visa_applications (
-        id, requestor_name, travel_purpose, destination, staff_id,
+        id, user_id, requestor_name, travel_purpose, destination, staff_id,
         visa_type, trip_start_date, trip_end_date, 
         passport_number, passport_expiry_date, status, additional_comments,
         submitted_date, last_updated_date, created_at, updated_at
       ) VALUES (
-        ${visaRequestId}, ${data.applicantName}, ${data.travelPurpose}, ${data.destination}, 
+        ${visaRequestId}, ${session.id}, ${data.applicantName}, ${data.travelPurpose}, ${data.destination}, 
         ${data.employeeId || null},
         ${data.visaType}, ${formatISO(data.tripStartDate, { representation: 'date' })}, 
         ${formatISO(data.tripEndDate, { representation: 'date' })},

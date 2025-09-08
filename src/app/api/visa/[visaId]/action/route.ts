@@ -77,10 +77,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         } else {
           nextNotificationRecipient = `Visa Clerk & Requestor`;
         }
-      } else if (currentStatus === "Processing with Embassy") {
-        // If processing and being approved, it's final approval
-        nextStatus = "Approved";
-        nextNotificationRecipient = `Requestor`;
+      // Legacy status handling removed - should not reach this state
       } else {
         // Default to approved if no specific workflow
         nextStatus = "Approved";

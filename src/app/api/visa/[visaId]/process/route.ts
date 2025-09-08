@@ -56,8 +56,8 @@ export const POST = withAuth(async function(request: NextRequest, { params }: { 
       return NextResponse.json({ error: "Visa application not found" }, { status: 404 });
     }
 
-    // Only allow processing if status is "Approved" or "Processing with Embassy"
-    if (currentVisa.status !== 'Approved' && currentVisa.status !== 'Processing with Embassy') {
+    // Only allow processing if status is "Processing with Visa Admin"
+    if (currentVisa.status !== 'Processing with Visa Admin') {
       return NextResponse.json({ error: `Cannot process visa with status: ${currentVisa.status}` }, { status: 400 });
     }
 
@@ -66,18 +66,16 @@ export const POST = withAuth(async function(request: NextRequest, { params }: { 
     let notificationMessage = "";
 
     if (action === "process") {
-      // Visa admin starts processing with embassy
-      nextStatus = "Processing with Embassy";
-      stepStatus = "Processing";
-      notificationMessage = `Your visa application (${visaId}) is now being processed with the embassy.`;
+      // This action is not needed in the new workflow - visa admin processes directly
+      return NextResponse.json({ error: "Process action is deprecated - visa admin completes directly" }, { status: 400 });
     } else if (action === "complete") {
-      // Visa admin completes processing with embassy result
+      // Visa admin completes visa processing
       if (!processingDetails) {
         return NextResponse.json({ error: "Processing details are required when completing visa processing" }, { status: 400 });
       }
-      nextStatus = "Visa Issued";
+      nextStatus = "Processed";
       stepStatus = "Completed";
-      notificationMessage = `Your visa application (${visaId}) has been completed. Visa has been issued.`;
+      notificationMessage = `Your visa application (${visaId}) has been processed and completed.`;
     }
 
     const result = await sql.begin(async tx => {
@@ -94,7 +92,7 @@ export const POST = withAuth(async function(request: NextRequest, { params }: { 
         updateFields.processing_completed_at = 'NOW()';
       }
 
-      // If completing, update processing details
+      // Complete visa processing with details
       if (action === "complete" && processingDetails) {
         const processingDetailsJson = JSON.stringify(processingDetails);
         const [updatedVisa] = await tx`
@@ -110,27 +108,12 @@ export const POST = withAuth(async function(request: NextRequest, { params }: { 
         // Add approval step
         await tx`
           INSERT INTO visa_approval_steps (visa_id, step_role, step_name, status, step_date, comments)
-          VALUES (${visaId}, 'Visa Admin', 'Visa Administrator', ${stepStatus}, NOW(), ${comments || `Visa ${action}ed with processing details`})
+          VALUES (${visaId}, 'Visa Admin', 'Visa Administrator', ${stepStatus}, NOW(), ${comments || `Visa processing completed with details`})
         `;
         
         return updatedVisa;
       } else {
-        const [updatedVisa] = await tx`
-          UPDATE visa_applications
-          SET status = ${nextStatus}, 
-              last_updated_date = NOW(),
-              processing_started_at = NOW()
-          WHERE id = ${visaId}
-          RETURNING *
-        `;
-        
-        // Add approval step
-        await tx`
-          INSERT INTO visa_approval_steps (visa_id, step_role, step_name, status, step_date, comments)
-          VALUES (${visaId}, 'Visa Admin', 'Visa Administrator', ${stepStatus}, NOW(), ${comments || `Visa ${action}ed`})
-        `;
-        
-        return updatedVisa;
+        return NextResponse.json({ error: "Invalid action or missing processing details" }, { status: 400 });
       }
     });
 
@@ -165,7 +148,7 @@ export const POST = withAuth(async function(request: NextRequest, { params }: { 
             requestorEmail: visaInfo.email,
             adminName: 'Visa Administrator',
             entityTitle: visaInfo.travel_purpose || `Visa Application ${visaId}`,
-            completionDetails: comments || 'Visa processing completed with embassy result'
+            completionDetails: comments || 'Visa processing completed by Visa Admin'
           });
         } else {
           // For processing, notify status change

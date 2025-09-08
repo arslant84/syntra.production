@@ -820,7 +820,7 @@ export default function ReportsPage() {
                 </SelectTrigger>
                  <SelectContent>
                   <SelectItem value="pending_visa_clerk">Pending Visa Clerk</SelectItem>
-                  <SelectItem value="processing_embassy">Processing with Embassy</SelectItem>
+                  <SelectItem value="processing_visa_admin">Processing with Visa Admin</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>

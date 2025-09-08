@@ -142,7 +142,7 @@ const VisaProcessingPage = () => {
         console.log('Visa application:', visaData.visaApplication);
         console.log('Visa application ID:', visaData.visaApplication?.id);
         setSelectedVisa(visaData.visaApplication);
-        setProcessingAction(visa.status === 'Processing with Visa Admin' ? 'complete' : 'process');
+        setProcessingAction('complete'); // Visa admin always completes processing directly
         
         // Reset processing details
         setProcessingDetails({
@@ -181,16 +181,14 @@ const VisaProcessingPage = () => {
         body: JSON.stringify({
           action: processingAction,
           processingDetails: processingAction === 'complete' ? processingDetails : undefined,
-          comments: processingAction === 'process' 
-            ? 'Visa processing started by Visa Admin' 
-            : `Visa processing completed. ${processingDetails.processingNotes || ''}`
+          comments: `Visa processing completed. ${processingDetails.processingNotes || ''}`
         }),
       });
       
       if (response.ok) {
         toast({
-          title: "Success",
-          description: `Visa ${processingAction === 'complete' ? 'completed' : 'processing started'} successfully`,
+          title: "Success", 
+          description: "Visa processing completed successfully",
         });
         setIsProcessingDialogOpen(false);
         fetchVisas(); // Refresh the data
@@ -397,7 +395,7 @@ const VisaProcessingPage = () => {
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {processingAction === 'complete' ? 'Complete Visa Processing' : 'Process Visa Application'}
+              Complete Visa Processing
             </DialogTitle>
             <DialogDescription>
               {selectedVisa && `Processing visa application ${selectedVisa.id} for ${selectedVisa.requestorName}`}

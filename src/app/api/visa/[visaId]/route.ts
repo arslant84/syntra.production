@@ -282,12 +282,13 @@ function generateFullVisaApprovalWorkflow(
   completedSteps: any[],
   requestorName?: string
 ): any[] {
-  // Define the expected workflow sequence for Visa (matching TSR pattern)
+  // Define the expected workflow sequence for Visa (updated for new workflow)
   const expectedWorkflow = [
     { role: 'Applicant', name: requestorName || 'System', status: 'Submitted' as const },
     { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
-    { role: 'Line Manager/HOD', name: 'TBD', status: 'Pending' as const },
-    { role: 'Visa Clerk', name: 'TBD', status: 'Pending' as const }
+    { role: 'Line Manager', name: 'TBD', status: 'Pending' as const },
+    { role: 'HOD', name: 'TBD', status: 'Pending' as const },
+    { role: 'Visa Admin', name: 'TBD', status: 'Pending' as const }
   ];
 
   // Map completed steps by role for easy lookup
@@ -320,10 +321,14 @@ function generateFullVisaApprovalWorkflow(
         stepStatus = 'Submitted';
       } else if (currentStatus === `Pending ${expectedStep.role}`) {
         stepStatus = 'Current'; // Current pending step
-      } else if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
-        stepStatus = 'Pending'; // Keep as Pending for not-yet-reached steps
-      } else if (currentStatus === 'Approved') {
-        stepStatus = 'Pending'; // Pending steps that weren't recorded
+      } else if (currentStatus === 'Processing with Visa Admin' && expectedStep.role === 'Visa Admin') {
+        stepStatus = 'Current'; // Visa Admin is currently processing
+      } else if (currentStatus === 'Processed' || currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
+        // For completed applications, mark all previous steps as approved if they have completed steps
+        const previousStepCompleted = completedSteps.some(step => 
+          step.stepRole === expectedStep.role && step.status === 'Approved'
+        );
+        stepStatus = previousStepCompleted ? 'Approved' : 'Pending';
       } else {
         stepStatus = 'Pending';
       }

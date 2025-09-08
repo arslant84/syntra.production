@@ -115,7 +115,7 @@ export default function VisaApplicationsPage() {
           { value: "Pending Department Focal", label: "Pending Department Focal" },
           { value: "Pending Line Manager/HOD", label: "Pending Line Manager/HOD" },
           { value: "Pending Visa Clerk", label: "Pending Visa Clerk" },
-          { value: "Processing with Embassy", label: "Processing with Embassy" },
+          { value: "Processing with Visa Admin", label: "Processing with Visa Admin" },
           { value: "Approved", label: "Approved" },
           { value: "Rejected", label: "Rejected" },
         ]}

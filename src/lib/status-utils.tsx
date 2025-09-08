@@ -17,7 +17,7 @@ export const getStatusBadgeVariant = (status: string) => {
     "Processing Accommodation", 
     "Awaiting Visa", 
     "TSR Processed",
-    "Processing with Embassy",
+    "Processing with Visa Admin",
     "Verified",
     "Processed"
   ].includes(status)) return 'default';

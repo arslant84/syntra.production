@@ -32,7 +32,7 @@ type SortConfig = {
 
 const ALL_STATUSES_VALUE = "__ALL_STATUSES__";
 
-const visaStatusesList = ["Draft", "Pending Department Focal", "Pending Line Manager/HOD", "Pending Visa Clerk", "Processing with Embassy", "Approved", "Visa Issued", "Visa Rejected", "Rejected", "Cancelled"];
+const visaStatusesList = ["Draft", "Pending Department Focal", "Pending Line Manager", "Pending HOD", "Processing with Visa Admin", "Processed", "Rejected", "Cancelled"];
 
 export default function AdminVisaPage() {
   const [visaApplications, setVisaApplications] = useState<VisaListItem[]>([]);
@@ -113,7 +113,7 @@ export default function AdminVisaPage() {
             ['Pending Department Focal', 'Pending Line Manager/HOD', 'Pending Visa Clerk'].includes(app.status)
           ).length,
           approved: filteredApplications.filter(app => app.status === 'Approved').length,
-          processing: filteredApplications.filter(app => app.status === 'Processing with Embassy').length,
+          processing: filteredApplications.filter(app => app.status === 'Processing with Visa Admin').length,
           completed: filteredApplications.filter(app => 
             ['Visa Issued', 'Visa Rejected'].includes(app.status)
           ).length,
@@ -142,7 +142,7 @@ export default function AdminVisaPage() {
               ['Pending Department Focal', 'Pending Line Manager/HOD', 'Pending Visa Clerk'].includes(app.status)
             ).length,
             approved: filteredApplications.filter(app => app.status === 'Approved').length,
-            processing: filteredApplications.filter(app => app.status === 'Processing with Embassy').length,
+            processing: filteredApplications.filter(app => app.status === 'Processing with Visa Admin').length,
             completed: filteredApplications.filter(app => 
               ['Visa Issued', 'Visa Rejected'].includes(app.status)
             ).length,

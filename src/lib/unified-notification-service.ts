@@ -44,6 +44,7 @@ export interface WorkflowNotificationParams {
   // Action data
   comments?: string;
   rejectionReason?: string;
+  previousApprover?: string;
   
   // System URLs
   baseUrl?: string;
@@ -523,6 +524,7 @@ export class UnifiedNotificationService {
       // Recipient information  
       approverName: recipient.name,
       recipientName: recipient.name,
+      completedBy: params.approverName || recipient.name,
       
       // Status information
       currentStatus: params.currentStatus,
@@ -533,6 +535,7 @@ export class UnifiedNotificationService {
       rejectionReason: params.rejectionReason || '',
       approverRole: params.approverRole || recipient.role || '',
       nextApprover: params.nextApprover || '',
+      previousApprover: params.previousApprover || params.approverName || '',
       
       // Entity-specific fields
       travelPurpose: params.travelPurpose || '',
@@ -541,6 +544,10 @@ export class UnifiedNotificationService {
       claimAmount: params.entityAmount || '',
       transportPurpose: params.transportPurpose || '',
       accommodationPurpose: params.accommodationPurpose || '',
+      
+      // Generic purpose field that maps to the appropriate entity-specific purpose
+      purpose: params.transportPurpose || params.travelPurpose || params.claimPurpose || params.accommodationPurpose || '',
+      amount: params.entityAmount || '',
       
       // Visa-specific fields
       destination: (params as any).destination || '',
@@ -978,6 +985,10 @@ export class UnifiedNotificationService {
     adminName: string;
     entityTitle: string;
     completionDetails?: string;
+    transportPurpose?: string;
+    travelPurpose?: string;
+    claimPurpose?: string;
+    accommodationPurpose?: string;
   }): Promise<void> {
     try {
       console.log(`🎯 ADMIN_COMPLETION: Sending completion notification for ${params.entityType} ${params.entityId} to requestor ${params.requestorName}`);
@@ -993,7 +1004,11 @@ export class UnifiedNotificationService {
         approverName: params.adminName,
         approverRole: 'Admin',
         entityTitle: params.entityTitle,
-        comments: params.completionDetails
+        comments: params.completionDetails,
+        transportPurpose: params.transportPurpose,
+        travelPurpose: params.travelPurpose,
+        claimPurpose: params.claimPurpose,
+        accommodationPurpose: params.accommodationPurpose
       });
 
       console.log(`✅ ADMIN_COMPLETION: Successfully sent completion notification for ${params.entityType} ${params.entityId}`);
@@ -1016,6 +1031,10 @@ export class UnifiedNotificationService {
     previousStatus: string;
     updateReason: string;
     entityTitle: string;
+    transportPurpose?: string;
+    travelPurpose?: string;
+    claimPurpose?: string;
+    accommodationPurpose?: string;
   }): Promise<void> {
     try {
       console.log(`🔄 STATUS_UPDATE: Sending status update notification for ${params.entityType} ${params.entityId}: ${params.previousStatus} → ${params.newStatus}`);
@@ -1030,7 +1049,11 @@ export class UnifiedNotificationService {
         requestorName: params.requestorName,
         requestorEmail: params.requestorEmail,
         entityTitle: params.entityTitle,
-        comments: params.updateReason
+        comments: params.updateReason,
+        transportPurpose: params.transportPurpose,
+        travelPurpose: params.travelPurpose,
+        claimPurpose: params.claimPurpose,
+        accommodationPurpose: params.accommodationPurpose
       });
 
       console.log(`✅ STATUS_UPDATE: Successfully sent status update notification for ${params.entityType} ${params.entityId}`);

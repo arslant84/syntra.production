@@ -146,7 +146,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             requestorEmail: transportInfo.email,
             adminName: 'Transport Admin',
             entityTitle: transportInfo.purpose || `Transport Request ${transportId}`,
-            completionDetails: comments || 'Transport request completed with booking details'
+            completionDetails: comments || 'Transport request completed with booking details',
+            transportPurpose: transportInfo.purpose || 'Transport Service'
           });
         } else {
           // For processing, notify status change
@@ -159,7 +160,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             newStatus: updated.status,
             previousStatus: currentTransport.status,
             updateReason: 'Transport processing started by admin',
-            entityTitle: transportInfo.purpose || `Transport Request ${transportId}`
+            entityTitle: transportInfo.purpose || `Transport Request ${transportId}`,
+            transportPurpose: transportInfo.purpose || 'Transport Service'
           });
         }
 

@@ -127,7 +127,8 @@ export class TransportService {
             requestorId: userId,
             department: requestData.department || 'Unknown',
             currentStatus: 'Pending Department Focal',
-            entityTitle: `Transport Request - ${requestData.purpose || 'Transport Service'}`
+            entityTitle: `Transport Request - ${requestData.purpose || 'Transport Service'}`,
+            transportPurpose: requestData.purpose || 'Transport Service'
           });
 
           console.log(`✅ TRANSPORT_SERVICE_NOTIFICATION: Sent async workflow notification for transport request: ${transportId}`);

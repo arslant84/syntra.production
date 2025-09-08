@@ -309,11 +309,12 @@ export class TSRAutoGenerationService {
         const [newTravelRequest] = await tx`
           INSERT INTO travel_requests (
             id, requestor_name, staff_id, department, travel_type, status, 
-            additional_comments, submitted_at, created_by
+            additional_comments, submitted_at, created_by, additional_data
           ) VALUES (
             ${accomRequestId}, ${tsrData.requestorName}, ${tsrData.staffId || null}, 
             ${tsrData.department || null}, 'Accommodation', 'Pending Department Focal', 
-            ${`Auto-generated from TSR ${tsrData.id}: ${tsrData.purpose}`}, NOW(), ${userId}
+            ${`Auto-generated from TSR ${tsrData.id}: ${tsrData.purpose}`}, NOW(), ${userId}, 
+            ${JSON.stringify({ tsrReference: tsrData.id })}
           ) RETURNING *
         `;
         

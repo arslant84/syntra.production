@@ -159,7 +159,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             requestorEmail: claimInfo.email,
             adminName: 'Claims Admin',
             entityTitle: claimInfo.purpose_of_claim || `Expense Claim ${claimId}`,
-            completionDetails: comments || 'Claim processing completed with reimbursement details'
+            completionDetails: comments || 'Claim processing completed with reimbursement details',
+            claimPurpose: claimInfo.purpose_of_claim || 'General'
           });
         } else {
           // For processing, notify status change
@@ -172,7 +173,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             newStatus: updated.status,
             previousStatus: currentClaim.status,
             updateReason: 'Claim processing started by admin',
-            entityTitle: claimInfo.purpose_of_claim || `Expense Claim ${claimId}`
+            entityTitle: claimInfo.purpose_of_claim || `Expense Claim ${claimId}`,
+            claimPurpose: claimInfo.purpose_of_claim || 'General'
           });
         }
 

@@ -55,6 +55,9 @@ logs
 *.sqlite
 *.sqlite3
 
+# Database migrations
+database/migrations/
+
 # Temporary files
 .temp
 .tmp
@@ -82,6 +85,9 @@ uploads/visa-documents/
 .postcssrc
 .claude
 .next
+
+# Project scripts
+scripts/
 
 # Additional unnecessary files
 *.log

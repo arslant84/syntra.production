@@ -86,7 +86,7 @@ uploads/visa-documents/
 .claude
 .next
 
-# Project scripts
+# Project scripts (one-time setup, testing, and development scripts)
 scripts/
 
 # Additional unnecessary files

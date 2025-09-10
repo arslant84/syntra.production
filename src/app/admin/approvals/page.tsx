@@ -12,9 +12,16 @@ import {
   ReceiptText, 
   ThumbsDown, 
   ThumbsUp, 
-  Truck 
+  Truck,
+  Search,
+  ListFilter,
+  X,
+  Calendar,
+  DollarSign
 } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from "date-fns";
@@ -26,7 +33,8 @@ import { useToast } from "@/hooks/use-toast";
 import type { TravelRequestForm, TrfStatus } from '@/types/trf';
 import { getApprovalQueueFilters } from '@/lib/client-rbac-utils';
 import { useSessionPermissions } from '@/hooks/use-session-permissions';
-import { StatusBadge } from '@/lib/status-utils'; 
+import { StatusBadge } from '@/lib/status-utils';
+import { useDebounce } from "@/hooks/use-debounce"; 
 
 // Define a common interface for all approvable items
 interface ApprovableItem {
@@ -63,6 +71,14 @@ export default function AdminApprovalsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const CACHE_DURATION = 3 * 60 * 1000; // 3 minutes cache
   const PAGE_SIZE = 20;
+  
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>("all"); // all, today, week, month
+  const [amountRangeFilter, setAmountRangeFilter] = useState<string>("all"); // all, under-1k, 1k-5k, over-5k
 
   const { toast } = useToast();
   const { user, role, isLoading: sessionLoading, isAuthenticated } = useSessionPermissions();
@@ -265,12 +281,58 @@ export default function AdminApprovalsPage() {
   // Memoized filtering for performance
   const filteredItems = useMemo(() => {
     return pendingItems.filter(item => {
-      if (activeTab === 'all') return true;
-      if (activeTab === 'trf') return item.itemType === 'TSR';
-      if (activeTab === 'transport') return item.itemType === 'Transport';
-      return item.itemType.toLowerCase() === activeTab;
+      // Tab filter
+      if (activeTab !== 'all') {
+        if (activeTab === 'trf' && item.itemType !== 'TSR') return false;
+        if (activeTab === 'transport' && item.itemType !== 'Transport') return false;
+        if (activeTab !== 'trf' && activeTab !== 'transport' && item.itemType.toLowerCase() !== activeTab) return false;
+      }
+      
+      // Search filter
+      if (debouncedSearchTerm) {
+        const query = debouncedSearchTerm.toLowerCase();
+        const matchesSearch = 
+          item.id.toLowerCase().includes(query) ||
+          item.requestorName.toLowerCase().includes(query) ||
+          item.purpose.toLowerCase().includes(query) ||
+          (item.documentNumber && item.documentNumber.toLowerCase().includes(query)) ||
+          (item.destination && item.destination.toLowerCase().includes(query)) ||
+          (item.location && item.location.toLowerCase().includes(query));
+        if (!matchesSearch) return false;
+      }
+      
+      // Status filter
+      if (statusFilter !== "all" && item.status.toLowerCase() !== statusFilter.toLowerCase()) {
+        return false;
+      }
+      
+      // Department filter
+      if (departmentFilter !== "all" && item.department && item.department.toLowerCase() !== departmentFilter.toLowerCase()) {
+        return false;
+      }
+      
+      // Date range filter
+      if (dateRangeFilter !== "all") {
+        const itemDate = new Date(item.submittedAt);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - itemDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (dateRangeFilter === "today" && diffDays > 1) return false;
+        if (dateRangeFilter === "week" && diffDays > 7) return false;
+        if (dateRangeFilter === "month" && diffDays > 30) return false;
+      }
+      
+      // Amount range filter (for claims)
+      if (amountRangeFilter !== "all" && item.itemType === 'Claim' && item.amount !== undefined) {
+        if (amountRangeFilter === "under-1k" && item.amount >= 1000) return false;
+        if (amountRangeFilter === "1k-5k" && (item.amount < 1000 || item.amount > 5000)) return false;
+        if (amountRangeFilter === "over-5k" && item.amount <= 5000) return false;
+      }
+      
+      return true;
     });
-  }, [pendingItems, activeTab]);
+  }, [pendingItems, activeTab, debouncedSearchTerm, statusFilter, departmentFilter, dateRangeFilter, amountRangeFilter]);
   
   // Memoized counts for performance
   const itemCounts = useMemo(() => {
@@ -283,6 +345,40 @@ export default function AdminApprovalsPage() {
       transport: pendingItems.filter(i => i.itemType === 'Transport').length
     };
     return counts;
+  }, [pendingItems]);
+
+  // Helper functions for filters
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setDepartmentFilter("all");
+    setDateRangeFilter("all");
+    setAmountRangeFilter("all");
+  };
+
+  const hasActiveFilters = useMemo(() => {
+    return searchTerm !== "" || 
+           statusFilter !== "all" || 
+           departmentFilter !== "all" || 
+           dateRangeFilter !== "all" || 
+           amountRangeFilter !== "all";
+  }, [searchTerm, statusFilter, departmentFilter, dateRangeFilter, amountRangeFilter]);
+
+  // Get unique departments and statuses for filter dropdowns
+  const uniqueDepartments = useMemo(() => {
+    const departments = new Set<string>();
+    pendingItems.forEach(item => {
+      if (item.department) departments.add(item.department);
+    });
+    return Array.from(departments).sort();
+  }, [pendingItems]);
+
+  const uniqueStatuses = useMemo(() => {
+    const statuses = new Set<string>();
+    pendingItems.forEach(item => {
+      statuses.add(item.status);
+    });
+    return Array.from(statuses).sort();
   }, [pendingItems]);
 
   // Get the appropriate icon for each item type

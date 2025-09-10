@@ -107,6 +107,12 @@ Desktop.ini
 $RECYCLE.BIN/
 *.lnk
 
+# Windows special device files
+nul
+con
+prn
+aux
+
 # Package manager files
 yarn.lock
 pnpm-lock.yaml

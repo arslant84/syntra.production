@@ -7,7 +7,7 @@ export const GET = withAuth(async function(request: NextRequest) {
   const session = (request as any).user;
   
   // Check if user has permission to view flights admin
-  if (!hasPermission(session, 'manage_flights') && !hasPermission(session, 'admin_all')) {
+  if (!hasPermission(session, 'process_flights') && !hasPermission(session, 'admin_all')) {
     return NextResponse.json({ error: 'Unauthorized - insufficient permissions' }, { status: 403 });
   }
 

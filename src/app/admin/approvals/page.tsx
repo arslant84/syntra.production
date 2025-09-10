@@ -16,8 +16,7 @@ import {
   Search,
   ListFilter,
   X,
-  Calendar,
-  DollarSign
+  Calendar
 } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,7 +77,6 @@ export default function AdminApprovalsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [dateRangeFilter, setDateRangeFilter] = useState<string>("all"); // all, today, week, month
-  const [amountRangeFilter, setAmountRangeFilter] = useState<string>("all"); // all, under-1k, 1k-5k, over-5k
 
   const { toast } = useToast();
   const { user, role, isLoading: sessionLoading, isAuthenticated } = useSessionPermissions();
@@ -323,16 +321,9 @@ export default function AdminApprovalsPage() {
         if (dateRangeFilter === "month" && diffDays > 30) return false;
       }
       
-      // Amount range filter (for claims)
-      if (amountRangeFilter !== "all" && item.itemType === 'Claim' && item.amount !== undefined) {
-        if (amountRangeFilter === "under-1k" && item.amount >= 1000) return false;
-        if (amountRangeFilter === "1k-5k" && (item.amount < 1000 || item.amount > 5000)) return false;
-        if (amountRangeFilter === "over-5k" && item.amount <= 5000) return false;
-      }
-      
       return true;
     });
-  }, [pendingItems, activeTab, debouncedSearchTerm, statusFilter, departmentFilter, dateRangeFilter, amountRangeFilter]);
+  }, [pendingItems, activeTab, debouncedSearchTerm, statusFilter, departmentFilter, dateRangeFilter]);
   
   // Memoized counts for performance
   const itemCounts = useMemo(() => {
@@ -353,16 +344,14 @@ export default function AdminApprovalsPage() {
     setStatusFilter("all");
     setDepartmentFilter("all");
     setDateRangeFilter("all");
-    setAmountRangeFilter("all");
   };
 
   const hasActiveFilters = useMemo(() => {
     return searchTerm !== "" || 
            statusFilter !== "all" || 
            departmentFilter !== "all" || 
-           dateRangeFilter !== "all" || 
-           amountRangeFilter !== "all";
-  }, [searchTerm, statusFilter, departmentFilter, dateRangeFilter, amountRangeFilter]);
+           dateRangeFilter !== "all";
+  }, [searchTerm, statusFilter, departmentFilter, dateRangeFilter]);
 
   // Get unique departments and statuses for filter dropdowns
   const uniqueDepartments = useMemo(() => {
@@ -529,26 +518,6 @@ export default function AdminApprovalsPage() {
           </Select>
         </CardContent>
         
-        {/* Amount Filter Row (only shown if there are claims) */}
-        {pendingItems.some(item => item.itemType === 'Claim' && item.amount !== undefined) && (
-          <CardContent className="pt-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-end">
-            <div className="lg:col-span-2"></div> {/* Spacer to align with search */}
-            <div></div> {/* Spacer */}
-            <div></div> {/* Spacer */}
-            <Select value={amountRangeFilter} onValueChange={setAmountRangeFilter}>
-              <SelectTrigger>
-                <DollarSign className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Amount Range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Amounts</SelectItem>
-                <SelectItem value="under-1k">Under $1,000</SelectItem>
-                <SelectItem value="1k-5k">$1,000 - $5,000</SelectItem>
-                <SelectItem value="over-5k">Over $5,000</SelectItem>
-              </SelectContent>
-            </Select>
-          </CardContent>
-        )}
         
         {/* Clear Filters Button */}
         {hasActiveFilters && (

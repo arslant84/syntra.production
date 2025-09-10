@@ -464,12 +464,115 @@ export default function AdminApprovalsPage() {
         </Button>
       </div>
       
+      {/* Filters Card */}
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ListFilter className="h-5 w-5" />
+            Filter & Search Requests
+          </CardTitle>
+          <CardDescription>
+            Search and filter approval requests by various criteria.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-end">
+          {/* Search Input */}
+          <div className="relative lg:col-span-2">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search by ID, Requestor, Purpose..." 
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)} 
+              className="pl-8"
+            />
+          </div>
+          
+          {/* Status Filter */}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger>
+              <ListFilter className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Filter by Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              {uniqueStatuses.map(status => (
+                <SelectItem key={status} value={status}>{status}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {/* Department Filter */}
+          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filter by Department" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Departments</SelectItem>
+              {uniqueDepartments.map(dept => (
+                <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {/* Date Range Filter */}
+          <Select value={dateRangeFilter} onValueChange={setDateRangeFilter}>
+            <SelectTrigger>
+              <Calendar className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Date Range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+        
+        {/* Amount Filter Row (only shown if there are claims) */}
+        {pendingItems.some(item => item.itemType === 'Claim' && item.amount !== undefined) && (
+          <CardContent className="pt-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-end">
+            <div className="lg:col-span-2"></div> {/* Spacer to align with search */}
+            <div></div> {/* Spacer */}
+            <div></div> {/* Spacer */}
+            <Select value={amountRangeFilter} onValueChange={setAmountRangeFilter}>
+              <SelectTrigger>
+                <DollarSign className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Amount Range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Amounts</SelectItem>
+                <SelectItem value="under-1k">Under $1,000</SelectItem>
+                <SelectItem value="1k-5k">$1,000 - $5,000</SelectItem>
+                <SelectItem value="over-5k">Over $5,000</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        )}
+        
+        {/* Clear Filters Button */}
+        {hasActiveFilters && (
+          <CardContent className="pt-0">
+            <Button variant="outline" size="sm" onClick={handleClearFilters} className="text-xs">
+              <X className="mr-1.5 h-3 w-3"/> Clear All Filters
+            </Button>
+          </CardContent>
+        )}
+      </Card>
+      
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
               <CardTitle>Pending Approvals</CardTitle>
-              <CardDescription>Items awaiting your verification or approval.</CardDescription>
+              <CardDescription>
+                Items awaiting your verification or approval.
+                {hasActiveFilters && (
+                  <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
+                    Filtered ({filteredItems.length} of {pendingItems.length})
+                  </span>
+                )}
+              </CardDescription>
             </div>
             <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
@@ -649,11 +752,20 @@ export default function AdminApprovalsPage() {
             <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">
               <CheckSquare className="w-16 h-16 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">
-                {activeTab === 'all' 
-                  ? 'No items currently pending your approval.' 
-                  : `No ${activeTab === 'trf' ? 'TSRs' : activeTab === 'claim' ? 'Claims' : 'Visa Applications'} currently pending your approval.`}
+                {hasActiveFilters 
+                  ? 'No requests found matching your criteria.' 
+                  : activeTab === 'all' 
+                    ? 'No items currently pending your approval.' 
+                    : `No ${activeTab === 'trf' ? 'TSRs' : activeTab === 'claim' ? 'Claims' : activeTab === 'visa' ? 'Visa Applications' : activeTab === 'accommodation' ? 'Accommodation Requests' : 'Transport Requests'} currently pending your approval.`}
               </p>
-              <p className="text-sm text-muted-foreground">Check back later or adjust filters if applicable.</p>
+              <p className="text-sm text-muted-foreground">
+                {hasActiveFilters ? 'Try adjusting your filters to see more results.' : 'Check back later or adjust filters if applicable.'}
+              </p>
+              {hasActiveFilters && (
+                <Button variant="link" onClick={handleClearFilters} className="mt-2">
+                  Clear Filters
+                </Button>
+              )}
             </div>
           )}
         </CardContent>

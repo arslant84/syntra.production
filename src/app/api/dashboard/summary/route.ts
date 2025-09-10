@@ -40,151 +40,151 @@ export const GET = withRateLimit(RATE_LIMITS.DASHBOARD)(withAuth(async function(
 
 // Extract dashboard data fetching logic for caching
 async function fetchDashboardData(userIdentifier: any, session: any) {
-    
     console.log(`Dashboard summary for user ${session.role} (${userIdentifier.userId})`);
-    console.log('DASHBOARD_SUMMARY_DEBUG: User identifier:', userIdentifier);
-    console.log('DASHBOARD_SUMMARY_DEBUG: Session data:', { 
-      id: session.id, 
-      name: session.name, 
-      email: session.email, 
-      staffId: session.staffId 
-    });
+    console.log('SUMMARY_DEBUG: User identifier:', userIdentifier);
+    console.log('SUMMARY_DEBUG: Session:', session);
     
-    // Build user filter condition for SQL queries
-    const staffIdCondition = userIdentifier.staffId 
-      ? `staff_id = '${userIdentifier.staffId}' OR ` 
-      : '';
-    const userFilter = `(${staffIdCondition}staff_id = '${userIdentifier.userId}' OR requestor_name ILIKE '%${userIdentifier.email}%')`;
-    console.log('DASHBOARD_SUMMARY_DEBUG: Generated user filter:', userFilter);
-
-    // Get user's pending TRF count
-    let pendingTRFs = 0;
+    // Pre-calculate user identifiers for optimized queries
+    const userIds = [userIdentifier.userId];
+    if (userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId) {
+      userIds.push(userIdentifier.staffId);
+    }
+    
+    console.log('SUMMARY_DEBUG: User IDs for query:', userIds);
+    console.log('SUMMARY_DEBUG: User email:', userIdentifier.email);
+    
+    // Build user filter conditions for different tables
+    const userFilterCondition = userIds.length > 1 
+      ? `(staff_id = ${userIds[0]} OR staff_id = ${userIds[1]} OR requestor_name ILIKE '%${userIdentifier.email}%')` 
+      : `(staff_id = ${userIds[0]} OR requestor_name ILIKE '%${userIdentifier.email}%')`;
+    
+    // Quick check for ANY data in database (debugging)
     try {
-      console.log('Fetching user\'s pending TRFs...');
-      const sqlQuery = `
-        SELECT COUNT(*) AS count FROM travel_requests
-        WHERE (status LIKE 'Pending%' OR status = 'Draft')
-          AND travel_type != 'Accommodation'
-          AND ${userFilter}
+      const totalCountsResult = await sql`
+        SELECT 
+          (SELECT COUNT(*) FROM travel_requests) as total_trfs,
+          (SELECT COUNT(*) FROM expense_claims) as total_claims,
+          (SELECT COUNT(*) FROM visa_applications) as total_visas,
+          (SELECT COUNT(*) FROM transport_requests) as total_transport
       `;
-      console.log('DASHBOARD_SUMMARY_DEBUG: TRF SQL Query:', sqlQuery);
-      const trfQuery = await sql.unsafe(sqlQuery);
-      pendingTRFs = parseInt(trfQuery[0]?.count || '0');
-      console.log(`DASHBOARD_SUMMARY_DEBUG: Found ${pendingTRFs} pending TRFs for user ${userIdentifier.userId}`);
-    } catch (err) {
-      console.error('Error fetching user\'s travel requests:', err);
+      console.log('SUMMARY_DEBUG: Database totals:', totalCountsResult[0]);
+    } catch (countError) {
+      console.error('SUMMARY_DEBUG: Error checking database totals:', countError);
     }
-
-    // Get user's visa application updates count  
-    let visaUpdates = 0;
+    
+    const startTime = performance.now();
+    
     try {
-      console.log('Querying user\'s visa_applications...');
-      const visaUserFilter = userIdentifier.staffId 
-        ? `(staff_id = '${userIdentifier.staffId}' OR staff_id = '${userIdentifier.userId}' OR requestor_name ILIKE '%${userIdentifier.email}%')` 
-        : `(staff_id = '${userIdentifier.userId}' OR requestor_name ILIKE '%${userIdentifier.email}%')`;
-        
-      const visaQuery = await sql.unsafe(`
-        SELECT COUNT(*) AS count FROM visa_applications
-        WHERE (status LIKE 'Pending%' OR status LIKE 'Processing%')
-          AND ${visaUserFilter}
-      `);
-      visaUpdates = parseInt(visaQuery[0]?.count || '0');
-      console.log(`Found ${visaUpdates} visa applications in progress for user ${userIdentifier.userId}`);
-    } catch (err) {
-      console.error('Error fetching user\'s visa applications:', err);
-    }
+      // Simple direct queries without CTEs to avoid array issues
+      const [trfResult, visaResult, claimsResult, accommodationResult, transportResult] = await Promise.all([
+        // TRF count
+        sql`
+          SELECT COUNT(*) as pending_trfs
+          FROM travel_requests tr
+          WHERE (tr.status LIKE 'Pending%' OR tr.status = 'Draft' OR tr.status IS NULL)
+            AND (tr.travel_type != 'Accommodation' OR tr.travel_type IS NULL)
+            AND (
+              tr.staff_id = ${userIdentifier.userId}
+              ${userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId ? 
+                sql` OR tr.staff_id = ${userIdentifier.staffId}` : sql``}
+              OR tr.requestor_name ILIKE ${`%${userIdentifier.email}%`}
+            )
+        `,
+        // Visa count
+        sql`
+          SELECT COALESCE(COUNT(*), 0) as visa_updates
+          FROM visa_applications va
+          WHERE (va.status LIKE 'Pending%' OR va.status LIKE 'Processing%' OR va.status = 'Draft' OR va.status IS NULL)
+            AND (
+              va.staff_id = ${userIdentifier.userId}
+              OR va.user_id = ${userIdentifier.userId}
+              ${userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId ? 
+                sql` OR va.staff_id = ${userIdentifier.staffId} OR va.user_id = ${userIdentifier.staffId}` : sql``}
+              OR va.email = ${userIdentifier.email}
+            )
+        `,
+        // Claims count (check both tables)
+        sql`
+          SELECT 
+            COALESCE(
+              (SELECT COUNT(*) FROM expense_claims ec 
+               WHERE (ec.status = 'Draft' OR ec.status = 'Pending Verification' OR ec.status LIKE 'Pending%' OR ec.status IS NULL)
+                 AND (
+                   ec.staff_no = ${userIdentifier.userId}
+                   ${userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId ? 
+                     sql` OR ec.staff_no = ${userIdentifier.staffId}` : sql``}
+                   OR ec.staff_name ILIKE ${`%${userIdentifier.email}%`}
+                 )),
+              0
+            ) as draft_claims
+        `,
+        // Accommodation count
+        sql`
+          SELECT COUNT(DISTINCT tr.id) as accommodation_bookings
+          FROM travel_requests tr
+          INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
+          WHERE (tr.status LIKE 'Pending%' OR tr.status = 'Draft' OR tr.status IS NULL)
+            AND (
+              tr.staff_id = ${userIdentifier.userId}
+              ${userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId ? 
+                sql` OR tr.staff_id = ${userIdentifier.staffId}` : sql``}
+              OR tr.requestor_name ILIKE ${`%${userIdentifier.email}%`}
+            )
+        `,
+        // Transport count
+        sql`
+          SELECT COALESCE(COUNT(*), 0) as pending_transport
+          FROM transport_requests trt
+          WHERE (trt.status LIKE 'Pending%' OR trt.status = 'Draft' OR trt.status IS NULL)
+            AND (
+              trt.staff_id = ${userIdentifier.userId}
+              OR trt.created_by = ${userIdentifier.userId}
+              ${userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId ? 
+                sql` OR trt.staff_id = ${userIdentifier.staffId} OR trt.created_by = ${userIdentifier.staffId}` : sql``}
+            )
+        `
+      ]);
 
-    // Get user's draft/pending claims count
-    let draftClaims = 0;
-    try {
-      console.log('Checking user\'s claims...');
-      // Check if expense_claims table exists
-      const tableCheck = await sql`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_name = 'expense_claims'
-        ) as exists
-      `;
-      
-      const claimsUserFilter = userIdentifier.staffId 
-        ? `(staff_no = '${userIdentifier.staffId}' OR staff_no = '${userIdentifier.userId}' OR staff_name ILIKE '%${userIdentifier.email}%')` 
-        : `(staff_no = '${userIdentifier.userId}' OR staff_name ILIKE '%${userIdentifier.email}%')`;
-      
-      if (tableCheck[0]?.exists) {
-        console.log('expense_claims table exists, fetching user\'s claims...');
-        const claimsQuery = await sql.unsafe(`
-          SELECT COUNT(*) AS count FROM expense_claims
-          WHERE (status = 'Draft' OR status = 'Pending Verification' OR status LIKE 'Pending%' OR status IS NULL)
-            AND ${claimsUserFilter}
-        `);
-        draftClaims = parseInt(claimsQuery[0]?.count || '0');
-        console.log(`Found ${draftClaims} pending claims for user ${userIdentifier.userId}`);
-      } else {
-        // Fallback to older claims table if it exists
-        const oldTableCheck = await sql`
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_name = 'claims'
-          ) as exists
-        `;
-        
-        if (oldTableCheck[0]?.exists) {
-          const draftClaimsQuery = await sql.unsafe(`
-            SELECT COUNT(*) as count FROM claims 
-            WHERE (status = 'Draft' OR status = 'Pending Verification' OR status LIKE 'Pending%' OR status IS NULL)
-              AND ${claimsUserFilter}
-          `);
-          draftClaims = parseInt(draftClaimsQuery[0]?.count || '0');
-          console.log(`Found ${draftClaims} pending claims for user in claims table`);
-        }
-      }
-    } catch (err) {
-      console.error('Error checking user\'s claims:', err);
-    }
+      const result = [{
+        pending_trfs: Number(trfResult[0]?.pending_trfs || 0),
+        visa_updates: Number(visaResult[0]?.visa_updates || 0),
+        draft_claims: Number(claimsResult[0]?.draft_claims || 0),
+        accommodation_bookings: Number(accommodationResult[0]?.accommodation_bookings || 0),
+        pending_transport: Number(transportResult[0]?.pending_transport || 0)
+      }];
 
-    // Get user's accommodation requests count
-    let accommodationBookings = 0;
-    try {
-      console.log('Checking user\'s accommodation requests...');
-      
-      const accommodationQuery = await sql.unsafe(`
-        SELECT COUNT(DISTINCT tr.id) AS count 
-        FROM travel_requests tr
-        INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
-        WHERE (tr.status LIKE 'Pending%' OR tr.status = 'Draft')
-          AND ${userFilter}
-      `);
-      accommodationBookings = parseInt(accommodationQuery[0]?.count || '0');
-      console.log(`Found ${accommodationBookings} accommodation requests for user ${userIdentifier.userId}`);
-      
-    } catch (err) {
-      console.error('Error fetching user\'s accommodation requests:', err);
-    }
+      const endTime = performance.now();
+      console.log(`Dashboard summary batch query completed in ${Math.round(endTime - startTime)}ms`);
+      console.log('SUMMARY_DEBUG: Raw query result:', JSON.stringify(result[0], null, 2));
 
-    // Get user's pending transport requests count
-    let pendingTransport = 0;
-    try {
-      console.log('Fetching user\'s transport requests...');
-      const transportUserFilter = userIdentifier.staffId 
-        ? `(staff_id = '${userIdentifier.staffId}' OR staff_id = '${userIdentifier.userId}' OR created_by = '${userIdentifier.userId}')` 
-        : `(staff_id = '${userIdentifier.userId}' OR created_by = '${userIdentifier.userId}')`;
-        
-      const transportQuery = await sql.unsafe(`
-        SELECT COUNT(*) AS count FROM transport_requests
-        WHERE status LIKE 'Pending%'
-          AND ${transportUserFilter}
-      `);
-      pendingTransport = parseInt(transportQuery[0]?.count || '0');
-      console.log(`Found ${pendingTransport} transport requests for user ${userIdentifier.userId}`);
-    } catch (err) {
-      console.error('Error fetching user\'s transport requests:', err);
-    }
+      const counts = result[0] || {
+        pending_trfs: 0,
+        visa_updates: 0,
+        draft_claims: 0,
+        accommodation_bookings: 0,
+        pending_transport: 0
+      };
+      
+      console.log('SUMMARY_DEBUG: Final counts:', counts);
 
-    return {
-      pendingTsrs: pendingTRFs,
-      visaUpdates,
-      draftClaims,
-      pendingAccommodation: accommodationBookings,
-      pendingTransport
-    };
+      return {
+        pendingTsrs: parseInt(counts.pending_trfs?.toString() || '0'),
+        visaUpdates: parseInt(counts.visa_updates?.toString() || '0'),
+        draftClaims: parseInt(counts.draft_claims?.toString() || '0'),
+        pendingAccommodation: parseInt(counts.accommodation_bookings?.toString() || '0'),
+        pendingTransport: parseInt(counts.pending_transport?.toString() || '0')
+      };
+      
+    } catch (error) {
+      console.error('Error in optimized dashboard summary query:', error);
+      
+      // Fallback to minimal counts if optimized query fails
+      return {
+        pendingTsrs: 0,
+        visaUpdates: 0,  
+        draftClaims: 0,
+        pendingAccommodation: 0,
+        pendingTransport: 0
+      };
+    }
 }

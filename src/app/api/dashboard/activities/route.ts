@@ -189,197 +189,234 @@ export const GET = withAuth(async function(request: NextRequest) {
     let visas: ActivityItem[] = [];
     let accommodationBookings: ActivityItem[] = [];
 
-    // Fetch all activity data first (parallel queries for better performance)
+    console.log('Fetching activity data with optimized single query...');
+    const startTime = performance.now();
+    
+    // Pre-calculate user identifiers for optimized queries  
+    const userIds = [userIdentifier.userId];
+    if (userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId) {
+      userIds.push(userIdentifier.staffId);
+    }
+
+    console.log('ACTIVITIES_DEBUG: User identifier:', userIdentifier);
+    console.log('ACTIVITIES_DEBUG: User IDs for query:', userIds);
+    console.log('ACTIVITIES_DEBUG: User email:', userIdentifier.email);
+    
+    // Quick check for ANY data in database (debugging)
+    try {
+      const totalCountsResult = await sql`
+        SELECT 
+          (SELECT COUNT(*) FROM travel_requests) as trf_count,
+          (SELECT COUNT(*) FROM expense_claims) as claims_count,
+          (SELECT COUNT(*) FROM visa_applications) as visa_count
+      `;
+      console.log('ACTIVITIES_DEBUG: Database totals:', totalCountsResult[0]);
+    } catch (countError) {
+      console.error('ACTIVITIES_DEBUG: Error checking database totals:', countError);
+    }
+    
     let trfData: any[] = [];
     let claimData: any[] = [];
     let visaData: any[] = [];
-
-    console.log('Fetching activity data in parallel...');
+    let accommodationData: any[] = [];
     
     try {
-      // Execute all user-filtered queries in parallel for better performance
-      const [trfQuery, claimsQuery, visaQuery] = await Promise.all([
-        // User's TRFs query
-        sql.unsafe(`
+      // Direct queries without CTEs to avoid array issues  
+      const [trfActivities, claimActivities, visaActivities, accommodationActivities] = await Promise.all([
+        // TRF activities
+        sql`
           SELECT 
-            id, 
-            purpose, 
-            status, 
-            created_at, 
-            updated_at,
-            staff_id
-          FROM travel_requests 
-          WHERE ${trfUserFilter}
-          ORDER BY updated_at DESC
-          LIMIT 20
-        `),
-        // User's Claims query (with table existence check)
-        sql.unsafe(`
-          SELECT 
-            id, 
-            purpose_of_claim as purpose, 
-            status, 
-            created_at, 
-            updated_at,
-            staff_no as staff_id
-          FROM expense_claims 
-          WHERE ${claimsUserFilter}
-          ORDER BY updated_at DESC
+            tr.id,
+            tr.purpose,
+            tr.status,
+            tr.created_at,
+            tr.updated_at,
+            tr.staff_id,
+            'TRF' as activity_type
+          FROM travel_requests tr
+          WHERE (
+            tr.staff_id = ${userIdentifier.userId}
+            ${userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId ? 
+              sql` OR tr.staff_id = ${userIdentifier.staffId}` : sql``}
+            OR tr.requestor_name ILIKE ${`%${userIdentifier.email}%`}
+          )
+            AND (tr.travel_type != 'Accommodation' OR tr.travel_type IS NULL)
+          ORDER BY tr.updated_at DESC
           LIMIT 10
-        `).catch(() => []), // Return empty array if table doesn't exist
-        // User's Visas query
-        sql.unsafe(`
+        `,
+        // Claims activities 
+        sql`
           SELECT 
-            id, 
-            travel_purpose as purpose, 
-            status, 
-            created_at, 
-            updated_at,
-            user_id as staff_id
-          FROM visa_applications 
-          WHERE ${visaUserFilter}
-          ORDER BY updated_at DESC
+            ec.id,
+            ec.purpose_of_claim as purpose,
+            ec.status,
+            ec.created_at,
+            ec.updated_at,
+            ec.staff_no as staff_id,
+            'Claims' as activity_type
+          FROM expense_claims ec
+          WHERE (
+            ec.staff_no = ${userIdentifier.userId}
+            ${userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId ? 
+              sql` OR ec.staff_no = ${userIdentifier.staffId}` : sql``}
+            OR ec.staff_name ILIKE ${`%${userIdentifier.email}%`}
+          )
+          ORDER BY ec.updated_at DESC
           LIMIT 10
-        `).catch(() => []) // Return empty array if table doesn't exist
+        `,
+        // Visa activities
+        sql`
+          SELECT 
+            va.id,
+            va.travel_purpose as purpose,
+            va.status,
+            va.created_at,
+            va.updated_at,
+            va.user_id as staff_id,
+            'Visa' as activity_type
+          FROM visa_applications va
+          WHERE (
+            va.staff_id = ${userIdentifier.userId}
+            OR va.user_id = ${userIdentifier.userId}
+            ${userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId ? 
+              sql` OR va.staff_id = ${userIdentifier.staffId} OR va.user_id = ${userIdentifier.staffId}` : sql``}
+            OR va.email = ${userIdentifier.email}
+          )
+          ORDER BY va.updated_at DESC
+          LIMIT 10
+        `,
+        // Accommodation activities
+        sql`
+          SELECT DISTINCT
+            tr.id,
+            tr.purpose,
+            tr.status,
+            tr.created_at,
+            tr.updated_at,
+            tr.staff_id,
+            'Accommodation' as activity_type
+          FROM travel_requests tr
+          INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
+          WHERE (
+            tr.staff_id = ${userIdentifier.userId}
+            ${userIdentifier.staffId && userIdentifier.staffId !== userIdentifier.userId ? 
+              sql` OR tr.staff_id = ${userIdentifier.staffId}` : sql``}
+            OR tr.requestor_name ILIKE ${`%${userIdentifier.email}%`}
+          )
+          ORDER BY tr.updated_at DESC
+          LIMIT 10
+        `
       ]);
+      
+      // Combine all activities and sort by updated_at
+      const activitiesResult = [
+        ...trfActivities,
+        ...claimActivities,  
+        ...visaActivities,
+        ...accommodationActivities
+      ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+       .slice(0, 15);
 
-      trfData = trfQuery || [];
-      claimData = claimsQuery || [];
-      visaData = visaQuery || [];
+      const endTime = performance.now();
+      console.log(`Activities batch query completed in ${Math.round(endTime - startTime)}ms`);
+      console.log('ACTIVITIES_DEBUG: Raw query result count:', activitiesResult.length);
+      console.log('ACTIVITIES_DEBUG: Sample results:', JSON.stringify(activitiesResult.slice(0, 3), null, 2));
 
-      console.log(`Fetched ${trfData.length} TRFs, ${claimData.length} claims, ${visaData.length} visas`);
+      // Separate results by type (no validation needed since query already ensures existence)
+      trfData = activitiesResult.filter(item => item.activity_type === 'TRF');
+      claimData = activitiesResult.filter(item => item.activity_type === 'Claims');
+      visaData = activitiesResult.filter(item => item.activity_type === 'Visa');
+      accommodationData = activitiesResult.filter(item => item.activity_type === 'Accommodation');
+
+      console.log(`Fetched ${trfData.length} TRFs, ${claimData.length} claims, ${visaData.length} visas, ${accommodationData.length} accommodations`);
     } catch (err) {
-      console.error('Error fetching activity data:', err);
+      console.error('Error fetching optimized activity data:', err);
+      // Fallback to empty arrays if query fails
     }
 
-    // Extract IDs for batch validation
-    const trfIds = trfData.map(item => item.id);
-    const claimIds = claimData.map(item => item.id);
-    const visaIds = visaData.map(item => item.id);
-
-    // Single batch validation call (replaces 40+ individual queries)
-    const { validTrfs, validClaims, validVisas } = await validateAllEntities(trfIds, claimIds, visaIds);
-
-    // Build TRF activities using validation results
-    trfs = trfData
-      .filter(trf => validTrfs.has(trf.id))
-      .map(trf => {
-        const dateInfo = getDateInfo({
-          status: trf.status,
-          created_at: trf.created_at,
-          updated_at: trf.updated_at
-        });
-        
-        return {
-          id: trf.id,
-          type: 'TRF',
-          title: `TRF: ${trf.purpose || 'Travel Request'}`,
-          status: trf.status,
-          dateInfo,
-          link: `/trf/view/${trf.id}`,
-          statusVariant: getStatusVariant(trf.status),
-          icon: 'FileText',
-          staff_id: trf.staff_id
-        };
+    // Build TRF activities directly (no validation needed since query ensures existence)
+    trfs = trfData.map(trf => {
+      const dateInfo = getDateInfo({
+        status: trf.status,
+        created_at: trf.created_at,
+        updated_at: trf.updated_at
       });
+      
+      return {
+        id: trf.id,
+        type: 'TRF',
+        title: `TRF: ${trf.purpose || 'Travel Request'}`,
+        status: trf.status,
+        dateInfo,
+        link: `/trf/view/${trf.id}`,
+        statusVariant: getStatusVariant(trf.status),
+        icon: 'FileText',
+        staff_id: trf.staff_id
+      };
+    });
 
-    // Build Claims activities using batch validation results
-    claims = claimData
-      .filter(claim => validClaims.has(claim.id))
-      .map(claim => {
-        const dateInfo = getDateInfo({
-          status: claim.status,
-          created_at: claim.created_at,
-          updated_at: claim.updated_at
-        });
-        
-        return {
-          id: claim.id,
-          type: 'Claim',
-          title: `Claim: ${claim.purpose || 'Expense Claim'}`,
-          status: claim.status,
-          dateInfo,
-          link: `/claims/view/${claim.id}`,
-          statusVariant: getStatusVariant(claim.status),
-          icon: 'ReceiptText',
-          staff_id: claim.staff_id
-        };
+    // Build Claims activities directly
+    claims = claimData.map(claim => {
+      const dateInfo = getDateInfo({
+        status: claim.status,
+        created_at: claim.created_at,
+        updated_at: claim.updated_at
       });
+      
+      return {
+        id: claim.id,
+        type: 'Claim',
+        title: `Claim: ${claim.purpose || 'Expense Claim'}`,
+        status: claim.status,
+        dateInfo,
+        link: `/claims/view/${claim.id}`,
+        statusVariant: getStatusVariant(claim.status),
+        icon: 'ReceiptText',
+        staff_id: claim.staff_id
+      };
+    });
 
-    // Build Visa activities using batch validation results
-    visas = visaData
-      .filter(visa => validVisas.has(visa.id))
-      .map(visa => {
-        const dateInfo = getDateInfo({
-          status: visa.status,
-          created_at: visa.created_at,
-          updated_at: visa.updated_at
-        });
-        
-        return {
-          id: visa.id,
-          type: 'Visa',
-          title: `Visa: ${visa.purpose || 'Visa Application'}`,
-          status: visa.status,
-          dateInfo,
-          link: `/visa/view/${visa.id}`,
-          statusVariant: getStatusVariant(visa.status),
-          icon: 'StickyNote',
-          staff_id: visa.staff_id
-        };
+    // Build Visa activities directly
+    visas = visaData.map(visa => {
+      const dateInfo = getDateInfo({
+        status: visa.status,
+        created_at: visa.created_at,
+        updated_at: visa.updated_at
       });
+      
+      return {
+        id: visa.id,
+        type: 'Visa',
+        title: `Visa: ${visa.purpose || 'Visa Application'}`,
+        status: visa.status,
+        dateInfo,
+        link: `/visa/view/${visa.id}`,
+        statusVariant: getStatusVariant(visa.status),
+        icon: 'StickyNote',
+        staff_id: visa.staff_id
+      };
+    });
 
-    // Get recent accommodation requests with validation
-    try {
-      console.log('Fetching recent accommodation requests...');
+    // Build Accommodation activities directly (no separate query needed)
+    accommodationBookings = accommodationData.map(accommodation => {
+      const dateInfo = getDateInfo({
+        status: accommodation.status,
+        created_at: accommodation.created_at,
+        updated_at: accommodation.updated_at
+      });
       
-      // Get user's travel requests that have accommodation details
-      const accommodationQuery = await sql.unsafe(`
-        SELECT DISTINCT ON (tr.id)
-          tr.id, 
-          tr.purpose, 
-          tr.status, 
-          tr.created_at, 
-          tr.updated_at,
-          tr.staff_id
-        FROM travel_requests tr
-        INNER JOIN trf_accommodation_details tad ON tad.trf_id = tr.id
-        WHERE ${trfUserFilter}
-        ORDER BY tr.id, tr.updated_at DESC
-        LIMIT 10
-      `);
-      
-      // Validate each accommodation request exists before adding to activities
-      for (const accommodation of accommodationQuery || []) {
-        const isValid = await validateAccommodationExists(accommodation.id);
-        if (isValid) {
-          const dateInfo = getDateInfo({
-            status: accommodation.status,
-            created_at: accommodation.created_at,
-            updated_at: accommodation.updated_at
-          });
-          
-          accommodationBookings.push({
-            id: accommodation.id,
-            type: 'Accommodation',
-            title: `Accommodation: ${accommodation.purpose || 'Booking Request'}`,
-            status: accommodation.status,
-            dateInfo,
-            link: `/accommodation/view/${accommodation.id}`,
-            statusVariant: getStatusVariant(accommodation.status),
-            icon: 'BedDouble',
-            staff_id: accommodation.staff_id
-          });
-        } else {
-          console.log(`Skipping invalid accommodation request: ${accommodation.id}`);
-        }
-      }
-      
-      console.log(`Found ${accommodationBookings.length} valid accommodation requests`);
-    } catch (err) {
-      console.error('Error fetching accommodation requests:', err);
-      // Continue execution even if this query fails
-    }
+      return {
+        id: accommodation.id,
+        type: 'Accommodation',
+        title: `Accommodation: ${accommodation.purpose || 'Booking Request'}`,
+        status: accommodation.status,
+        dateInfo,
+        link: `/accommodation/view/${accommodation.id}`,
+        statusVariant: getStatusVariant(accommodation.status),
+        icon: 'BedDouble',
+        staff_id: accommodation.staff_id
+      };
+    });
 
     let allActivities = [...trfs, ...claims, ...visas, ...accommodationBookings];
     
@@ -408,6 +445,17 @@ export const GET = withAuth(async function(request: NextRequest) {
     // Return the top 10 most recent activities
     const result = allActivities.slice(0, 10);
     console.log(`Returning ${result.length} user-specific activities for ${userIdentifier.userId}`);
+    
+    if (result.length === 0) {
+      console.log('ACTIVITIES_DEBUG: No activities found for user');
+      console.log('ACTIVITIES_DEBUG: Possible reasons:');
+      console.log('ACTIVITIES_DEBUG: 1. No data in database for this user');
+      console.log('ACTIVITIES_DEBUG: 2. User ID mismatch between session and database');
+      console.log('ACTIVITIES_DEBUG: 3. Query filters too restrictive');
+    } else {
+      console.log('ACTIVITIES_DEBUG: Sample activity titles:', result.slice(0, 3).map(a => a.title));
+    }
+    
     return NextResponse.json(result, {
       headers: {
         'Cache-Control': 'private, max-age=60', // Shorter cache for user-specific data

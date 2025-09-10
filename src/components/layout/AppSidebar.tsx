@@ -89,7 +89,7 @@ export default function AppSidebar() {
   const userProfile = userProfileContext?.user;
   const [navItems, setNavItems] = useState<NavItem[]>([]);
 
-  // Load role-based navigation items
+  // Load role-based navigation items with caching
   useEffect(() => {
     const fetchNavigation = async () => {
       if (!session?.user) {
@@ -103,9 +103,8 @@ export default function AppSidebar() {
       try {
         console.log('AppSidebar: Fetching role-based navigation...');
         const response = await fetch('/api/navigation', {
-          cache: 'no-store',
           headers: {
-            'Cache-Control': 'no-cache',
+            'Cache-Control': 'max-age=900', // 15 minutes browser cache - navigation rarely changes
           }
         });
         

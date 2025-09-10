@@ -429,7 +429,7 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
         console.log(`API_TRF_POST (PostgreSQL): First itinerary segment fields:`, Object.keys(itineraryInserts[0]).join(', '));
       }
       
-      await tx`INSERT INTO trf_itinerary_segments ${tx(itineraryInserts, 'trf_id', 'segment_date', 'day_of_week', 'from_location', 'to_location', 'departure_time', 'arrival_time', 'flight_number', 'purpose', 'flight_class')}`;
+      await tx`INSERT INTO trf_itinerary_segments ${tx(itineraryInserts, 'trf_id', 'segment_date', 'day_of_week', 'from_location', 'to_location', 'departure_time', 'arrival_time', 'flight_number', 'purpose', 'flight_class', 'remarks')}`;
       console.log(`API_TRF_POST (PostgreSQL): Successfully inserted ${itineraryInserts.length} itinerary segments.`);
       
       // Handle meal provisions for all travel types that have them
@@ -716,6 +716,39 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
         console.log(`  - Requestor Email: ${requestorEmail}`);
         console.log(`  - Requestor ID: ${session.id}`);
         
+        // Extract travel dates from itinerary
+        let entityDates = '';
+        let itineraryToCheck: any[] = [];
+        
+        if (validatedData.travelType === "Domestic") {
+          itineraryToCheck = validatedData.domesticTravelDetails.itinerary;
+        } else if (validatedData.travelType === "Overseas" || validatedData.travelType === "Home Leave Passage") {
+          itineraryToCheck = validatedData.overseasTravelDetails.itinerary;
+        } else if (validatedData.travelType === "External Parties") {
+          itineraryToCheck = validatedData.externalPartiesTravelDetails.itinerary;
+        }
+        
+        if (itineraryToCheck && itineraryToCheck.length > 0) {
+          const dates = itineraryToCheck
+            .map(segment => segment.date)
+            .filter(date => date != null)
+            .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+          
+          if (dates.length > 0) {
+            const startDate = dates[0];
+            const endDate = dates[dates.length - 1];
+            
+            if (dates.length === 1) {
+              entityDates = `${startDate.toLocaleDateString()}`;
+            } else if (startDate.getTime() === endDate.getTime()) {
+              entityDates = `${startDate.toLocaleDateString()}`;
+            } else {
+              entityDates = `${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`;
+            }
+          }
+        }
+
+        console.log(`🔔 TRF_NOTIFICATION: Extracted travel dates: ${entityDates}`);
         console.log(`🔔 TRF_NOTIFICATION: Calling UnifiedNotificationService.sendWorkflowNotification`);
         
         // Send workflow notification using unified notification system
@@ -728,7 +761,8 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
           requestorId: session.id,
           department: departmentVal || 'Unknown',
           currentStatus: 'Pending Department Focal',
-          entityTitle: `Travel Request - ${purposeVal || 'Business Travel'}`
+          entityTitle: `Travel Request - ${purposeVal || 'Business Travel'}`,
+          entityDates: entityDates
         });
 
         console.log(`✅ TRF_NOTIFICATION: Successfully created enhanced workflow notifications for TRF ${trfRequestId}`);

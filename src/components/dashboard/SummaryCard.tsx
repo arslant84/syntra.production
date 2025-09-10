@@ -25,7 +25,7 @@ const SummaryCard = React.memo(function SummaryCard({ title, value, description,
         )}
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold text-primary">{value}</div>
+        <div className="text-3xl font-bold text-primary">{value || '0'}</div>
         {description && <p className="text-xs text-muted-foreground pt-1">{description}</p>}
       </CardContent>
     </Card>

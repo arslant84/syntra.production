@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sql } from '@/lib/db';
 import { formatISO, parseISO, isValid } from 'date-fns';
+import { UnifiedNotificationService } from '@/lib/unified-notification-service';
 
 const bookFlightSchema = z.object({
     pnr: z.string().optional().nullable(),
@@ -182,12 +183,44 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
     
     const requestorNameVal = currentTrf.requestor_name || currentTrf.external_full_name || "Requestor";
-    const notificationLog = `Placeholder: Send Notification - TRF ${trfId} - Flights Booked by ${adminName}. New Status: ${nextStatus}. Details: ${bookingSummary}. To Requestor: ${requestorNameVal}.`;
-    console.log(notificationLog);
+    
+    // Send flight booking completion notification to requestor
+    try {
+      // Get requestor details for notification
+      const requestorInfo = await sql`
+        SELECT u.id as user_id, u.email, tr.department, tr.purpose, tr.staff_id
+        FROM travel_requests tr
+        LEFT JOIN users u ON u.name = tr.requestor_name OR u.staff_id = tr.staff_id
+        WHERE tr.id = ${trfId}
+      `;
+      
+      const requestor = requestorInfo[0] || {};
+      
+      console.log(`🔔 FLIGHT_BOOKING: Sending completion notification for TRF ${trfId} to requestor ${requestorNameVal}`);
+      
+      await UnifiedNotificationService.notifyAdminCompletion({
+        entityType: 'trf',
+        entityId: trfId,
+        requestorId: requestor.user_id || 'unknown',
+        requestorName: requestorNameVal,
+        requestorEmail: requestor.email,
+        adminName: adminName,
+        entityTitle: `Flight Booking - ${requestor.purpose || 'Business Travel'}`,
+        completionDetails: bookingSummary,
+        travelPurpose: requestor.purpose || 'Business Travel'
+      });
+      
+      console.log(`✅ FLIGHT_BOOKING: Successfully sent completion notification for TRF ${trfId}`);
+    } catch (notificationError) {
+      console.error(`❌ FLIGHT_BOOKING: Failed to send completion notification for TRF ${trfId}:`, notificationError);
+      // Don't fail the booking process due to notification errors
+    }
+    
+    // Additional notifications based on next status
     if (nextStatus === 'Processing Accommodation') {
-        console.log(`Placeholder: Notify Accommodation Admin - TRF ${trfId} flights booked, proceed with accommodation.`);
+        console.log(`📋 FLIGHT_BOOKING: TRF ${trfId} flights booked, accommodation processing will handle next steps.`);
     } else if (nextStatus === 'Awaiting Visa') {
-        console.log(`Placeholder: Notify Visa Clerk/Requestor - TRF ${trfId} flights booked, proceed with visa if pending.`);
+        console.log(`📋 FLIGHT_BOOKING: TRF ${trfId} flights booked, visa processing may be required.`);
     }
 
     return NextResponse.json({ message: 'Flight booking processed successfully.', trf: updated });

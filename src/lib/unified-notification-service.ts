@@ -505,21 +505,39 @@ export class UnifiedNotificationService {
   ): Record<string, string> {
     const baseUrl = params.baseUrl || this.DEFAULT_BASE_URL;
     
+    // Helper function to provide meaningful fallback values
+    const getDisplayValue = (value: string | undefined | null, fallback: string = 'N/A'): string => {
+      return (value && value.trim() !== '') ? value.trim() : fallback;
+    };
+
+    // Helper function for currency amounts
+    const getAmountDisplay = (value: string | undefined | null): string => {
+      if (!value || value.trim() === '' || value === '0') return 'Not specified';
+      return value.trim();
+    };
+
+    // Helper function for dates
+    const getDateDisplay = (value: string | undefined | null): string => {
+      if (!value || value.trim() === '') return 'Not specified';
+      return value.trim();
+    };
+    
     return {
       // Entity information
       entityId: params.entityId,
       entityType: params.entityType,
-      entityTitle: params.entityTitle || '',
-      entityAmount: params.entityAmount || '',
-      entityDates: params.entityDates || '',
+      entityTitle: getDisplayValue(params.entityTitle, 'Request'),
+      entityAmount: getAmountDisplay(params.entityAmount),
+      entityDates: getDateDisplay(params.entityDates),
       
       // Department information
-      department: params.department || 'Unknown',
+      department: getDisplayValue(params.department, 'Not specified'),
       
       // Requestor information
       requestorName: params.requestorName,
-      requestorEmail: params.requestorEmail || '',
-      staffId: params.staffId || '',
+      requestorEmail: getDisplayValue(params.requestorEmail, 'Not provided'),
+      staffId: getDisplayValue(params.staffId, 'Not provided'),
+      employeeId: getDisplayValue((params as any).employeeId || params.staffId, 'Not provided'),
       
       // Recipient information  
       approverName: recipient.name,
@@ -528,39 +546,45 @@ export class UnifiedNotificationService {
       
       // Status information
       currentStatus: params.currentStatus,
-      previousStatus: params.previousStatus || '',
+      previousStatus: getDisplayValue(params.previousStatus, 'N/A'),
       
       // Action information
-      comments: params.comments || '',
-      rejectionReason: params.rejectionReason || '',
-      approverRole: params.approverRole || recipient.role || '',
-      nextApprover: params.nextApprover || '',
-      previousApprover: params.previousApprover || params.approverName || '',
+      comments: getDisplayValue(params.comments, 'No comments provided'),
+      rejectionReason: getDisplayValue(params.rejectionReason, 'No reason provided'),
+      approverRole: getDisplayValue(params.approverRole || recipient.role, 'Approver'),
+      nextApprover: getDisplayValue(params.nextApprover, 'To be determined'),
+      previousApprover: getDisplayValue(params.previousApprover || params.approverName, 'N/A'),
       
-      // Entity-specific fields
-      travelPurpose: params.travelPurpose || '',
-      travelDates: params.entityDates || params.travelDates || '',
-      claimPurpose: params.claimPurpose || '',
-      claimAmount: params.entityAmount || '',
-      transportPurpose: params.transportPurpose || '',
-      accommodationPurpose: params.accommodationPurpose || '',
+      // Entity-specific fields with meaningful fallbacks
+      travelPurpose: getDisplayValue(params.travelPurpose, 'Business travel'),
+      travelDates: getDateDisplay(params.entityDates || params.travelDates),
+      claimPurpose: getDisplayValue(params.claimPurpose, 'Business expenses'),
+      claimAmount: getAmountDisplay(params.entityAmount),
+      transportPurpose: getDisplayValue(params.transportPurpose, 'Official transport'),
+      accommodationPurpose: getDisplayValue(params.accommodationPurpose, 'Official accommodation'),
       
       // Generic purpose field that maps to the appropriate entity-specific purpose
-      purpose: params.transportPurpose || params.travelPurpose || params.claimPurpose || params.accommodationPurpose || '',
-      amount: params.entityAmount || '',
+      purpose: getDisplayValue(
+        params.transportPurpose || params.travelPurpose || params.claimPurpose || params.accommodationPurpose,
+        'Official business'
+      ),
+      amount: getAmountDisplay(params.entityAmount),
       
       // Visa-specific fields
-      destination: (params as any).destination || '',
-      employeeId: (params as any).employeeId || params.staffId || '',
+      destination: getDisplayValue((params as any).destination, 'Not specified'),
+      travelType: getDisplayValue(params.travelType, 'Not specified'),
       
       // Transport-specific fields
-      travelDate: (params as any).travelDate || '',
-      route: (params as any).route || '',
+      travelDate: getDateDisplay((params as any).travelDate),
+      route: getDisplayValue((params as any).route, 'To be confirmed'),
       
       // Accommodation-specific fields
-      checkinDate: (params as any).checkinDate || '',
-      checkoutDate: (params as any).checkoutDate || '',
-      location: (params as any).location || '',
+      checkinDate: getDateDisplay((params as any).checkinDate),
+      checkoutDate: getDateDisplay((params as any).checkoutDate),
+      location: getDisplayValue((params as any).location, 'To be confirmed'),
+      
+      // System metadata
+      currentDate: new Date().toLocaleDateString(),
       
       // URLs
       approvalUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/approve/${params.entityId}`,
@@ -791,6 +815,9 @@ export class UnifiedNotificationService {
     entityAmount?: string;
     travelType?: string;
     claimPurpose?: string;
+    transportPurpose?: string;
+    travelPurpose?: string;
+    accommodationPurpose?: string;
     comments?: string;
     department?: string;
   }): Promise<void> {
@@ -814,6 +841,9 @@ export class UnifiedNotificationService {
       entityAmount: params.entityAmount,
       travelType: params.travelType,
       claimPurpose: params.claimPurpose,
+      transportPurpose: params.transportPurpose,
+      travelPurpose: params.travelPurpose,
+      accommodationPurpose: params.accommodationPurpose,
       comments: params.comments
     });
 
@@ -946,6 +976,11 @@ export class UnifiedNotificationService {
     approverRole: string;
     rejectionReason: string;
     entityTitle: string;
+    transportPurpose?: string;
+    travelPurpose?: string;
+    claimPurpose?: string;
+    accommodationPurpose?: string;
+    department?: string;
   }): Promise<void> {
     await this.sendWorkflowNotification({
       eventType: `${params.entityType}_rejected`,
@@ -958,7 +993,12 @@ export class UnifiedNotificationService {
       approverName: params.approverName,
       approverRole: params.approverRole,
       rejectionReason: params.rejectionReason,
-      entityTitle: params.entityTitle
+      entityTitle: params.entityTitle,
+      transportPurpose: params.transportPurpose,
+      travelPurpose: params.travelPurpose,
+      claimPurpose: params.claimPurpose,
+      accommodationPurpose: params.accommodationPurpose,
+      department: params.department
     });
   }
 

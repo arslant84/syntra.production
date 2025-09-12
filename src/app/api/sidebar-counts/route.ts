@@ -11,18 +11,27 @@ export const GET = withRateLimit(RATE_LIMITS.API_READ)(withAuth(async function(r
     const session = (request as any).user;
     console.log(`API_SIDEBAR_COUNTS: User ${session.role} (${session.email}) accessing sidebar counts`);
     
-    // Role-based access control
-    const canViewAll = canViewAllData(session);
+    // Get status parameter to determine context (personal dashboard vs approval queue)
+    const url = new URL(request.url);
+    const statusParam = url.searchParams.get('statuses');
+    
+    // Role-based access control with context awareness
     const userIdentifier = await getUserIdentifier(session);
+    
+    // ALWAYS filter by user for personal dashboard (no status param)
+    // Only allow admin bypass for approval queues (with status param)
+    const shouldBypassFilter = statusParam ? canViewAllData(session) : false;
+    
+    console.log(`API_SIDEBAR_COUNTS: Context - statusParam: ${statusParam}, shouldBypassFilter: ${shouldBypassFilter}`);
 
     // Cache sidebar counts per user role and permissions
-    const cacheKey = canViewAll 
-      ? globalCacheKey('sidebar-counts', 'admin')
+    const cacheKey = shouldBypassFilter 
+      ? globalCacheKey('sidebar-counts', 'admin', statusParam || 'default')
       : userCacheKey(userIdentifier.userId, 'sidebar-counts');
       
     const counts = await withCache(
       cacheKey,
-      () => fetchSidebarCounts(session, canViewAll, userIdentifier),
+      () => fetchSidebarCounts(session, shouldBypassFilter, userIdentifier),
       CACHE_TTL.NOTIFICATION_COUNT // 1 minute cache for real-time feel
     );
 
@@ -37,7 +46,7 @@ export const GET = withRateLimit(RATE_LIMITS.API_READ)(withAuth(async function(r
 }));
 
 // Extract sidebar counts fetching logic for caching
-async function fetchSidebarCounts(session: any, canViewAll: boolean, userIdentifier: any) {
+async function fetchSidebarCounts(session: any, shouldBypassFilter: boolean, userIdentifier: any) {
   
     // Object to store all counts
     const counts = {
@@ -52,7 +61,7 @@ async function fetchSidebarCounts(session: any, canViewAll: boolean, userIdentif
     try {
       // Count pending TRFs - filter by user if not admin
       let trfQuery;
-      if (canViewAll) {
+      if (shouldBypassFilter) {
         trfQuery = await sql`
           SELECT COUNT(*) AS count FROM travel_requests
           WHERE status LIKE 'Pending%' OR status = 'Pending'
@@ -85,7 +94,7 @@ async function fetchSidebarCounts(session: any, canViewAll: boolean, userIdentif
       
       if (claimsTableCheck[0]?.exists) {
         let claimsQuery;
-        if (canViewAll) {
+        if (shouldBypassFilter) {
           claimsQuery = await sql`
             SELECT COUNT(*) AS count FROM expense_claims
             WHERE status = 'Pending Verification' OR status = 'Pending Approval'
@@ -116,7 +125,7 @@ async function fetchSidebarCounts(session: any, canViewAll: boolean, userIdentif
         
         if (oldTableCheck[0]?.exists) {
           let claimsQuery;
-          if (canViewAll) {
+          if (shouldBypassFilter) {
             claimsQuery = await sql`
               SELECT COUNT(*) as count FROM claims 
               WHERE status = 'Pending Verification' OR status = 'Pending Approval'
@@ -142,7 +151,7 @@ async function fetchSidebarCounts(session: any, canViewAll: boolean, userIdentif
       // Count pending visa applications - filter by user if not admin
       let pendingVisas = 0;
       let visaQuery;
-      if (canViewAll) {
+      if (shouldBypassFilter) {
         visaQuery = await sql`
           SELECT COUNT(*) AS count FROM visa_applications
           WHERE status LIKE 'Pending%'
@@ -166,7 +175,7 @@ async function fetchSidebarCounts(session: any, canViewAll: boolean, userIdentif
       // Count pending accommodation requests - filter by user if not admin
       let pendingAccommodation = 0;
       let accommodationQuery;
-      if (canViewAll) {
+      if (shouldBypassFilter) {
         accommodationQuery = await sql`
           SELECT COUNT(DISTINCT tr.id) AS count 
           FROM travel_requests tr
@@ -216,7 +225,7 @@ async function fetchSidebarCounts(session: any, canViewAll: boolean, userIdentif
         
         if (flightsTableCheck[0]?.exists) {
           let flightsQuery;
-          if (canViewAll) {
+          if (shouldBypassFilter) {
             flightsQuery = await sql`
               SELECT COUNT(*) AS count FROM flight_bookings
               WHERE status = 'Pending'

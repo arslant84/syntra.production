@@ -59,7 +59,11 @@ export function DailyMealSelection() {
     const endDate = validDates[validDates.length - 1].date; // Last travel date (return from last segment)
     
     const daysBetween = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    console.log('DailyMealSelection: Travel period:', startDate.toDateString(), 'to', endDate.toDateString(), `(${daysBetween} days)`);
+    console.log('DailyMealSelection: Travel period:', 
+      startDate instanceof Date && isValid(startDate) ? startDate.toDateString() : 'Invalid start date', 
+      'to', 
+      endDate instanceof Date && isValid(endDate) ? endDate.toDateString() : 'Invalid end date', 
+      `(${daysBetween} days)`);
     
     // Generate all dates between start and end (inclusive)
     // This covers the entire travel period: 5 Aug to 9 Aug = 5, 6, 7, 8, 9 Aug
@@ -75,14 +79,28 @@ export function DailyMealSelection() {
   ]);
 
   // Store the current date range as a string to prevent infinite loops
-  const travelDateRange = travelDates.map(date => date.toDateString()).join('|');
+  const travelDateRange = travelDates.map(date => {
+    if (date instanceof Date && isValid(date)) {
+      return date.toDateString();
+    }
+    return 'invalid-date';
+  }).join('|');
   
   // Initialize daily meal selections automatically when travel dates change
   useEffect(() => {
     if (travelDates.length > 0) {
       // Check if we need to update the meal selections due to date changes
-      const currentDatesSet = new Set(fields.map(field => field.meal_date?.toDateString()));
-      const newDatesSet = new Set(travelDates.map(date => date.toDateString()));
+      // Debug: Log the fields data to understand the structure
+      console.log('DailyMealSelection fields:', fields);
+      
+      const currentDatesSet = new Set();
+      const newDatesSet = new Set(travelDates.map(date => {
+        if (date instanceof Date && isValid(date)) {
+          return date.toDateString();
+        }
+        console.warn('Invalid travel date:', date);
+        return '';
+      }).filter(dateStr => dateStr !== ''));
       
       // Compare if the dates have changed
       const datesChanged = currentDatesSet.size !== newDatesSet.size || 
@@ -93,9 +111,11 @@ export function DailyMealSelection() {
         
         // Preserve existing selections where dates match
         const newSelections = travelDates.map((date) => {
-          const existingSelection = fields.find(field => 
-            field.meal_date && field.meal_date.toDateString() === date.toDateString()
-          );
+          const existingSelection = fields.find(field => {
+            if (!field.meal_date) return false;
+            const fieldDate = field.meal_date instanceof Date ? field.meal_date : new Date(field.meal_date);
+            return isValid(fieldDate) && isValid(date) && fieldDate.toDateString() === date.toDateString();
+          });
           
           if (existingSelection) {
             // Keep existing selections for dates that haven't changed

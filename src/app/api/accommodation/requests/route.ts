@@ -78,11 +78,12 @@ export async function POST(request: NextRequest) {
     console.log("API_ACCOM_REQ_POST (PostgreSQL): Generated Accommodation Request ID:", accomRequestId);
 
     // First, create a travel request entry to get an accommodation request ID
+    // Ensure proper user identification - use session data for critical fields
     const [newTravelRequest] = await sql`
       INSERT INTO travel_requests (
         id, requestor_name, staff_id, department, travel_type, status, additional_comments, submitted_at
       ) VALUES (
-        ${accomRequestId}, ${data.requestorName}, ${data.requestorId || null}, ${data.department || null}, 
+        ${accomRequestId}, ${user.name || data.requestorName}, ${user.staffId || user.id || data.requestorId}, ${user.department || data.department}, 
         'Accommodation', 'Pending Department Focal', ${data.specialRequests || null}, NOW()
       ) RETURNING *
     `;
@@ -148,15 +149,16 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`🔔 ACCOMMODATION_NOTIFICATION: Starting async notification process for accommodation ${accomRequestId}`);
         
-        // Send unified workflow notification 
+        // Send unified workflow notification - use session data for proper targeting
         await UnifiedNotificationService.sendWorkflowNotification({
           eventType: 'accommodation_submitted',
           entityType: 'accommodation',
           entityId: accomRequestId,
           currentStatus: 'Pending Department Focal',
-          requestorName: data.requestorName,
+          requestorId: user.id,
+          requestorName: user.name || data.requestorName,
           requestorEmail: user.email,
-          department: data.department || 'Unknown',
+          department: user.department || data.department || 'Unknown',
           entityTitle: `Accommodation Request at ${data.location}`,
           entityDates: `${data.requestedCheckInDate.toISOString().split('T')[0]} to ${data.requestedCheckOutDate.toISOString().split('T')[0]}`,
           accommodationPurpose: `Accommodation at ${data.location}`
@@ -169,6 +171,11 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Clear relevant caches to ensure fresh data
+    const { clearUserCache } = require('@/lib/cache');
+    clearUserCache(user.id, 'accommodation-requests-personal');
+    clearUserCache(user.id, 'sidebar-counts');
+    
     console.log("API_ACCOM_REQ_POST (PostgreSQL): Accommodation request submission completed successfully:", accomRequestId);
     return response;
   } catch (error: any) {

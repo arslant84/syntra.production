@@ -1498,7 +1498,10 @@ export async function PUT(
 
     // Handle travel details based on type
     if (rawBody.travelType === "Domestic") {
-      rawBody.domesticTravelDetails = rawBody.domesticTravelDetails || {};
+      // Ensure domesticTravelDetails is an object, not a string
+      if (typeof rawBody.domesticTravelDetails === "string" || !rawBody.domesticTravelDetails) {
+        rawBody.domesticTravelDetails = {};
+      }
       rawBody.domesticTravelDetails.purpose =
         rawBody.purpose || rawBody.domesticTravelDetails.purpose || "";
       rawBody.domesticTravelDetails.itinerary =
@@ -1519,7 +1522,10 @@ export async function PUT(
       rawBody.travelType === "Overseas" ||
       rawBody.travelType === "Home Leave Passage"
     ) {
-      rawBody.overseasTravelDetails = rawBody.overseasTravelDetails || {};
+      // Ensure overseasTravelDetails is an object, not a string
+      if (typeof rawBody.overseasTravelDetails === "string" || !rawBody.overseasTravelDetails) {
+        rawBody.overseasTravelDetails = {};
+      }
       rawBody.overseasTravelDetails.purpose =
         rawBody.purpose || rawBody.overseasTravelDetails.purpose || "";
       rawBody.overseasTravelDetails.itinerary =
@@ -1533,8 +1539,10 @@ export async function PUT(
         rawBody.overseasTravelDetails.advanceAmountRequested ||
         [];
     } else if (rawBody.travelType === "External Parties") {
-      rawBody.externalPartiesTravelDetails =
-        rawBody.externalPartiesTravelDetails || {};
+      // Ensure externalPartiesTravelDetails is an object, not a string
+      if (typeof rawBody.externalPartiesTravelDetails === "string" || !rawBody.externalPartiesTravelDetails) {
+        rawBody.externalPartiesTravelDetails = {};
+      }
       rawBody.externalPartiesTravelDetails.purpose =
         rawBody.purpose || rawBody.externalPartiesTravelDetails.purpose || "";
       rawBody.externalPartiesTravelDetails.itinerary =
@@ -1872,7 +1880,7 @@ export async function PUT(
                 refreshment
               ) VALUES (
                 ${trfId},
-                ${selection.meal_date ? formatISO(selection.meal_date, { representation: "date" }) : null},
+                ${selection.meal_date ? formatISO(safeParseISO(selection.meal_date) || new Date(), { representation: "date" }) : null},
                 ${Boolean(selection.breakfast)},
                 ${Boolean(selection.lunch)},
                 ${Boolean(selection.dinner)},

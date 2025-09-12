@@ -41,6 +41,11 @@ export interface WorkflowNotificationParams {
   transportPurpose?: string;
   accommodationPurpose?: string;
   
+  // Visa-specific fields
+  destination?: string;
+  visaPurpose?: string;
+  visaType?: string;
+  
   // Action data
   comments?: string;
   rejectionReason?: string;
@@ -537,7 +542,7 @@ export class UnifiedNotificationService {
       requestorName: params.requestorName,
       requestorEmail: getDisplayValue(params.requestorEmail, 'Not provided'),
       staffId: getDisplayValue(params.staffId, 'Not provided'),
-      employeeId: getDisplayValue((params as any).employeeId || params.staffId, 'Not provided'),
+      employeeId: getDisplayValue(params.staffId, 'Not provided'),
       
       // Recipient information  
       approverName: recipient.name,
@@ -571,7 +576,9 @@ export class UnifiedNotificationService {
       amount: getAmountDisplay(params.entityAmount),
       
       // Visa-specific fields
-      destination: getDisplayValue((params as any).destination, 'Not specified'),
+      destination: getDisplayValue(params.destination, 'Not specified'),
+      visaPurpose: getDisplayValue(params.visaPurpose, 'Business travel'),
+      visaType: getDisplayValue(params.visaType, 'Not specified'),
       travelType: getDisplayValue(params.travelType, 'Not specified'),
       
       // Transport-specific fields
@@ -820,6 +827,10 @@ export class UnifiedNotificationService {
     accommodationPurpose?: string;
     comments?: string;
     department?: string;
+    // Visa-specific fields
+    destination?: string;
+    visaPurpose?: string;
+    visaType?: string;
   }): Promise<void> {
     const eventType = this.getApprovalEventType(params.entityType, params.previousStatus);
     
@@ -844,7 +855,11 @@ export class UnifiedNotificationService {
       transportPurpose: params.transportPurpose,
       travelPurpose: params.travelPurpose,
       accommodationPurpose: params.accommodationPurpose,
-      comments: params.comments
+      comments: params.comments,
+      // Visa-specific fields
+      destination: params.destination,
+      visaPurpose: params.visaPurpose,
+      visaType: params.visaType
     });
 
     // NEW: Send confirmation notification to the approver who just approved
@@ -981,6 +996,12 @@ export class UnifiedNotificationService {
     claimPurpose?: string;
     accommodationPurpose?: string;
     department?: string;
+    // Visa-specific fields
+    destination?: string;
+    visaPurpose?: string;
+    visaType?: string;
+    travelDates?: string;
+    employeeId?: string;
   }): Promise<void> {
     await this.sendWorkflowNotification({
       eventType: `${params.entityType}_rejected`,
@@ -998,7 +1019,13 @@ export class UnifiedNotificationService {
       travelPurpose: params.travelPurpose,
       claimPurpose: params.claimPurpose,
       accommodationPurpose: params.accommodationPurpose,
-      department: params.department
+      department: params.department,
+      // Visa-specific fields
+      destination: params.destination,
+      visaPurpose: params.visaPurpose,
+      visaType: params.visaType,
+      entityDates: params.travelDates,
+      staffId: params.employeeId
     });
   }
 

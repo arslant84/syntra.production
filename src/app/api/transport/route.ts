@@ -74,6 +74,7 @@ export const GET = withAuth(async function(request: NextRequest) {
     let userId = userIdentifier.userId; // Default: always filter by user
     
     console.log(`API_TRANSPORT_GET: Session details - role: ${session.role}, userId: ${userId}, email: ${session.email}`);
+    console.log(`API_TRANSPORT_GET: User identifier details - staffId: ${userIdentifier.staffId}, name: ${session.name}, department: ${session.department}`);
     
     // Use the same shouldBypassUserFilter logic as TSR API for consistency
     if (shouldBypassUserFilter(session, statuses)) {
@@ -99,7 +100,11 @@ export const GET = withAuth(async function(request: NextRequest) {
     // For transport listing page, show transport requests based on role with caching
     console.log(`API_TRANSPORT_GET: Calling TransportService.getAllTransportRequests with userId: ${userId}`);
     
-    const cacheKey = userCacheKey(userId || 'admin', 'transport-requests');
+    // Use different cache keys for personal vs admin views to prevent cross-contamination
+    const cacheKey = userId 
+      ? userCacheKey(userId, 'transport-requests-personal')
+      : userCacheKey('admin', 'transport-requests-admin');
+    
     const transportRequests = await withCache(
       cacheKey,
       () => TransportService.getAllTransportRequests(userId, session),
@@ -154,11 +159,25 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
       }, { status: 429 });
     }
     const userId = session.id || session.email;
-    const requestData = { ...body, userId };
+    
+    // Ensure proper user identification - use session data for critical fields
+    const requestData = { 
+      ...body, 
+      userId,
+      // Override form data with session data to ensure correct user association
+      staffId: session.staffId || session.id || body.staffId,
+      requestorName: session.name || body.requestorName,
+      department: session.department || body.department
+    };
     
     console.log('🚗 TRANSPORT_API: Creating transport request via TransportService...');
     const transportRequest = await TransportService.createTransportRequest(requestData);
     console.log(`✅ TRANSPORT_API: Transport request created with ID: ${transportRequest.id}`);
+    
+    // Clear relevant caches to ensure fresh data
+    const { clearUserCache } = require('@/lib/cache');
+    clearUserCache(userId, 'transport-requests-personal');
+    clearUserCache(userId, 'sidebar-counts');
     
     // Mark deduplication request as completed (successful submission)
     if (requestFingerprint) {

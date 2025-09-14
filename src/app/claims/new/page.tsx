@@ -64,7 +64,8 @@ export default function NewClaimPage() {
 
   // Initialize claim data with user details when available
   useEffect(() => {
-    if (!userDetailsLoading && !userProfileLoading && (userDetails || userProfile)) {
+    // Wait for at least one hook to finish loading and have data
+    if ((!userDetailsLoading || !userProfileLoading) && (userDetails || userProfile)) {
       console.log("Auto-populating claims data:", { userDetails, userProfile });
       
       const staffName = userProfile?.name || userDetails?.requestorName || "";
@@ -73,23 +74,25 @@ export default function NewClaimPage() {
       
       console.log("Auto-populate values:", { staffName, staffNo, departmentCode });
       
-      const newInitialData: Partial<ExpenseClaim> = {
-        headerDetails: {
-          documentType: "",
-          documentNumber: "",
-          claimForMonthOf: null,
-          staffName,
-          staffNo,
-          gred: "",
-          staffType: "",
-          executiveStatus: "",
-          departmentCode,
-          deptCostCenterCode: "",
-          location: "",
-          telExt: userProfile?.phone || "",
-          startTimeFromHome: "",
-          timeOfArrivalAtHome: "",
-        },
+      // Only update if we have actual data to populate
+      if (staffName || staffNo || departmentCode) {
+        const newInitialData: Partial<ExpenseClaim> = {
+          headerDetails: {
+            documentType: "",
+            documentNumber: "",
+            claimForMonthOf: null,
+            staffName,
+            staffNo,
+            gred: "",
+            staffType: "",
+            executiveStatus: "",
+            departmentCode,
+            deptCostCenterCode: "",
+            location: "",
+            telExt: userProfile?.phone || "",
+            startTimeFromHome: "",
+            timeOfArrivalAtHome: "",
+          },
         bankDetails: {
           bankName: "",
           accountNumber: "",
@@ -118,6 +121,7 @@ export default function NewClaimPage() {
         },
       };
       setInitialClaimData(newInitialData);
+      }
     }
   }, [userDetails, userDetailsLoading, userProfile, userProfileLoading]);
 

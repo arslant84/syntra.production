@@ -296,6 +296,14 @@ export default function ExpenseClaimForm({ initialData, onSubmit, submitButtonTe
     checkForProblematicValues(values);
   }, [form]);
 
+  // Reset form when initialData changes
+  React.useEffect(() => {
+    if (formattedInitialData) {
+      console.log("Resetting form with new initialData:", formattedInitialData);
+      form.reset(formattedInitialData as any);
+    }
+  }, [form, formattedInitialData]);
+
   const { fields: expenseFields, append: appendExpense, remove: removeExpense } = useFieldArray({
     control: form.control,
     name: "expenseItems",

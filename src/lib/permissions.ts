@@ -21,7 +21,7 @@ export async function hasPermission(permissionName: string): Promise<boolean> {
   }
   
   // Admin roles have all permissions
-  if (session.user.role === 'System Administrator' || session.user.role === 'Admin') {
+  if (session.user.role === 'System Administrator' || session.user.role === 'Admin' || session.user.role === 'Ticketing Admin') {
     console.log(`[PERMISSION CHECK] GRANTED: Admin role (${session.user.role})`);
     return true;
   }
@@ -47,7 +47,7 @@ export async function hasAnyPermission(permissionNames: string[]): Promise<boole
   }
   
   // Admin roles have all permissions
-  if (session.user.role === 'System Administrator' || session.user.role === 'Admin') {
+  if (session.user.role === 'System Administrator' || session.user.role === 'Admin' || session.user.role === 'Ticketing Admin') {
     return true;
   }
   
@@ -70,7 +70,7 @@ export async function hasAllPermissions(permissionNames: string[]): Promise<bool
   }
   
   // Admin roles have all permissions
-  if (session.user.role === 'System Administrator' || session.user.role === 'Admin') {
+  if (session.user.role === 'System Administrator' || session.user.role === 'Admin' || session.user.role === 'Ticketing Admin') {
     return true;
   }
   

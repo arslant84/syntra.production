@@ -41,7 +41,8 @@ export const APPROVAL_ROLES = [
 // Define which roles can see all requests (not just their own)
 export const ADMIN_ROLES = [
   ROLES.ADMIN,
-  ROLES.SYSTEM_ADMINISTRATOR
+  ROLES.SYSTEM_ADMINISTRATOR,
+  ROLES.TICKETING_ADMIN  // Ticketing Admin needs to see all pending flights for processing
 ];
 
 // Define role-specific sidebar access based on requirements
@@ -110,6 +111,10 @@ export async function getApprovalQueueFilters(): Promise<{
     ],
     [ROLES.VISA_CLERK]: [
       'Pending Visa Clerk'
+    ],
+    [ROLES.TICKETING_ADMIN]: [
+      'Approved',  // Ticketing Admin processes all approved TRFs for flight booking
+      'Flights Booked'  // Can also view completed flight bookings
     ],
     [ROLES.ADMIN]: [
       'Pending Department Focal',

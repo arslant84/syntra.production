@@ -138,9 +138,9 @@ export function withRole(allowedRoles: string[]) {
  * Based on role matrix from USER_MANAGEMENT_RBAC_ANALYSIS.md
  */
 export function canViewAllData(session: any): boolean {
-  // Only System Administrator and Admin can see all data
-  // HOD might see department-wide data but not all data
-  const adminRoles = ['System Administrator', 'Admin'];
+  // System Administrator, Admin, and Ticketing Admin can see all data
+  // Ticketing Admin needs to see all pending flights for processing
+  const adminRoles = ['System Administrator', 'Admin', 'Ticketing Admin'];
   return adminRoles.includes(session.role);
 }
 

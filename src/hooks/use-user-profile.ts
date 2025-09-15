@@ -17,26 +17,29 @@ export interface UserProfile {
 
 export function useUserProfile() {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchUserProfile = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await fetch('/api/user-profile');
-      if (!response.ok) {
-        throw new Error('Failed to fetch profile');
-      }
-      
-      const data = await response.json();
-      setUser(data.user);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
+    // Completely disabled to prevent any API calls during login issues
+    return;
+
+    // try {
+    //   setLoading(true);
+    //   setError(null);
+
+    //   const response = await fetch('/api/user-profile');
+    //   if (!response.ok) {
+    //     throw new Error('Failed to fetch profile');
+    //   }
+
+    //   const data = await response.json();
+    //   setUser(data.user);
+    // } catch (err) {
+    //   setError(err instanceof Error ? err.message : 'An error occurred');
+    // } finally {
+    //   setLoading(false);
+    // }
   };
 
   const updateUserProfile = async (updates: Partial<Pick<UserProfile, 'name' | 'gender' | 'phone' | 'profile_photo'>>) => {

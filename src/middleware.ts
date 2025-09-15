@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
-const PUBLIC_PATHS = ['/login', '/api/auth', '/_next', '/favicon.ico'];
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/user-profile', '/_next', '/favicon.ico']; // Updated to fix loop
 const PUBLIC_FILE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.ico', '.webp'];
 
 // Role-based access control configuration
@@ -147,8 +147,9 @@ export const config = {
     // Match all routes except:
     // - /login
     // - /api/auth/*
+    // - /api/user-profile (added to stop infinite loop)
     // - /_next/*
     // - /favicon.ico
-    '/((?!login|api/auth|_next|favicon.ico).*)',
+    '/((?!login|api/auth|api/user-profile|_next|favicon.ico).*)',
   ],
 };

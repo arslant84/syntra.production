@@ -124,7 +124,7 @@ export default function ProfileForm({ user, onUserUpdate }: ProfileFormProps) {
           const errorData = await response.json();
           throw new Error(errorData.error || 'Failed to update profile');
         }
-        
+
         onUserUpdate(); // Trigger refetch only for fallback
       }
       

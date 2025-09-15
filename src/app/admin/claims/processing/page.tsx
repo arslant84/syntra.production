@@ -20,6 +20,8 @@ import { shouldShowRequest } from '@/lib/client-rbac-utils';
 import { format } from "date-fns";
 import type { ClaimStatus, ReimbursementDetails } from '@/types/claims';
 
+export const dynamic = 'force-dynamic';
+
 // Define interfaces for claims
 interface ClaimRequest {
   id: string;

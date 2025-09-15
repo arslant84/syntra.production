@@ -16,12 +16,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && !hasRedirected) {
+      setHasRedirected(true);
       router.replace("/");
     }
-  }, [status, router]);
+  }, [status, router, hasRedirected]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

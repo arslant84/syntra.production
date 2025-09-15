@@ -16,9 +16,12 @@ const profileUpdateSchema = z.object({
 // GET - Get current user's profile
 export const GET = withRateLimit(RATE_LIMITS.API_READ)(async function(request: NextRequest) {
   try {
+    // Removed debugging logs - issue resolved
+
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.email) {
+      console.log('API /user-profile: No session, returning 401');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

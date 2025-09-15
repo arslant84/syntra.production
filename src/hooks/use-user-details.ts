@@ -17,9 +17,9 @@ export function useUserDetails() {
       try {
         setLoading(true);
         setError(null);
-        
+
         const response = await fetch('/api/user-details');
-        
+
         if (!response.ok) {
           const errorText = await response.text();
           console.error('User details API error:', {
@@ -29,7 +29,7 @@ export function useUserDetails() {
           });
           throw new Error(`Failed to fetch user details: ${response.status} ${response.statusText}. ${errorText}`);
         }
-        
+
         const data = await response.json();
         setUserDetails(data);
       } catch (err) {

@@ -43,10 +43,16 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
+          // Check if database is available
+          if (!sql) {
+            console.error('NEXTAUTH CREDENTIALS - Database not available');
+            return null;
+          }
+
           // Fetch user from DB with department and staff_id for session caching
           const users = await sql`
-            SELECT id, name, email, password, role_id, role, status, 
-                   COALESCE(department, '') as department, 
+            SELECT id, name, email, password, role_id, role, status,
+                   COALESCE(department, '') as department,
                    COALESCE(staff_id, '') as staff_id
             FROM users
             WHERE email = ${credentials.email}
@@ -104,12 +110,17 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
   },
   callbacks: {
     async jwt({ token, user, account, trigger, session }) {
-      console.log('JWT callback triggered', { token, user, account, trigger, session });
-      
-      // Handle initial sign-in
+      // Only log during actual authentication events, not token refreshes
+      if (user || trigger === 'signIn' || trigger === 'update') {
+        console.log('JWT callback triggered', { trigger, hasUser: !!user });
+      }
+
+      // Handle initial sign-in only
       if (user) {
         console.log('JWT Callback: Initial sign-in, user object:', user);
         
@@ -120,9 +131,14 @@ export const authOptions: NextAuthOptions = {
           // Check if user exists in database, if not create them
           let dbUser;
           try {
+            if (!sql) {
+              console.error('JWT Callback: Database not available for Azure AD user lookup');
+              throw new Error('Database not available');
+            }
+
             const existingUsers = await sql`
-              SELECT id, name, email, role_id, role, 
-                     COALESCE(department, '') as department, 
+              SELECT id, name, email, role_id, role,
+                     COALESCE(department, '') as department,
                      COALESCE(staff_id, '') as staff_id
               FROM users
               WHERE email = ${user.email}
@@ -169,12 +185,16 @@ export const authOptions: NextAuthOptions = {
 
         // Update last login time
         try {
-          await sql`
-            UPDATE users 
-            SET last_login_at = NOW() 
-            WHERE id = ${token.uid}
-          `;
-          console.log(`JWT Callback: Updated last login time for user ${token.uid}`);
+          if (!sql) {
+            console.error('JWT Callback: Database not available for last login update');
+          } else {
+            await sql`
+              UPDATE users
+              SET last_login_at = NOW()
+              WHERE id = ${token.uid}
+            `;
+            console.log(`JWT Callback: Updated last login time for user ${token.uid}`);
+          }
         } catch (error) {
           console.error('JWT Callback: Error updating last login time:', error);
         }
@@ -182,15 +202,20 @@ export const authOptions: NextAuthOptions = {
         // Fetch permissions
         if (token.roleId) {
           try {
-            console.log(`JWT Callback: Fetching permissions for roleId: ${token.roleId}`);
-            const permissionsResult = await sql`
-              SELECT p.name
-              FROM permissions p
-              INNER JOIN role_permissions rp ON p.id = rp.permission_id
-              WHERE rp.role_id = ${token.roleId}
-            `;
-            token.permissions = permissionsResult.map(p => p.name as string);
-            console.log(`JWT Callback: Permissions for roleId ${token.roleId}:`, token.permissions);
+            if (!sql) {
+              console.error('JWT Callback: Database not available for permissions fetch');
+              token.permissions = [];
+            } else {
+              console.log(`JWT Callback: Fetching permissions for roleId: ${token.roleId}`);
+              const permissionsResult = await sql`
+                SELECT p.name
+                FROM permissions p
+                INNER JOIN role_permissions rp ON p.id = rp.permission_id
+                WHERE rp.role_id = ${token.roleId}
+              `;
+              token.permissions = permissionsResult.map(p => p.name as string);
+              console.log(`JWT Callback: Permissions for roleId ${token.roleId}:`, token.permissions);
+            }
           } catch (error) {
             console.error('JWT Callback: Error fetching permissions:', error);
             token.permissions = []; // Default to no permissions on error
@@ -205,11 +230,18 @@ export const authOptions: NextAuthOptions = {
         // For example, if role or permissions could be updated live
         // For now, we are not implementing live session updates beyond login
       }
-      console.log('Returning token:', token);
+      // Only log token details during authentication events, not refreshes
+      if (user || trigger === 'signIn' || trigger === 'update') {
+        console.log('Returning token:', token);
+      }
       return token;
     },
     async session({ session, token }) {
-      console.log('Session callback triggered', { session, token });
+      // Only log session details during significant events
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Session callback triggered');
+      }
+
       // Transfer properties from JWT token to session object
       if (session.user) {
         session.user.id = token.uid as string;
@@ -218,11 +250,8 @@ export const authOptions: NextAuthOptions = {
         session.user.permissions = token.permissions;
         session.user.department = token.department;
         session.user.staffId = token.staffId;
-        console.log('Session Callback: Session created/updated:', session);
-      } else {
-        console.warn("Session Callback: session.user is undefined");
       }
-      console.log('Returning session:', session);
+
       return session;
     },
   },

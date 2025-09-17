@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from '@/components/ui/badge';
 import { format, isValid } from "date-fns";
 import { cn } from "@/lib/utils";
-import { UserCircle, Briefcase, Plane, Paperclip, CalendarDays, Globe, Flag, FileBadge, Link2, Mail, MapPin, FileText, Info, CreditCard, CheckCircle } from "lucide-react";
+import { UserCircle, Briefcase, Plane, Paperclip, CalendarDays, Globe, Flag, FileBadge, Link2, Mail, MapPin, FileText, Info, CreditCard, CheckCircle, Users } from "lucide-react";
 import ApprovalWorkflow from "../trf/ApprovalWorkflow";
 import VisaDocuments from "./VisaDocuments";
 import { StatusBadge } from "@/lib/status-utils";
@@ -44,38 +44,58 @@ const DetailItem: React.FC<{ label: string; value?: string | number | null | Rea
 export default function VisaApplicationView({ visaData, canManageDocuments = false }: VisaApplicationViewProps) {
   const {
     id, userId, applicantName, travelPurpose, destination, employeeId,
-    tripStartDate, tripEndDate, itineraryDetails, status, submittedDate, lastUpdatedDate, 
+    tripStartDate, tripEndDate, itineraryDetails, status, submittedDate, lastUpdatedDate,
     approvalWorkflow, approvalHistory, requestorName, staffId, department, position, email, visaType,
     passportNumber, passportExpiryDate, additionalComments, supportingDocumentsNotes,
-    processingDetails, processingStartedAt, processingCompletedAt
+    processingDetails, processingStartedAt, processingCompletedAt,
+    // Enhanced LOI fields
+    dateOfBirth, placeOfBirth, citizenship, passportPlaceOfIssuance, passportDateOfIssuance,
+    contactTelephone, homeAddress, educationDetails, currentEmployerName, currentEmployerAddress,
+    maritalStatus, familyInformation, requestType, approximatelyArrivalDate, durationOfStay,
+    visaEntryType, workVisitCategory, applicationFeesBorneBy, costCentreNumber,
+    lineFocalPerson, lineFocalDept, lineFocalContact, lineFocalDate,
+    sponsoringDeptHead, sponsoringDeptHeadDept, sponsoringDeptHeadContact, sponsoringDeptHeadDate,
+    ceoApprovalName, ceoApprovalDate
   } = visaData;
 
   // Removed getStatusBadgeVariant function - now using standardized StatusBadge component
   
   return (
     <div className="space-y-4 print:space-y-2">
+      {/* Header Section */}
+      <Card className="shadow-lg border-t-4 border-t-primary print:shadow-none print:border-none print:break-inside-avoid">
+        <CardHeader className="text-center print:p-0 print:mb-2">
+          <CardTitle className="text-2xl font-bold text-primary print:text-lg">REQUEST FOR LOI, VISA & WP</CardTitle>
+          <CardDescription className="print:text-xs">
+            Application ID: {id} | Status: <StatusBadge status={status || "Unknown"} showIcon className="print:text-xs inline" />
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
       <Card className="shadow-md print:shadow-none print:border-none print:break-inside-avoid">
         <CardHeader className="print:p-0 print:mb-2">
           <div className="flex items-center justify-between print:mb-1">
             <CardTitle className="text-xl flex items-center gap-2 print:text-lg">
-              <UserCircle className="w-5 h-5 text-primary print:hidden" /> Applicant Information
+              <UserCircle className="w-5 h-5 text-primary print:hidden" /> Section A: PARTICULARS OF APPLICANT
             </CardTitle>
-            <StatusBadge status={status || "Unknown"} showIcon className="print:text-xs" />
           </div>
         </CardHeader>
         <CardContent className="space-y-4 pt-4 print:p-0 print:space-y-2">
           <section className="print:break-inside-avoid">
             <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
               <UserCircle className="print:hidden" />
-              Personal Details
+              Personal Information
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
-              <DetailItem label="Applicant Name" value={applicantName || requestorName} />
-              <DetailItem label="Employee ID" value={employeeId || staffId} />
-              <DetailItem label="Department" value={department} />
-              <DetailItem label="Position" value={position} />
-              <DetailItem label="Email" value={email} />
-              {/* nationality field removed since it doesn't exist in database */}
+              <DetailItem label="Full Name" value={applicantName || requestorName} />
+              <DetailItem label="Date of Birth" value={formatDateSafe(dateOfBirth)} />
+              <DetailItem label="Place of Birth" value={placeOfBirth} />
+              <DetailItem label="Citizenship" value={citizenship} />
+              <DetailItem label="Contact Telephone" value={contactTelephone} />
+              <DetailItem label="Marital Status" value={maritalStatus} />
+              <DetailItem label="Home Address" value={homeAddress} fullWidth />
+              <DetailItem label="Education Details" value={educationDetails} fullWidth />
+              <DetailItem label="Family Information" value={familyInformation} fullWidth />
             </div>
           </section>
 
@@ -83,14 +103,15 @@ export default function VisaApplicationView({ visaData, canManageDocuments = fal
             <Separator className="my-2 print:hidden" />
             <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
               <Briefcase className="print:hidden" />
-              Travel Information
+              Employment Information
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
-              <DetailItem label="Travel Purpose" value={travelPurpose} />
-              <DetailItem label="Destination" value={travelPurpose === 'Expatriate Relocation' ? 'Home Country' : destination} />
-              <DetailItem label="Visa Type" value={visaType} />
-              <DetailItem label="Trip Start Date" value={formatDateSafe(tripStartDate)} />
-              <DetailItem label="Trip End Date" value={formatDateSafe(tripEndDate)} />
+              <DetailItem label="Employee ID" value={employeeId || staffId} />
+              <DetailItem label="Department" value={department} />
+              <DetailItem label="Position" value={position} />
+              <DetailItem label="Email" value={email} />
+              <DetailItem label="Current Employer" value={currentEmployerName} />
+              <DetailItem label="Employer Address" value={currentEmployerAddress} fullWidth />
             </div>
           </section>
 
@@ -102,19 +123,52 @@ export default function VisaApplicationView({ visaData, canManageDocuments = fal
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
               <DetailItem label="Passport Number" value={passportNumber} />
-              <DetailItem label="Passport Expiry Date" value={formatDateSafe(passportExpiryDate)} />
+              <DetailItem label="Place of Issuance" value={passportPlaceOfIssuance} />
+              <DetailItem label="Date of Issuance" value={formatDateSafe(passportDateOfIssuance)} />
+              <DetailItem label="Expiry Date" value={formatDateSafe(passportExpiryDate)} />
+            </div>
+          </section>
+        </CardContent>
+      </Card>
+
+      {/* Section B: Type of Request */}
+      <Card className="shadow-md print:shadow-none print:border-none print:break-inside-avoid">
+        <CardHeader className="print:p-0 print:mb-2">
+          <CardTitle className="text-xl flex items-center gap-2 print:text-lg">
+            <CheckCircle className="w-5 h-5 text-primary print:hidden" /> Section B: TYPE OF REQUEST
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-4 print:p-0 print:space-y-2">
+          <section className="print:break-inside-avoid">
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+              <FileText className="print:hidden" />
+              Request Details
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
+              <DetailItem label="Request Type" value={requestType} />
+              <DetailItem label="Travel Purpose" value={travelPurpose} />
+              <DetailItem label="Destination" value={travelPurpose === 'Expatriate Relocation' ? 'Home Country' : destination} />
+              <DetailItem label="Arrival Date" value={formatDateSafe(approximatelyArrivalDate)} />
+              <DetailItem label="Duration of Stay" value={durationOfStay} />
+              <DetailItem label="Visa Entry Type" value={visaEntryType} />
+              <DetailItem label="Work/Visit Category" value={workVisitCategory} />
+              <DetailItem label="Application Fees Borne By" value={applicationFeesBorneBy} />
+              <DetailItem label="Cost Centre Number" value={costCentreNumber} />
+              <DetailItem label="Trip Start Date" value={formatDateSafe(tripStartDate)} />
+              <DetailItem label="Trip End Date" value={formatDateSafe(tripEndDate)} />
+              <DetailItem label="Visa Type" value={visaType} />
             </div>
           </section>
 
           {/* Processing Details (for processed visas) */}
-          {(status === 'Visa Issued' || status === 'Approved') && (
+          {(status === 'Processed' || status === 'Processing with Visa Admin') && (
             <section className="print:break-inside-avoid">
               <Separator className="my-2 print:hidden" />
               <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
-                <CheckCircle className="print:hidden" /> Processing Details
+                <CheckCircle className="print:hidden" /> Visa Processing Details
               </h3>
               {processingDetails ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0 bg-green-50 border border-green-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-4 rounded-lg print:grid-cols-3 print:p-0 bg-green-50 border border-green-200">
                   {processingDetails.paymentMethod && (
                     <DetailItem label="Payment Method" value={processingDetails.paymentMethod} />
                   )}
@@ -162,80 +216,118 @@ export default function VisaApplicationView({ visaData, canManageDocuments = fal
                   )}
                 </div>
               ) : (
-                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                  <p className="text-sm text-green-700 font-medium">✅ This visa has been processed and completed.</p>
-                  <p className="text-xs text-green-600 mt-1">Processing details are being finalized. Please contact Visa Admin for specific processing information.</p>
+                <div className={`p-4 rounded-lg border ${status === 'Processed' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+                  <p className={`text-sm font-medium ${status === 'Processed' ? 'text-green-700' : 'text-blue-700'}`}>
+                    {status === 'Processed'
+                      ? '✅ This visa application has been processed and completed.'
+                      : '🔄 This visa application is currently being processed by the Visa Administrator.'}
+                  </p>
+                  <p className={`text-xs mt-1 ${status === 'Processed' ? 'text-green-600' : 'text-blue-600'}`}>
+                    {status === 'Processed'
+                      ? 'Visa processing details are being finalized. Please contact the Visa Administrator for specific visa information including visa number, validity dates, and collection instructions.'
+                      : 'Processing is in progress. Visa details will be updated once the embassy process is complete.'}
+                  </p>
                 </div>
               )}
             </section>
           )}
 
-          {supportingDocumentsNotes && (
+          {/* Approval Workflow Information */}
+          {(lineFocalPerson || sponsoringDeptHead || ceoApprovalName) && (
             <section className="print:break-inside-avoid">
               <Separator className="my-2 print:hidden" />
               <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
-                <Paperclip className="print:hidden" />
-                Supporting Documents
+                <Users className="print:hidden" />
+                Approval Workflow
               </h3>
-              <div className="p-2 rounded-md print:p-0">
-                <p className="whitespace-pre-wrap text-sm print:text-[9pt]">{supportingDocumentsNotes}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
+                <DetailItem label="Line Focal Person" value={lineFocalPerson} />
+                <DetailItem label="Line Focal Dept" value={lineFocalDept} />
+                <DetailItem label="Line Focal Contact" value={lineFocalContact} />
+                <DetailItem label="Line Focal Date" value={formatDateSafe(lineFocalDate)} />
+                <DetailItem label="Sponsoring Dept Head" value={sponsoringDeptHead} />
+                <DetailItem label="Sponsoring Dept Head Dept" value={sponsoringDeptHeadDept} />
+                <DetailItem label="Sponsoring Dept Head Contact" value={sponsoringDeptHeadContact} />
+                <DetailItem label="Sponsoring Dept Head Date" value={formatDateSafe(sponsoringDeptHeadDate)} />
+                <DetailItem label="CEO Approval Name" value={ceoApprovalName} />
+                <DetailItem label="CEO Approval Date" value={formatDateSafe(ceoApprovalDate)} />
               </div>
             </section>
           )}
+        </CardContent>
+      </Card>
 
-          {itineraryDetails && (
-            <section className="print:break-inside-avoid">
-              <Separator className="my-2 print:hidden" />
-              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
-                <Plane className="print:hidden" />
-                Itinerary Details
-              </h3>
-              <div className="p-2 rounded-md print:p-0">
-                <p className="whitespace-pre-wrap text-sm print:text-[9pt]">{itineraryDetails}</p>
-              </div>
-            </section>
-          )}
+      {supportingDocumentsNotes && (
+        <Card className="shadow-md print:shadow-none print:border-none print:break-inside-avoid">
+          <CardHeader className="print:p-0 print:mb-2">
+            <CardTitle className="text-lg flex items-center gap-2 print:text-base">
+              <Paperclip className="print:hidden" />
+              Supporting Documents
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="print:p-0">
+            <p className="whitespace-pre-wrap text-sm print:text-[9pt]">{supportingDocumentsNotes}</p>
+          </CardContent>
+        </Card>
+      )}
 
-          {additionalComments && (
-            <section className="print:break-inside-avoid">
-              <Separator className="my-2 print:hidden" />
-              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
-                <Info className="print:hidden" />
-                Additional Comments
-              </h3>
-              <div className="p-2 rounded-md print:p-0">
-                <p className="whitespace-pre-wrap text-sm print:text-[9pt]">{additionalComments}</p>
-              </div>
-            </section>
-          )}
+      {itineraryDetails && (
+        <Card className="shadow-md print:shadow-none print:border-none print:break-inside-avoid">
+          <CardHeader className="print:p-0 print:mb-2">
+            <CardTitle className="text-lg flex items-center gap-2 print:text-base">
+              <Plane className="print:hidden" />
+              Itinerary Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="print:p-0">
+            <p className="whitespace-pre-wrap text-sm print:text-[9pt]">{itineraryDetails}</p>
+          </CardContent>
+        </Card>
+      )}
 
-          <section className="print:break-inside-avoid">
-            <Separator className="my-2 print:hidden" />
-            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
-              <CalendarDays className="print:hidden" />
-              Application Timeline
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
-              <DetailItem label="Submitted Date" value={formatDateSafe(submittedDate)} />
-              <DetailItem label="Last Updated" value={formatDateSafe(lastUpdatedDate)} />
-              <DetailItem label="Application ID" value={id} />
-            </div>
-          </section>
+      {additionalComments && (
+        <Card className="shadow-md print:shadow-none print:border-none print:break-inside-avoid">
+          <CardHeader className="print:p-0 print:mb-2">
+            <CardTitle className="text-lg flex items-center gap-2 print:text-base">
+              <Info className="print:hidden" />
+              Additional Comments
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="print:p-0">
+            <p className="whitespace-pre-wrap text-sm print:text-[9pt]">{additionalComments}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Application Timeline */}
+      <Card className="shadow-md print:shadow-none print:border-none print:break-inside-avoid">
+        <CardHeader className="print:p-0 print:mb-2">
+          <CardTitle className="text-lg flex items-center gap-2 print:text-base">
+            <CalendarDays className="print:hidden" />
+            Application Timeline
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="print:p-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-2 rounded-md print:grid-cols-3 print:p-0">
+            <DetailItem label="Submitted Date" value={formatDateSafe(submittedDate)} />
+            <DetailItem label="Last Updated" value={formatDateSafe(lastUpdatedDate)} />
+            <DetailItem label="Application ID" value={id} />
+          </div>
         </CardContent>
       </Card>
 
       {/* Documents Section */}
-      <VisaDocuments 
-        visaId={id} 
-        canUpload={canManageDocuments} 
+      <VisaDocuments
+        visaId={id}
+        canUpload={canManageDocuments}
         canDelete={canManageDocuments}
-        className="print:break-inside-avoid" 
+        className="print:break-inside-avoid"
       />
 
       {(approvalWorkflow || approvalHistory) && (approvalWorkflow || approvalHistory)!.length > 0 && (
         <Card className="shadow-md print:shadow-none print:border-none print:break-inside-avoid">
           <CardHeader className="print:p-0 print:mb-2">
-            <CardTitle className="text-lg font-semibold print:text-base">Approval Workflow</CardTitle>
+            <CardTitle className="text-lg font-semibold print:text-base">System Approval Workflow</CardTitle>
           </CardHeader>
           <CardContent className="print:p-0">
             <ApprovalWorkflow steps={approvalWorkflow || approvalHistory || []} />

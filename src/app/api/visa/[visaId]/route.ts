@@ -85,15 +85,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.log(`API_VISA_GET_BY_ID (PostgreSQL): Attempting to query visa application with ID: ${visaId}`);
     
     const result = await sql`
-      SELECT 
-        id, 
+      SELECT
+        id,
         user_id,
-        requestor_name, 
-        travel_purpose, 
-        destination, 
-        status, 
-        submitted_date, 
-        trip_start_date, 
+        requestor_name,
+        travel_purpose,
+        destination,
+        status,
+        submitted_date,
+        trip_start_date,
         trip_end_date,
         visa_type,
         last_updated_date,
@@ -103,8 +103,42 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         additional_comments,
         processing_details,
         processing_started_at,
-        processing_completed_at
-      FROM visa_applications 
+        processing_completed_at,
+        -- Enhanced LOI fields
+        date_of_birth,
+        place_of_birth,
+        citizenship,
+        passport_place_of_issuance,
+        passport_date_of_issuance,
+        contact_telephone,
+        home_address,
+        education_details,
+        current_employer_name,
+        current_employer_address,
+        position,
+        department,
+        marital_status,
+        family_information,
+        request_type,
+        approximately_arrival_date,
+        duration_of_stay,
+        visa_entry_type,
+        work_visit_category,
+        application_fees_borne_by,
+        cost_centre_number,
+        itinerary_details,
+        supporting_documents_notes,
+        line_focal_person,
+        line_focal_dept,
+        line_focal_contact,
+        line_focal_date,
+        sponsoring_dept_head,
+        sponsoring_dept_head_dept,
+        sponsoring_dept_head_contact,
+        sponsoring_dept_head_date,
+        ceo_approval_name,
+        ceo_approval_date
+      FROM visa_applications
       WHERE id = ${visaId}
     `;
     
@@ -143,27 +177,68 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       id: app.id,
       userId: app.user_id || '',
       applicantName: app.requestor_name,
+      requestorName: app.requestor_name,
       travelPurpose: app.travel_purpose as any, // Cast to expected enum type
       destination: app.destination,
       employeeId: app.staff_id || '',
-      nationality: '', // Default empty string since column doesn't exist
+      staffId: app.staff_id || '',
       tripStartDate: app.trip_start_date ? new Date(app.trip_start_date) : null,
       tripEndDate: app.trip_end_date ? new Date(app.trip_end_date) : null,
-      itineraryDetails: app.additional_comments ? app.additional_comments.split('\n\nSupporting Documents:')[0] : '',
-      supportingDocumentsNotes: app.additional_comments && app.additional_comments.includes('\n\nSupporting Documents:') 
-        ? app.additional_comments.split('\n\nSupporting Documents:')[1] 
-        : '',
+      itineraryDetails: app.itinerary_details || (app.additional_comments ? app.additional_comments.split('\n\nSupporting Documents:')[0] : ''),
+      supportingDocumentsNotes: app.supporting_documents_notes || (app.additional_comments && app.additional_comments.includes('\n\nSupporting Documents:')
+        ? app.additional_comments.split('\n\nSupporting Documents:')[1]
+        : ''),
       status: app.status as any, // Cast to expected enum type
       submittedDate: app.submitted_date ? new Date(app.submitted_date) : new Date(),
       lastUpdatedDate: app.last_updated_date ? new Date(app.last_updated_date) : new Date(),
-      // Passport information
+
+      // Enhanced LOI fields - Section A: Particulars of Applicant
+      dateOfBirth: app.date_of_birth ? new Date(app.date_of_birth) : null,
+      placeOfBirth: app.place_of_birth || '',
+      citizenship: app.citizenship || '',
       passportNumber: app.passport_number || '',
+      passportPlaceOfIssuance: app.passport_place_of_issuance || '',
+      passportDateOfIssuance: app.passport_date_of_issuance ? new Date(app.passport_date_of_issuance) : null,
       passportExpiryDate: app.passport_expiry_date ? new Date(app.passport_expiry_date) : null,
-      // Optional fields
+      contactTelephone: app.contact_telephone || '',
+      homeAddress: app.home_address || '',
+      educationDetails: app.education_details || '',
+      currentEmployerName: app.current_employer_name || '',
+      currentEmployerAddress: app.current_employer_address || '',
+      position: app.position || '',
+      department: app.department || '',
+      maritalStatus: app.marital_status || '',
+      familyInformation: app.family_information || '',
+
+      // Section B: Type of Request
+      requestType: app.request_type as any,
+      approximatelyArrivalDate: app.approximately_arrival_date ? new Date(app.approximately_arrival_date) : null,
+      durationOfStay: app.duration_of_stay || '',
+      visaEntryType: app.visa_entry_type as any,
+      workVisitCategory: app.work_visit_category as any,
+      applicationFeesBorneBy: app.application_fees_borne_by as any,
+      costCentreNumber: app.cost_centre_number || '',
+
+      // Approval workflow fields
+      lineFocalPerson: app.line_focal_person || '',
+      lineFocalDept: app.line_focal_dept || '',
+      lineFocalContact: app.line_focal_contact || '',
+      lineFocalDate: app.line_focal_date ? new Date(app.line_focal_date) : null,
+      sponsoringDeptHead: app.sponsoring_dept_head || '',
+      sponsoringDeptHeadDept: app.sponsoring_dept_head_dept || '',
+      sponsoringDeptHeadContact: app.sponsoring_dept_head_contact || '',
+      sponsoringDeptHeadDate: app.sponsoring_dept_head_date ? new Date(app.sponsoring_dept_head_date) : null,
+      ceoApprovalName: app.ceo_approval_name || '',
+      ceoApprovalDate: app.ceo_approval_date ? new Date(app.ceo_approval_date) : null,
+
+      // Legacy and system fields
+      visaType: app.visa_type || '',
+      email: '', // Default empty since not stored separately
       passportCopy: null,
-      supportingDocumentsNotes: '',
+      additionalComments: app.additional_comments || '',
       approvalWorkflow: fullApprovalHistory,
       approvalHistory: fullApprovalHistory, // Keep for backward compatibility
+
       // Processing details
       processingDetails: app.processing_details ? JSON.parse(app.processing_details) : null,
       processingStartedAt: app.processing_started_at ? new Date(app.processing_started_at) : null,
@@ -175,6 +250,90 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.error(`API_VISA_GET_BY_ID_ERROR (PostgreSQL): ${error.message}`, error.stack);
     return NextResponse.json({ error: 'Failed to fetch visa application.', details: error.message }, { status: 500 });
   }
+}
+
+// Generate full approval workflow including pending steps
+function generateFullVisaApprovalWorkflow(
+  currentStatus: string,
+  completedSteps: any[],
+  requestorName?: string
+): VisaApprovalStep[] {
+  // Define the expected workflow sequence for visa applications
+  const expectedSteps = [
+    { role: 'Requestor', name: requestorName || 'Unknown', status: 'Submitted' },
+    { role: 'Department Focal', name: 'Pending', status: 'Pending' },
+    { role: 'Line Manager', name: 'Pending', status: 'Pending' },
+    { role: 'HOD', name: 'Pending', status: 'Pending' },
+    { role: 'Visa Admin', name: 'Pending', status: 'Pending' },
+  ];
+
+  // Map completed steps to expected steps
+  const workflow: VisaApprovalStep[] = expectedSteps.map(expectedStep => {
+    const completedStep = completedSteps.find(step =>
+      step.stepRole === expectedStep.role || step.stepName === expectedStep.name
+    );
+
+    if (completedStep) {
+      return {
+        role: completedStep.stepRole,
+        name: completedStep.stepName,
+        status: completedStep.status as any,
+        date: completedStep.stepDate,
+        comments: completedStep.comments
+      };
+    }
+
+    return {
+      role: expectedStep.role,
+      name: expectedStep.name,
+      status: expectedStep.status as any,
+      date: undefined,
+      comments: undefined
+    };
+  });
+
+  // Update status based on current application status
+  if (currentStatus === 'Draft') {
+    workflow[0].status = 'Not Started';
+  } else if (currentStatus === 'Pending Department Focal') {
+    workflow[0].status = 'Submitted';
+    workflow[1].status = 'Current';
+  } else if (currentStatus === 'Pending Line Manager') {
+    workflow[0].status = 'Approved';
+    workflow[1].status = 'Approved';
+    workflow[2].status = 'Current';
+  } else if (currentStatus === 'Pending HOD') {
+    workflow[0].status = 'Approved';
+    workflow[1].status = 'Approved';
+    workflow[2].status = 'Approved';
+    workflow[3].status = 'Current';
+  } else if (currentStatus === 'Processing with Visa Admin') {
+    workflow[0].status = 'Approved';
+    workflow[1].status = 'Approved';
+    workflow[2].status = 'Approved';
+    workflow[3].status = 'Approved';
+    workflow[4].status = 'Current';
+  } else if (currentStatus === 'Processed') {
+    workflow.forEach(step => {
+      if (step.status === 'Pending' || step.status === 'Current') {
+        step.status = 'Approved';
+      }
+    });
+  } else if (currentStatus === 'Rejected') {
+    // Find the current step and mark it as rejected
+    const currentStepIndex = workflow.findIndex(step => step.status === 'Current');
+    if (currentStepIndex !== -1) {
+      workflow[currentStepIndex].status = 'Rejected';
+    }
+  } else if (currentStatus === 'Cancelled') {
+    workflow.forEach(step => {
+      if (step.status === 'Pending' || step.status === 'Current') {
+        step.status = 'Cancelled';
+      }
+    });
+  }
+
+  return workflow;
 }
 
 // Placeholder for PUT (Update Visa App - e.g. Visa Clerk uploads visa copy)
@@ -276,72 +435,3 @@ export async function DELETE(request: NextRequest, { params }: { params: { visaI
   }
 }
 
-// Generate full approval workflow including pending steps (using TSR pattern)
-function generateFullVisaApprovalWorkflow(
-  currentStatus: string, 
-  completedSteps: any[],
-  requestorName?: string
-): any[] {
-  // Define the expected workflow sequence for Visa (updated for new workflow)
-  const expectedWorkflow = [
-    { role: 'Applicant', name: requestorName || 'System', status: 'Submitted' as const },
-    { role: 'Department Focal', name: 'TBD', status: 'Pending' as const },
-    { role: 'Line Manager', name: 'TBD', status: 'Pending' as const },
-    { role: 'HOD', name: 'TBD', status: 'Pending' as const },
-    { role: 'Visa Admin', name: 'TBD', status: 'Pending' as const }
-  ];
-
-  // Map completed steps by role for easy lookup
-  const completedByRole = completedSteps.reduce((acc: any, step: any) => {
-    acc[step.stepRole] = step;
-    return acc;
-  }, {});
-
-  // Generate the full workflow
-  const fullWorkflow: any[] = [];
-
-  for (const expectedStep of expectedWorkflow) {
-    const completedStep = completedByRole[expectedStep.role];
-    
-    if (completedStep) {
-      // Use the completed step data
-      fullWorkflow.push({
-        role: completedStep.stepRole || expectedStep.role,
-        name: completedStep.approverName || completedStep.stepName || expectedStep.name,
-        status: completedStep.status as "Current" | "Pending" | "Approved" | "Rejected" | "Not Started" | "Cancelled" | "Submitted",
-        date: completedStep.stepDate ? new Date(completedStep.stepDate) : undefined,
-        comments: completedStep.comments || undefined
-      });
-    } else {
-      // Determine status based on current request status and role
-      let stepStatus: "Current" | "Pending" | "Approved" | "Rejected" | "Not Started" | "Cancelled" | "Submitted" = 'Pending';
-      
-      // Handle the initial applicant step
-      if (expectedStep.role === 'Applicant') {
-        stepStatus = 'Submitted';
-      } else if (currentStatus === `Pending ${expectedStep.role}`) {
-        stepStatus = 'Current'; // Current pending step
-      } else if (currentStatus === 'Processing with Visa Admin' && expectedStep.role === 'Visa Admin') {
-        stepStatus = 'Current'; // Visa Admin is currently processing
-      } else if (currentStatus === 'Processed' || currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
-        // For completed applications, mark all previous steps as approved if they have completed steps
-        const previousStepCompleted = completedSteps.some(step => 
-          step.stepRole === expectedStep.role && step.status === 'Approved'
-        );
-        stepStatus = previousStepCompleted ? 'Approved' : 'Pending';
-      } else {
-        stepStatus = 'Pending';
-      }
-
-      fullWorkflow.push({
-        role: expectedStep.role,
-        name: expectedStep.name !== 'TBD' ? expectedStep.name : 'To be assigned',
-        status: stepStatus,
-        date: undefined,
-        comments: undefined
-      });
-    }
-  }
-
-  return fullWorkflow;
-}

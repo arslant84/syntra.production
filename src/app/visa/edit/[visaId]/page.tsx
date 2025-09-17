@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import VisaApplicationForm from "@/components/visa/VisaApplicationForm";
+import EnhancedVisaApplicationForm from "@/components/visa/EnhancedVisaApplicationForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { VisaApplication } from "@/types/visa";
@@ -181,7 +181,7 @@ export default function EditVisaApplicationPage() {
           </div>
         </CardHeader>
       </Card>
-      <VisaApplicationForm
+      <EnhancedVisaApplicationForm
         initialData={initialVisaData}
         onSubmit={handleSubmitVisaApplication}
       />

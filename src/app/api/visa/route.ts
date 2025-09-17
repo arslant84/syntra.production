@@ -12,16 +12,49 @@ import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
 import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from '@/lib/request-deduplication';
 
+// Enhanced schema to match LOI Request Form
 const visaApplicationCreateSchema = z.object({
-  applicantName: z.string().min(1, "Applicant name is required"),
+  // Section A: Particulars of Applicant
+  applicantName: z.string().min(1, "Full name is required"),
+  dateOfBirth: z.coerce.date().optional().nullable(),
+  placeOfBirth: z.string().optional().nullable(),
+  citizenship: z.string().optional().nullable(),
+  passportNumber: z.string().optional().nullable(),
+  passportPlaceOfIssuance: z.string().optional().nullable(),
+  passportDateOfIssuance: z.coerce.date().optional().nullable(),
+  passportExpiryDate: z.coerce.date().optional().nullable(),
+  contactTelephone: z.string().optional().nullable(),
+  homeAddress: z.string().optional().nullable(),
+  educationDetails: z.string().optional().nullable(),
+  currentEmployerName: z.string().optional().nullable(),
+  currentEmployerAddress: z.string().optional().nullable(),
+  position: z.string().optional().nullable(),
+  department: z.string().optional().nullable(),
+  maritalStatus: z.string().optional().nullable(),
+  familyInformation: z.string().optional().nullable(),
+
+  // Section B: Type of Request
+  requestType: z.enum(["LOI", "VISA", "WORK_PERMIT"]).optional().nullable(),
+  approximatelyArrivalDate: z.coerce.date().optional().nullable(),
+  durationOfStay: z.string().optional().nullable(),
+  visaEntryType: z.enum(["Multiple", "Single", "Double"]).optional().nullable(),
+  workVisitCategory: z.enum([
+    "CEO", "TLS", "TSE", "TKA",
+    "TKA-ME", "TKA-PE", "TKA-TE", "TKA-OE",
+    "TPD", "TSS", "TWD", "TFA",
+    "TPM", "TBE", "TBE-IT", "TRA",
+    "TSM", "THR", "THR-CM", "Company Guest"
+  ]).optional().nullable(),
+  applicationFeesBorneBy: z.enum(["PC(T)SB Dept", "OPU", "Myself"]).optional().nullable(),
+  costCentreNumber: z.string().optional().nullable(),
+
+  // Legacy fields for backward compatibility
   travelPurpose: z.string().min(1, "Travel purpose is required"),
   destination: z.string().optional().nullable(),
   employeeId: z.string().optional().nullable(),
-  visaType: z.string().min(1, "Visa type is required"),
+  visaType: z.string().optional().nullable(),
   tripStartDate: z.coerce.date({ required_error: "Trip start date is required" }),
   tripEndDate: z.coerce.date({ required_error: "Trip end date is required" }),
-  passportNumber: z.string().optional().nullable(),
-  passportExpiryDate: z.coerce.date().optional().nullable(),
   itineraryDetails: z.string().optional().nullable(),
   supportingDocumentsNotes: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
@@ -96,18 +129,40 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     const [newVisaApp] = await sql`
       INSERT INTO visa_applications (
         id, user_id, requestor_name, travel_purpose, destination, staff_id,
-        visa_type, trip_start_date, trip_end_date, 
+        visa_type, trip_start_date, trip_end_date,
         passport_number, passport_expiry_date, status, additional_comments,
-        submitted_date, last_updated_date, created_at, updated_at
+        submitted_date, last_updated_date, created_at, updated_at,
+        -- New LOI Form fields
+        date_of_birth, place_of_birth, citizenship,
+        passport_place_of_issuance, passport_date_of_issuance,
+        contact_telephone, home_address, education_details,
+        current_employer_name, current_employer_address,
+        position, department, marital_status, family_information,
+        request_type, approximately_arrival_date, duration_of_stay,
+        visa_entry_type, work_visit_category, application_fees_borne_by, cost_centre_number
       ) VALUES (
-        ${visaRequestId}, ${session.id}, ${data.applicantName}, ${data.travelPurpose}, ${data.destination}, 
+        ${visaRequestId}, ${session.id}, ${data.applicantName}, ${data.travelPurpose}, ${data.destination},
         ${data.employeeId || null},
-        ${data.visaType}, ${formatISO(data.tripStartDate, { representation: 'date' })}, 
+        ${data.visaType || data.requestType || 'VISA'},
+        ${formatISO(data.tripStartDate, { representation: 'date' })},
         ${formatISO(data.tripEndDate, { representation: 'date' })},
-        ${data.passportNumber || null}, 
+        ${data.passportNumber || null},
         ${data.passportExpiryDate ? formatISO(data.passportExpiryDate, { representation: 'date' }) : null},
-        'Pending Department Focal', ${(data.itineraryDetails || '') + (data.supportingDocumentsNotes ? '\n\nSupporting Documents:\n' + data.supportingDocumentsNotes : '')},
-        NOW(), NOW(), NOW(), NOW()
+        'Pending Department Focal',
+        ${(data.itineraryDetails || '') + (data.supportingDocumentsNotes ? '\n\nSupporting Documents:\n' + data.supportingDocumentsNotes : '')},
+        NOW(), NOW(), NOW(), NOW(),
+        -- New LOI Form field values
+        ${data.dateOfBirth ? formatISO(data.dateOfBirth, { representation: 'date' }) : null},
+        ${data.placeOfBirth || null}, ${data.citizenship || null},
+        ${data.passportPlaceOfIssuance || null},
+        ${data.passportDateOfIssuance ? formatISO(data.passportDateOfIssuance, { representation: 'date' }) : null},
+        ${data.contactTelephone || null}, ${data.homeAddress || null}, ${data.educationDetails || null},
+        ${data.currentEmployerName || null}, ${data.currentEmployerAddress || null},
+        ${data.position || null}, ${data.department || null}, ${data.maritalStatus || null}, ${data.familyInformation || null},
+        ${data.requestType || 'VISA'},
+        ${data.approximatelyArrivalDate ? formatISO(data.approximatelyArrivalDate, { representation: 'date' }) : null},
+        ${data.durationOfStay || null}, ${data.visaEntryType || null}, ${data.workVisitCategory || null},
+        ${data.applicationFeesBorneBy || null}, ${data.costCentreNumber || null}
       ) RETURNING *
     `;
     

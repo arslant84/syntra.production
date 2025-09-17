@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import VisaApplicationForm from "@/components/visa/VisaApplicationForm";
+import EnhancedVisaApplicationForm from "@/components/visa/EnhancedVisaApplicationForm";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { VisaApplication } from "@/types/visa";
 import { StickyNote } from "lucide-react";
@@ -15,20 +15,46 @@ export default function NewVisaApplicationPage() {
   const { userDetails, loading: userDetailsLoading } = useUserDetails();
   const [initialVisaData, setInitialVisaData] = useState<Partial<VisaApplication>>(null);
 
-  const handleSubmitVisaApplication = async (data: Omit<VisaApplication, 'id' | 'userId' | 'submittedDate' | 'lastUpdatedDate' | 'status'>) => {
+  const handleSubmitVisaApplication = async (data: any) => {
     try {
-      // First, create the visa application
+      // Create enhanced API data with all LOI form fields
       const apiData = {
-        applicantName: userDetails?.requestorName || 'Unknown User',
-        travelPurpose: data.travelPurpose,
+        // Section A: Particulars of Applicant
+        applicantName: data.applicantName || userDetails?.requestorName || 'Unknown User',
+        dateOfBirth: data.dateOfBirth ? data.dateOfBirth.toISOString() : null,
+        placeOfBirth: data.placeOfBirth || null,
+        citizenship: data.citizenship || null,
+        passportNumber: data.passportNumber || null,
+        passportPlaceOfIssuance: data.passportPlaceOfIssuance || null,
+        passportDateOfIssuance: data.passportDateOfIssuance ? data.passportDateOfIssuance.toISOString() : null,
+        passportExpiryDate: data.passportExpiryDate ? data.passportExpiryDate.toISOString().split('T')[0] : null,
+        contactTelephone: data.contactTelephone || null,
+        homeAddress: data.homeAddress || null,
+        educationDetails: data.educationDetails || null,
+        currentEmployerName: data.currentEmployerName || null,
+        currentEmployerAddress: data.currentEmployerAddress || null,
+        position: data.position || null,
+        department: data.department || null,
+        maritalStatus: data.maritalStatus || null,
+        familyInformation: data.familyInformation || null,
+
+        // Section B: Type of Request
+        requestType: data.requestType || 'VISA',
+        approximatelyArrivalDate: data.approximatelyArrivalDate ? data.approximatelyArrivalDate.toISOString() : null,
+        durationOfStay: data.durationOfStay || null,
+        visaEntryType: data.visaEntryType || null,
+        workVisitCategory: data.workVisitCategory || null,
+        applicationFeesBorneBy: data.applicationFeesBorneBy || null,
+        costCentreNumber: data.costCentreNumber || null,
+
+        // Legacy fields for backward compatibility
+        travelPurpose: data.travelPurpose || 'Business Trip',
         destination: data.destination || '',
-        employeeId: data.employeeId,
-        visaType: data.travelPurpose === 'Business Trip' ? 'Business Visa' : 'Work Visa',
+        employeeId: data.employeeId || userDetails?.staffId || '',
+        visaType: data.requestType || 'VISA',
         tripStartDate: data.tripStartDate ? data.tripStartDate.toISOString() : null,
         tripEndDate: data.tripEndDate ? data.tripEndDate.toISOString() : null,
-        passportNumber: data.passportNumber,
-        passportExpiryDate: data.passportExpiryDate ? data.passportExpiryDate.toISOString().split('T')[0] : null,
-        itineraryDetails: data.itineraryDetails
+        itineraryDetails: data.itineraryDetails || ''
       };
 
       console.log('Sending visa application to API:', apiData);
@@ -121,9 +147,16 @@ export default function NewVisaApplicationPage() {
   useEffect(() => {
     if (userDetails && !userDetailsLoading) {
       const newInitialData: Partial<VisaApplication> = {
-        travelPurpose: "",
-        destination: undefined,
+        requestType: "VISA",
+        visaEntryType: "Single",
+        applicationFeesBorneBy: "PC(T)SB Dept",
+        applicantName: userDetails.requestorName || "",
+        currentEmployerName: "PC(T)SB",
+        department: userDetails.department || "",
+        position: userDetails.position || "",
         employeeId: userDetails.staffId || "",
+        travelPurpose: "",
+        destination: "",
         passportCopy: null,
         additionalDocuments: null,
         tripStartDate: null,
@@ -151,11 +184,14 @@ export default function NewVisaApplicationPage() {
           </div>
         </CardHeader>
       </Card>
-      <VisaApplicationForm
+      <EnhancedVisaApplicationForm
         initialData={initialVisaData || {
+          requestType: "VISA",
+          visaEntryType: "Single",
+          applicationFeesBorneBy: "PC(T)SB Dept",
           travelPurpose: "",
-          destination: undefined,
-          employeeId: "",
+          destination: "",
+          employeeId: userDetails?.staffId || "",
           passportCopy: null,
           additionalDocuments: null,
           tripStartDate: null,

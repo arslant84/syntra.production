@@ -1,13 +1,27 @@
 
 export type VisaPurpose = 'Business Trip' | 'Expatriate Relocation' | '';
-export type VisaStatus = 
-  | 'Draft' 
-  | 'Pending Department Focal' 
+
+export type RequestType = 'LOI' | 'VISA' | 'WORK_PERMIT';
+
+export type VisaEntryType = 'Multiple' | 'Single' | 'Double';
+
+export type WorkVisitCategory =
+  | 'CEO' | 'TLS' | 'TSE' | 'TKA'
+  | 'TKA-ME' | 'TKA-PE' | 'TKA-TE' | 'TKA-OE'
+  | 'TPD' | 'TSS' | 'TWD' | 'TFA'
+  | 'TPM' | 'TBE' | 'TBE-IT' | 'TRA'
+  | 'TSM' | 'THR' | 'THR-CM' | 'Company Guest';
+
+export type ApplicationFeesBorneBy = 'PC(T)SB Dept' | 'OPU' | 'Myself';
+
+export type VisaStatus =
+  | 'Draft'
+  | 'Pending Department Focal'
   | 'Pending Line Manager'
-  | 'Pending HOD' 
+  | 'Pending HOD'
   | 'Processing with Visa Admin'  // Updated from "Pending Visa Clerk" and "Processing with Embassy"
   | 'Processed'                   // Updated from "Approved" to match transport/claims workflow
-  | 'Rejected' 
+  | 'Rejected'
   | 'Cancelled'
   | '';
 
@@ -37,18 +51,56 @@ export interface VisaApplication {
   department?: string;
   position?: string;
   email?: string;
-  nationality?: string; // Optional since it doesn't exist in database
+
+  // Section A: Particulars of Applicant (from LOI Form)
+  dateOfBirth?: Date | null;
+  placeOfBirth?: string;
+  citizenship?: string;
+  passportNumber: string;
+  passportPlaceOfIssuance?: string;
+  passportDateOfIssuance?: Date | null;
+  passportExpiryDate: Date | null;
+  contactTelephone?: string;
+  homeAddress?: string;
+  educationDetails?: string;
+  currentEmployerName?: string;
+  currentEmployerAddress?: string;
+  maritalStatus?: string;
+  familyInformation?: string;
+
+  // Section B: Type of Request (from LOI Form)
+  requestType?: RequestType;
   travelPurpose: VisaPurpose;
   destination?: string;
-  visaType?: string;
+  approximatelyArrivalDate?: Date | null;
+  durationOfStay?: string;
+  visaEntryType?: VisaEntryType; // Multiple/Single/Double
+  workVisitCategory?: WorkVisitCategory;
+  applicationFeesBorneBy?: ApplicationFeesBorneBy;
+  costCentreNumber?: string;
+
+  // Trip details
   tripStartDate: Date | null;
   tripEndDate: Date | null;
-  passportNumber: string;
-  passportExpiryDate: Date | null;
+  visaType?: string;
   itineraryDetails: string;
   additionalComments?: string;
   supportingDocumentsNotes?: string;
   passportCopy?: any;
+
+  // Approval workflow fields (from LOI Form)
+  lineFocalPerson?: string;
+  lineFocalDept?: string;
+  lineFocalContact?: string;
+  lineFocalDate?: Date | null;
+  sponsoringDeptHead?: string;
+  sponsoringDeptHeadDept?: string;
+  sponsoringDeptHeadContact?: string;
+  sponsoringDeptHeadDate?: Date | null;
+  ceoApprovalName?: string;
+  ceoApprovalDate?: Date | null;
+
+  // System fields
   status: string;
   submittedDate: Date;
   lastUpdatedDate: Date;

@@ -328,10 +328,62 @@ export async function GET(
 
     // Wrap the main query in a try-catch to provide more specific error information
     let mainTrfData;
+    let flightBookingData = null;
     try {
       const result =
-        await sql`SELECT * FROM travel_requests WHERE id = ${trfId} AND travel_type IN ('Domestic', 'Overseas', 'Home Leave Passage', 'External Parties')`;
+        await sql`
+          SELECT
+            tr.*,
+            tfb.id as flight_booking_id,
+            tfb.flight_number as flight_flight_number,
+            tfb.airline as flight_airline,
+            tfb.flight_class as flight_class,
+            tfb.departure_location as flight_departure_location,
+            tfb.arrival_location as flight_arrival_location,
+            tfb.departure_date as flight_departure_date,
+            tfb.arrival_date as flight_arrival_date,
+            tfb.departure_time as flight_departure_time,
+            tfb.arrival_time as flight_arrival_time,
+            tfb.booking_reference as flight_booking_reference,
+            tfb.status as flight_status,
+            tfb.remarks as flight_remarks,
+            tfb.created_by as flight_created_by,
+            tfb.created_at as flight_created_at
+          FROM travel_requests tr
+          LEFT JOIN trf_flight_bookings tfb ON tr.id = tfb.trf_id
+          WHERE tr.id = ${trfId} AND tr.travel_type IN ('Domestic', 'Overseas', 'Home Leave Passage', 'External Parties')
+        `;
       [mainTrfData] = result;
+
+      // Extract flight booking data if present
+      if (mainTrfData && mainTrfData.flight_booking_id) {
+        // Combine date and time fields for proper datetime display
+        const departureDateTime = mainTrfData.flight_departure_date && mainTrfData.flight_departure_time
+          ? `${mainTrfData.flight_departure_date}T${mainTrfData.flight_departure_time}:00`
+          : mainTrfData.flight_departure_date;
+
+        const arrivalDateTime = mainTrfData.flight_arrival_date && mainTrfData.flight_arrival_time
+          ? `${mainTrfData.flight_arrival_date}T${mainTrfData.flight_arrival_time}:00`
+          : mainTrfData.flight_arrival_date;
+
+        flightBookingData = {
+          id: mainTrfData.flight_booking_id,
+          flightNumber: mainTrfData.flight_flight_number,
+          airline: mainTrfData.flight_airline,
+          flightClass: mainTrfData.flight_class,
+          bookingReference: mainTrfData.flight_booking_reference,
+          departureLocation: mainTrfData.flight_departure_location,
+          arrivalLocation: mainTrfData.flight_arrival_location,
+          departureDate: departureDateTime,
+          arrivalDate: arrivalDateTime,
+          departureTime: mainTrfData.flight_departure_time,
+          arrivalTime: mainTrfData.flight_arrival_time,
+          status: mainTrfData.flight_status,
+          remarks: mainTrfData.flight_remarks,
+          processedBy: mainTrfData.flight_created_by,
+          processedDate: mainTrfData.flight_created_at
+        };
+      }
       if (!mainTrfData) {
         // Check if it exists in the table but is not a valid TSR type
         const checkResult = await sql`SELECT id, travel_type FROM travel_requests WHERE id = ${trfId}`;
@@ -474,7 +526,10 @@ export async function GET(
         date: safeParseISO(step.date),
         comments: step.comments || "",
       })),
+      // Add flight details if available
+      flightDetails: flightBookingData,
     };
+
 
     if (mainTrfData.travel_type === "Domestic") {
       // Define type for meal provision data
@@ -1351,6 +1406,11 @@ export async function GET(
     // Estimated cost is not part of the details object in the type but directly on TRF
     if ("estimated_cost" in mainTrfData) {
       (trfData as any).estimatedCost = Number(mainTrfData.estimated_cost) || 0;
+    }
+
+    // Add flight booking details if they exist
+    if (flightBookingData) {
+      (trfData as any).flightDetails = flightBookingData;
     }
 
     console.log(

@@ -11,7 +11,7 @@ import { NotificationService } from './notification-service';
 export interface WorkflowNotificationParams {
   // Core identification
   eventType: string; // e.g., 'trf_submitted', 'visa_approved_focal', 'claim_rejected'
-  entityType: 'trf' | 'visa' | 'claims' | 'transport' | 'accommodation';
+  entityType: 'trf' | 'visa' | 'claim' | 'transport' | 'accommodation';
   entityId: string;
   
   // Current state
@@ -218,7 +218,7 @@ export class UnifiedNotificationService {
             type: this.getNotificationType(params.eventType),
             category: 'workflow_approval',
             priority: this.getNotificationPriority(params.eventType),
-            relatedEntityType: params.entityType,
+            relatedEntityType: params.entityType === 'claim' ? 'claim' : params.entityType,
             relatedEntityId: params.entityId,
             actionRequired: recipient.role !== 'Requestor',
             actionUrl: variables.approvalUrl || variables.viewUrl
@@ -270,7 +270,7 @@ export class UnifiedNotificationService {
           type: this.getNotificationType(params.eventType),
           category: 'workflow_approval',
           priority: this.getNotificationPriority(params.eventType),
-          relatedEntityType: params.entityType,
+          relatedEntityType: params.entityType === 'claim' ? 'claim' : params.entityType,
           relatedEntityId: params.entityId,
           actionRequired: template.recipientType === 'approver',
           actionUrl: variables.approvalUrl || variables.viewUrl
@@ -387,7 +387,7 @@ export class UnifiedNotificationService {
       console.log(`🔍 Looking for users with permission: ${permission} in department: ${params.department}`);
       console.log(`🎯 WORKFLOW_CONTEXT: Entity=${params.entityType}, Status=${params.currentStatus}, EventType=${params.eventType}`);
       
-      if (params.entityType === 'claims') {
+      if (params.entityType === 'claim') {
         console.log(`🧪 CLAIMS_DEBUG: Current=${params.currentStatus}, Previous=${params.previousStatus}, Permission=${permission}`);
       }
       
@@ -562,7 +562,7 @@ export class UnifiedNotificationService {
       
       // Entity-specific fields with meaningful fallbacks
       travelPurpose: getDisplayValue(params.travelPurpose, 'Business travel'),
-      travelDates: getDateDisplay(params.entityDates || params.travelDates),
+      travelDates: getDateDisplay(params.entityDates),
       claimPurpose: getDisplayValue(params.claimPurpose, 'Business expenses'),
       claimAmount: getAmountDisplay(params.entityAmount),
       transportPurpose: getDisplayValue(params.transportPurpose, 'Official transport'),
@@ -594,11 +594,11 @@ export class UnifiedNotificationService {
       currentDate: new Date().toLocaleDateString(),
       
       // URLs
-      approvalUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/approve/${params.entityId}`,
-      viewUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/view/${params.entityId}`,
-      newRequestUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/new`,
-      bookingUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/booking/${params.entityId}`,
-      processingUrl: `${baseUrl}/${params.entityType === 'claims' ? 'claims' : params.entityType}/process/${params.entityId}`
+      approvalUrl: `${baseUrl}/${params.entityType === 'claim' ? 'claims' : params.entityType}/approve/${params.entityId}`,
+      viewUrl: `${baseUrl}/${params.entityType === 'claim' ? 'claims' : params.entityType}/view/${params.entityId}`,
+      newRequestUrl: `${baseUrl}/${params.entityType === 'claim' ? 'claims' : params.entityType}/new`,
+      bookingUrl: `${baseUrl}/${params.entityType === 'claim' ? 'claims' : params.entityType}/booking/${params.entityId}`,
+      processingUrl: `${baseUrl}/${params.entityType === 'claim' ? 'claims' : params.entityType}/process/${params.entityId}`
     };
   }
 
@@ -615,8 +615,8 @@ export class UnifiedNotificationService {
     }
 
     // Handle conditional blocks like {comments && <p><strong>Comments:</strong> {comments}</p>}
-    processed = processed.replace(/\{(\w+)\s*&&\s*([^}]+)\}/g, (match, condition, content) => {
-      return variables[condition] ? content.replace(/\{(\w+)\}/g, (m, v) => variables[v] || '') : '';
+    processed = processed.replace(/\{(\w+)\s*&&\s*([^}]+)\}/g, (match: string, condition: string, content: string) => {
+      return variables[condition] ? content.replace(/\{(\w+)\}/g, (m: string, v: string) => variables[v] || '') : '';
     });
 
     return processed;
@@ -676,7 +676,7 @@ export class UnifiedNotificationService {
         'Pending Department Focal': 'approve_trf_focal',
         'Pending Line Manager': 'approve_trf_manager', 
         'Pending HOD': 'approve_trf_hod',
-        'Approved': null // Will be handled specially in the method
+        'Approved': 'process_flights' // Will be handled specially in the method
       },
       'visa': {
         'Pending Department Focal': 'approve_visa_focal',
@@ -684,7 +684,7 @@ export class UnifiedNotificationService {
         'Pending HOD': 'approve_visa_hod',
         'Processing with Visa Admin': 'process_visa_applications'
       },
-      'claims': {
+      'claim': {
         'Pending Department Focal': 'approve_claims_focal',
         'Pending Line Manager': 'approve_claims_manager',
         'Pending HOD': 'approve_claims_hod',
@@ -773,7 +773,7 @@ export class UnifiedNotificationService {
    */
 
   static async notifySubmission(params: {
-    entityType: 'trf' | 'visa' | 'claims' | 'transport' | 'accommodation';
+    entityType: 'trf' | 'visa' | 'claim' | 'transport' | 'accommodation';
     entityId: string;
     requestorId: string;
     requestorName: string;
@@ -798,7 +798,7 @@ export class UnifiedNotificationService {
       entityDates: params.entityDates,
       nextApprover: 'Department Focal',
       // Map purpose to entity-specific fields
-      claimPurpose: params.entityType === 'claims' ? params.purpose : undefined,
+      claimPurpose: params.entityType === 'claim' ? params.purpose : undefined,
       travelPurpose: params.entityType === 'trf' ? params.purpose : undefined,
       transportPurpose: params.entityType === 'transport' ? params.purpose : undefined,
       accommodationPurpose: params.entityType === 'accommodation' ? params.purpose : undefined
@@ -806,7 +806,7 @@ export class UnifiedNotificationService {
   }
 
   static async notifyApproval(params: {
-    entityType: 'trf' | 'visa' | 'claims' | 'transport' | 'accommodation';
+    entityType: 'trf' | 'visa' | 'claim' | 'transport' | 'accommodation';
     entityId: string;
     requestorId: string;
     requestorName: string;
@@ -883,7 +883,7 @@ export class UnifiedNotificationService {
    * Send confirmation notification to approver after they approve a request
    */
   static async notifyApproverConfirmation(params: {
-    entityType: 'trf' | 'visa' | 'claims' | 'transport' | 'accommodation';
+    entityType: 'trf' | 'visa' | 'claim' | 'transport' | 'accommodation';
     entityId: string;
     approverId?: string;
     approverName: string;
@@ -929,13 +929,13 @@ export class UnifiedNotificationService {
           userId: params.approverId,
           title: `✅ Approval Confirmed - ${entityName}`,
           message: confirmationMessage,
-          type: 'approval_confirmation',
-          category: 'workflow_status',
-          priority: 'medium',
-          relatedEntityType: params.entityType,
+          type: 'status_update',
+          category: 'workflow_approval',
+          priority: 'normal',
+          relatedEntityType: params.entityType === 'claim' ? 'claim' : params.entityType,
           relatedEntityId: params.entityId,
           actionRequired: false,
-          actionUrl: `/${params.entityType === 'claims' ? 'claims' : params.entityType}/view/${params.entityId}`
+          actionUrl: `/${params.entityType === 'claim' ? 'claims' : params.entityType}/view/${params.entityId}`
         });
       }
 
@@ -982,7 +982,7 @@ export class UnifiedNotificationService {
   }
 
   static async notifyRejection(params: {
-    entityType: 'trf' | 'visa' | 'claims' | 'transport' | 'accommodation';
+    entityType: 'trf' | 'visa' | 'claim' | 'transport' | 'accommodation';
     entityId: string;
     requestorId: string;
     requestorName: string;
@@ -1044,7 +1044,7 @@ export class UnifiedNotificationService {
    * Send admin completion notification to the original requestor
    */
   static async notifyAdminCompletion(params: {
-    entityType: 'trf' | 'visa' | 'claims' | 'transport' | 'accommodation';
+    entityType: 'trf' | 'visa' | 'claim' | 'transport' | 'accommodation';
     entityId: string;
     requestorId: string;
     requestorName: string;
@@ -1089,7 +1089,7 @@ export class UnifiedNotificationService {
    * Send status update notification for workflow changes
    */
   static async notifyStatusUpdate(params: {
-    entityType: 'trf' | 'visa' | 'claims' | 'transport' | 'accommodation';
+    entityType: 'trf' | 'visa' | 'claim' | 'transport' | 'accommodation';
     entityId: string;
     requestorId: string;
     requestorName: string;

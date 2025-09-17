@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import ApprovalWorkflow from "./ApprovalWorkflow";
 import { format, isValid } from "date-fns";
 import { cn } from "@/lib/utils";
-import { UserCircle, Users as ExternalUserIcon, FileText, ClipboardList, Utensils, Bed, Car, Landmark, CreditCard, Building, Globe, Home as HomeIcon, Info, AlertTriangle, Plane } from "lucide-react";
+import { UserCircle, Users as ExternalUserIcon, FileText, ClipboardList, Utensils, Bed, Car, Landmark, CreditCard, Building, Globe, Home as HomeIcon, Info, AlertTriangle, Plane, CheckCircle } from "lucide-react";
 
 interface TrfViewProps {
   trfData: TravelRequestForm;
@@ -42,11 +42,18 @@ const formatDateSafe = (date: Date | string | null | undefined, dateFormat = "PP
 };
 
 const formatTimeSafe = (timeStr: string | null | undefined) => {
-  if (!timeStr || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)) return "N/A";
-  const [hours, minutes] = timeStr.split(':');
+  if (!timeStr) return "N/A";
+
+  // Handle both HH:MM and HH:MM:SS formats from PostgreSQL
+  const timeMatch = timeStr.match(/^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
+  if (!timeMatch) {
+    return "N/A";
+  }
+
+  const [, hours, minutes] = timeMatch;
   const date = new Date();
   date.setHours(parseInt(hours), parseInt(minutes));
-  return format(date, "p"); 
+  return format(date, "p");
 };
 
 const formatNumberSafe = (num: number | string | null | undefined, digits = 0) => {
@@ -541,6 +548,51 @@ export default function TrfView({ trfData }: TrfViewProps) {
             </section>
           )}
           
+          {/* Flight Processing Details (for TRFs with flight bookings) */}
+          {trfData?.flightDetails && (
+            <section className="print:break-inside-avoid">
+              <Separator className="my-2 print:hidden" />
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-primary border-b pb-1 print:text-base print:mb-1">
+                <CheckCircle className="print:hidden" /> Flight Processing Details
+              </h3>
+              {trfData?.flightDetails ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2 bg-green-50 p-4 rounded-lg border border-green-200">
+                  <DetailItem label="Flight Number" value={trfData.flightDetails.flightNumber} />
+                  <DetailItem label="Airline" value={trfData.flightDetails.airline} />
+                  <DetailItem label="Flight Class" value={trfData.flightDetails.flightClass || 'Economy'} />
+                  <DetailItem label="Booking Reference (PNR)" value={trfData.flightDetails.bookingReference} />
+                  <DetailItem label="Departure Airport" value={trfData.flightDetails.departureLocation} />
+                  <DetailItem label="Arrival Airport" value={trfData.flightDetails.arrivalLocation} />
+                  <DetailItem label="Departure Date & Time" value={
+                    trfData.flightDetails.departureDate ?
+                      `${formatDateSafe(trfData.flightDetails.departureDate)}${trfData.flightDetails.departureTime ? ` at ${formatTimeSafe(trfData.flightDetails.departureTime)}` : ''}`
+                      : 'N/A'
+                  } />
+                  <DetailItem label="Arrival Date & Time" value={
+                    trfData.flightDetails.arrivalDate ?
+                      `${formatDateSafe(trfData.flightDetails.arrivalDate)}${trfData.flightDetails.arrivalTime ? ` at ${formatTimeSafe(trfData.flightDetails.arrivalTime)}` : ''}`
+                      : 'N/A'
+                  } />
+                  <DetailItem label="Flight Status" value={trfData.flightDetails.status} />
+                  {trfData.flightDetails.processedBy && (
+                    <DetailItem label="Processed By" value={trfData.flightDetails.processedBy} />
+                  )}
+                  {trfData.flightDetails.processedDate && (
+                    <DetailItem label="Processing Date" value={formatDateSafe(trfData.flightDetails.processedDate)} />
+                  )}
+                  {trfData.flightDetails.remarks && (
+                    <DetailItem label="Flight Admin Notes" value={trfData.flightDetails.remarks} fullWidth />
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-700 font-medium">✅ This travel request has been processed and flights have been arranged.</p>
+                  <p className="text-xs text-green-600 mt-1">Flight details are being finalized. Please contact the Flight Administrator for specific booking information.</p>
+                </div>
+              )}
+            </section>
+          )}
+
           {additionalComments && (
              <section className="print:break-inside-avoid">
                 <Separator className="my-2 print:hidden" />

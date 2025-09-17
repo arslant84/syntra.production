@@ -134,12 +134,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     try {
       await sql`
         INSERT INTO trf_flight_bookings (
-          trf_id, flight_number, flight_class, departure_location, arrival_location,
+          trf_id, flight_number, airline, flight_class, departure_location, arrival_location,
           departure_date, arrival_date, departure_time, arrival_time,
           booking_reference, status, remarks, created_by
         ) VALUES (
           ${trfId},
           ${flightNumber || ''},
+          ${airline || ''},
           ${'Economy'}, -- Default flight class
           ${departureAirport || ''},
           ${arrivalAirport || ''},
@@ -167,18 +168,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const updated = await sql.begin(async tx => {
+        // Update TSR status without adding to additional_comments
         const [updatedTrfResult] = await tx`
             UPDATE travel_requests
-            SET status = ${nextStatus}, 
-                additional_comments = COALESCE(additional_comments || E'\n\n', '') || ${bookingSummary},
+            SET status = ${nextStatus},
                 updated_at = NOW()
             WHERE id = ${trfId}
             RETURNING *
         `;
+
+        // Add approval step for flight booking
         await tx`
             INSERT INTO trf_approval_steps (trf_id, step_role, step_name, status, step_date, comments)
             VALUES (${trfId}, ${adminRole}, ${adminName}, 'Flights Booked', NOW(), ${bookingSummary})
         `;
+
         return updatedTrfResult;
     });
     

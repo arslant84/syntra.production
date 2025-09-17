@@ -33,8 +33,8 @@ export default function FlightsAdminPage() {
     total: 0,
     pending: 0,
     booked: 0,
-    completed: 0,
-    rejected: 0
+    rejected: 0,
+    in_approval: 0
   });
 
   const fetchFlightStats = useCallback(async () => {
@@ -70,8 +70,8 @@ export default function FlightsAdminPage() {
         total: apiStats.total || 0,
         pending: apiStats.pending || 0,
         booked: apiStats.booked || 0,
-        completed: apiStats.completed || 0,
-        rejected: apiStats.rejected || 0
+        rejected: apiStats.rejected || 0,
+        in_approval: apiStats.in_approval || 0
       };
       setStats(newStats);
     } catch (error: any) {
@@ -81,7 +81,7 @@ export default function FlightsAdminPage() {
       });
       
       // Set fallback stats
-      setStats({ total: 0, pending: 0, booked: 0, completed: 0, rejected: 0 });
+      setStats({ total: 0, pending: 0, booked: 0, rejected: 0, in_approval: 0 });
     }
   }, [role, userId, sessionLoading]);
 
@@ -194,7 +194,7 @@ export default function FlightsAdminPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
@@ -207,12 +207,12 @@ export default function FlightsAdminPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Booking</CardTitle>
+            <CardTitle className="text-sm font-medium">TRFs Awaiting Flight Booking</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.pending}</div>
-            <p className="text-xs text-muted-foreground">Approved TSRs awaiting booking</p>
+            <p className="text-xs text-muted-foreground">All approved travel requests requiring flight ticket booking and arrangements</p>
           </CardContent>
         </Card>
         <Card>
@@ -222,17 +222,27 @@ export default function FlightsAdminPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.booked}</div>
-            <p className="text-xs text-muted-foreground">Flights booked for all users</p>
+            <p className="text-xs text-muted-foreground">Flights processed by admin</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">No Flights Available</CardTitle>
+            <CardTitle className="text-sm font-medium">In Approval</CardTitle>
             <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
+            <div className="text-2xl font-bold">{stats.in_approval}</div>
+            <p className="text-xs text-muted-foreground">TSRs pending departmental approval</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+            <XCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
             <div className="text-2xl font-bold">{stats.rejected}</div>
-            <p className="text-xs text-muted-foreground">No flights available</p>
+            <p className="text-xs text-muted-foreground">Flight requests denied</p>
           </CardContent>
         </Card>
       </div>

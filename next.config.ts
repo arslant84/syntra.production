@@ -2,7 +2,10 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  
+
+  // Set correct workspace root to avoid lockfile confusion
+  outputFileTracingRoot: __dirname,
+
   // Disable source maps to prevent browser syntax errors
   productionBrowserSourceMaps: false,
   

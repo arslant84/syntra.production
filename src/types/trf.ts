@@ -145,18 +145,18 @@ export interface ExternalPartiesTravelSpecificDetails {
 
 export type TravelType = 'Domestic' | 'Overseas' | 'Home Leave Passage' | 'External Parties' | 'Accommodation' | '';
 
-export type TrfStatus = 
-  | 'Draft' 
-  | 'Pending Department Focal' 
-  | 'Pending Line Manager' 
-  | 'Pending HOD' 
-  | 'Approved' 
-  | 'Rejected' 
+export type TrfStatus =
+  | 'Draft'
+  | 'Pending Department Focal'
+  | 'Pending Line Manager'
+  | 'Pending HOD'
+  | 'Approved'
+  | 'Rejected'
   | 'Cancelled'
   | 'Processing Flights'
   | 'Processing Accommodation'
   | 'Awaiting Visa'
-  | 'TSR Processed';
+  | 'TRF Processed';
 
 
 export interface TravelRequestData {
@@ -183,11 +183,12 @@ export interface ApprovalSubmissionData {
 }
 
 export interface TravelRequestForm extends TravelRequestData, ApprovalSubmissionData {
-  id: string; 
+  id: string;
   status: TrfStatus;
   approvalWorkflow: ApprovalStep[];
   submittedAt?: Date | string; // Add submittedAt from database
   updatedAt?: Date | string;   // Add updatedAt from database
+  flightDetails?: FlightDetails; // Flight processing details from flight admin
 }
 
 export interface ApprovalStep {
@@ -196,4 +197,21 @@ export interface ApprovalStep {
   status: 'Current' | 'Pending' | 'Approved' | 'Rejected' | 'Not Started' | 'Cancelled';
   date?: Date | string;
   comments?: string;
+}
+
+export interface FlightDetails {
+  id?: string;
+  flightNumber?: string;
+  airline?: string;
+  bookingReference?: string;
+  departureLocation?: string;
+  arrivalLocation?: string;
+  departureDate?: Date | string;
+  arrivalDate?: Date | string;
+  departureTime?: string;
+  arrivalTime?: string;
+  status?: string;
+  remarks?: string;
+  processedBy?: string;
+  processedDate?: Date | string;
 }

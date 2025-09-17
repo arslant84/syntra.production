@@ -41,8 +41,14 @@ export const GET = withAuth(async function(request: NextRequest) {
     }
 
     console.log(`API_ADMIN_APPROVALS_GET: Fetching items for statuses: [${roleSpecificStatuses.join(', ')}]`);
-    
-    const statusFilter = sql`status IN ${sql(roleSpecificStatuses)}`;
+
+    // System Administrator should see ALL requests regardless of status
+    const isSystemAdmin = session.role === 'System Administrator';
+
+    if (isSystemAdmin) {
+      console.log('API_ADMIN_APPROVALS_GET: System Administrator - showing ALL statuses');
+    }
+
     let allItems: any[] = [];
     
     // Define the queries for each item type
@@ -51,21 +57,36 @@ export const GET = withAuth(async function(request: NextRequest) {
     // 1. TRFs (TSRs)
     if (!itemType || itemType === 'trf') {
       try {
-        const trfQuery = sql`
-          SELECT 
-            tr.id,
-            tr.requestor_name as "requestorName",
-            'TSR' as "itemType",
-            tr.purpose,
-            tr.status,
-            tr.submitted_at as "submittedAt",
-            tr.travel_type as "travelType",
-            '' as "destination"
-          FROM travel_requests tr
-          WHERE ${statusFilter}
-            AND tr.travel_type != 'Accommodation'
-          ORDER BY tr.submitted_at DESC
-        `;
+        const trfQuery = isSystemAdmin
+          ? sql`
+              SELECT
+                tr.id,
+                tr.requestor_name as "requestorName",
+                'TSR' as "itemType",
+                tr.purpose,
+                tr.status,
+                tr.submitted_at as "submittedAt",
+                tr.travel_type as "travelType",
+                '' as "destination"
+              FROM travel_requests tr
+              WHERE tr.travel_type != 'Accommodation'
+              ORDER BY tr.submitted_at DESC
+            `
+          : sql`
+              SELECT
+                tr.id,
+                tr.requestor_name as "requestorName",
+                'TSR' as "itemType",
+                tr.purpose,
+                tr.status,
+                tr.submitted_at as "submittedAt",
+                tr.travel_type as "travelType",
+                '' as "destination"
+              FROM travel_requests tr
+              WHERE status IN ${sql(roleSpecificStatuses)}
+                AND tr.travel_type != 'Accommodation'
+              ORDER BY tr.submitted_at DESC
+            `;
         queries.push({ type: 'TSR', query: trfQuery });
       } catch (error: any) {
         console.warn('Error adding TRF query:', error);
@@ -75,21 +96,36 @@ export const GET = withAuth(async function(request: NextRequest) {
     // 2. Claims
     if (!itemType || itemType === 'claim') {
       try {
-        const claimQuery = sql`
-          SELECT 
-            c.id,
-            c.staff_name as "requestorName",
-            'Claim' as "itemType",
-            COALESCE(c.purpose_of_claim, 'Expense Claim') as "purpose",
-            c.status,
-            COALESCE(c.submitted_at, c.created_at) as "submittedAt",
-            COALESCE(c.total_advance_claim_amount, 0) as "amount",
-            COALESCE(c.document_number, c.id) as "documentNumber",
-            c.department_code as "department"
-          FROM expense_claims c
-          WHERE ${statusFilter}
-          ORDER BY COALESCE(c.submitted_at, c.created_at) DESC
-        `;
+        const claimQuery = isSystemAdmin
+          ? sql`
+              SELECT
+                c.id,
+                c.staff_name as "requestorName",
+                'Claim' as "itemType",
+                COALESCE(c.purpose_of_claim, 'Expense Claim') as "purpose",
+                c.status,
+                COALESCE(c.submitted_at, c.created_at) as "submittedAt",
+                COALESCE(c.total_advance_claim_amount, 0) as "amount",
+                COALESCE(c.document_number, c.id) as "documentNumber",
+                c.department_code as "department"
+              FROM expense_claims c
+              ORDER BY COALESCE(c.submitted_at, c.created_at) DESC
+            `
+          : sql`
+              SELECT
+                c.id,
+                c.staff_name as "requestorName",
+                'Claim' as "itemType",
+                COALESCE(c.purpose_of_claim, 'Expense Claim') as "purpose",
+                c.status,
+                COALESCE(c.submitted_at, c.created_at) as "submittedAt",
+                COALESCE(c.total_advance_claim_amount, 0) as "amount",
+                COALESCE(c.document_number, c.id) as "documentNumber",
+                c.department_code as "department"
+              FROM expense_claims c
+              WHERE status IN ${sql(roleSpecificStatuses)}
+              ORDER BY COALESCE(c.submitted_at, c.created_at) DESC
+            `;
         queries.push({ type: 'Claim', query: claimQuery });
       } catch (error: any) {
         console.warn('Error adding Claims query:', error);
@@ -99,20 +135,34 @@ export const GET = withAuth(async function(request: NextRequest) {
     // 3. Visa Applications
     if (!itemType || itemType === 'visa') {
       try {
-        const visaQuery = sql`
-          SELECT 
-            v.id,
-            v.requestor_name as "requestorName",
-            'Visa' as "itemType",
-            COALESCE(v.travel_purpose, 'Visa Application') as "purpose",
-            v.status,
-            v.submitted_date as "submittedAt",
-            v.visa_type as "visaType",
-            v.destination
-          FROM visa_applications v
-          WHERE ${statusFilter}
-          ORDER BY v.submitted_date DESC
-        `;
+        const visaQuery = isSystemAdmin
+          ? sql`
+              SELECT
+                v.id,
+                v.requestor_name as "requestorName",
+                'Visa' as "itemType",
+                COALESCE(v.travel_purpose, 'Visa Application') as "purpose",
+                v.status,
+                v.submitted_date as "submittedAt",
+                v.visa_type as "visaType",
+                v.destination
+              FROM visa_applications v
+              ORDER BY v.submitted_date DESC
+            `
+          : sql`
+              SELECT
+                v.id,
+                v.requestor_name as "requestorName",
+                'Visa' as "itemType",
+                COALESCE(v.travel_purpose, 'Visa Application') as "purpose",
+                v.status,
+                v.submitted_date as "submittedAt",
+                v.visa_type as "visaType",
+                v.destination
+              FROM visa_applications v
+              WHERE status IN ${sql(roleSpecificStatuses)}
+              ORDER BY v.submitted_date DESC
+            `;
         queries.push({ type: 'Visa', query: visaQuery });
       } catch (error: any) {
         console.warn('Error adding Visa query:', error);
@@ -122,41 +172,75 @@ export const GET = withAuth(async function(request: NextRequest) {
     // 4. Accommodation Requests  
     if (!itemType || itemType === 'accommodation') {
       try {
-        const accommodationQuery = sql`
-          (
-            SELECT 
-              tr.id,
-              tr.requestor_name as "requestorName",
-              'Accommodation' as "itemType",
-              COALESCE(ad.remarks, tr.purpose, 'Accommodation Request') as "purpose",
-              tr.status,
-              tr.submitted_at as "submittedAt",
-              ad.location,
-              ad.check_in_date as "checkInDate",
-              ad.check_out_date as "checkOutDate"
-            FROM travel_requests tr
-            LEFT JOIN trf_accommodation_details ad ON tr.id = ad.trf_id
-            WHERE ${statusFilter}
-              AND tr.travel_type = 'Accommodation'
-              AND ad.trf_id IS NOT NULL
-          )
-          UNION ALL
-          (
-            SELECT 
-              ar.id,
-              ar.requestor_name as "requestorName",
-              'Accommodation' as "itemType",
-              'Accommodation Request' as "purpose",
-              ar.status,
-              COALESCE(ar.submitted_at, ar.created_at) as "submittedAt",
-              'Location TBD' as "location",
-              NULL as "checkInDate",
-              NULL as "checkOutDate"
-            FROM accommodation_requests ar
-            WHERE ${statusFilter}
-          )
-          ORDER BY "submittedAt" DESC
-        `;
+        const accommodationQuery = isSystemAdmin
+          ? sql`
+              (
+                SELECT
+                  tr.id,
+                  tr.requestor_name as "requestorName",
+                  'Accommodation' as "itemType",
+                  COALESCE(ad.remarks, tr.purpose, 'Accommodation Request') as "purpose",
+                  tr.status,
+                  tr.submitted_at as "submittedAt",
+                  ad.location,
+                  ad.check_in_date as "checkInDate",
+                  ad.check_out_date as "checkOutDate"
+                FROM travel_requests tr
+                LEFT JOIN trf_accommodation_details ad ON tr.id = ad.trf_id
+                WHERE tr.travel_type = 'Accommodation'
+                  AND ad.trf_id IS NOT NULL
+              )
+              UNION ALL
+              (
+                SELECT
+                  ar.id,
+                  ar.requestor_name as "requestorName",
+                  'Accommodation' as "itemType",
+                  'Accommodation Request' as "purpose",
+                  ar.status,
+                  COALESCE(ar.submitted_at, ar.created_at) as "submittedAt",
+                  'Location TBD' as "location",
+                  NULL as "checkInDate",
+                  NULL as "checkOutDate"
+                FROM accommodation_requests ar
+              )
+              ORDER BY "submittedAt" DESC
+            `
+          : sql`
+              (
+                SELECT
+                  tr.id,
+                  tr.requestor_name as "requestorName",
+                  'Accommodation' as "itemType",
+                  COALESCE(ad.remarks, tr.purpose, 'Accommodation Request') as "purpose",
+                  tr.status,
+                  tr.submitted_at as "submittedAt",
+                  ad.location,
+                  ad.check_in_date as "checkInDate",
+                  ad.check_out_date as "checkOutDate"
+                FROM travel_requests tr
+                LEFT JOIN trf_accommodation_details ad ON tr.id = ad.trf_id
+                WHERE tr.status IN ${sql(roleSpecificStatuses)}
+                  AND tr.travel_type = 'Accommodation'
+                  AND ad.trf_id IS NOT NULL
+              )
+              UNION ALL
+              (
+                SELECT
+                  ar.id,
+                  ar.requestor_name as "requestorName",
+                  'Accommodation' as "itemType",
+                  'Accommodation Request' as "purpose",
+                  ar.status,
+                  COALESCE(ar.submitted_at, ar.created_at) as "submittedAt",
+                  'Location TBD' as "location",
+                  NULL as "checkInDate",
+                  NULL as "checkOutDate"
+                FROM accommodation_requests ar
+                WHERE ar.status IN ${sql(roleSpecificStatuses)}
+              )
+              ORDER BY "submittedAt" DESC
+            `;
         queries.push({ type: 'Accommodation', query: accommodationQuery });
       } catch (error: any) {
         console.warn('Error adding Accommodation query:', error);
@@ -166,19 +250,32 @@ export const GET = withAuth(async function(request: NextRequest) {
     // 5. Transport Requests
     if (!itemType || itemType === 'transport') {
       try {
-        const transportQuery = sql`
-          SELECT 
-            t.id,
-            t.requestor_name as "requestorName",
-            'Transport' as "itemType",
-            t.purpose,
-            t.status,
-            COALESCE(t.submitted_at, t.created_at) as "submittedAt",
-            t.department
-          FROM transport_requests t
-          WHERE ${statusFilter}
-          ORDER BY COALESCE(t.submitted_at, t.created_at) DESC
-        `;
+        const transportQuery = isSystemAdmin
+          ? sql`
+              SELECT
+                t.id,
+                t.requestor_name as "requestorName",
+                'Transport' as "itemType",
+                t.purpose,
+                t.status,
+                COALESCE(t.submitted_at, t.created_at) as "submittedAt",
+                t.department
+              FROM transport_requests t
+              ORDER BY COALESCE(t.submitted_at, t.created_at) DESC
+            `
+          : sql`
+              SELECT
+                t.id,
+                t.requestor_name as "requestorName",
+                'Transport' as "itemType",
+                t.purpose,
+                t.status,
+                COALESCE(t.submitted_at, t.created_at) as "submittedAt",
+                t.department
+              FROM transport_requests t
+              WHERE status IN ${sql(roleSpecificStatuses)}
+              ORDER BY COALESCE(t.submitted_at, t.created_at) DESC
+            `;
         queries.push({ type: 'Transport', query: transportQuery });
       } catch (error: any) {
         console.warn('Error adding Transport query:', error);

@@ -142,19 +142,38 @@ export default function FlightsProcessingPage() {
     if (sessionLoading || !role) {
       return;
     }
-    
+
     try {
-      // Fetch flight bookings from the database
-      const response = await fetch('/api/admin/flights?limit=50');
+      // Fetch only booked flights using the dedicated bookedOnly parameter
+      const response = await fetch('/api/admin/flights?limit=200&bookedOnly=true');
       if (response.ok) {
         const data = await response.json();
-        // Filter TSRs that have flight bookings and format for booked flights display
+
+        // All returned TRFs should have flight bookings since we used bookedOnly=true
+        console.log('🔍 Booked Flights API Response:', {
+          totalTrfs: (data.trfs || []).length,
+          sampleTrf: data.trfs?.[0],
+          hasFlightBooking: data.trfs?.[0]?.hasFlightBooking,
+          flightDetails: data.trfs?.[0]?.flightDetails
+        });
+
         const bookedFlightsData = (data.trfs || [])
-          .filter((trf: any) => trf.hasFlightBooking && trf.flightDetails)
+          .filter((trf: any) => {
+            const hasBooking = trf.hasFlightBooking && trf.flightDetails;
+            if (!hasBooking) {
+              console.log(`❌ TSR ${trf.id} filtered out:`, {
+                hasFlightBooking: trf.hasFlightBooking,
+                hasFlightDetails: !!trf.flightDetails,
+                status: trf.status
+              });
+            }
+            return hasBooking;
+          })
           .map((trf: any) => ({
             id: trf.flightDetails.id,
             trfId: trf.id,
             flightNumber: trf.flightDetails.flightNumber,
+            airline: trf.flightDetails.airline,
             departureLocation: trf.flightDetails.departureLocation,
             arrivalLocation: trf.flightDetails.arrivalLocation,
             departureDate: trf.flightDetails.departureDate,
@@ -166,10 +185,18 @@ export default function FlightsProcessingPage() {
             travelType: trf.travelType,
             department: trf.department
           }));
+
+        console.log(`✅ Final booked flights count: ${bookedFlightsData.length}`);
+
         setBookedFlights(bookedFlightsData);
+      } else {
+        console.error('❌ Booked flights API call failed:', {
+          status: response.status,
+          statusText: response.statusText
+        });
       }
     } catch (err: any) {
-      console.error('Failed to fetch booked flights:', err);
+      console.error('❌ Exception in fetchBookedFlights:', err);
     }
   }, [role, sessionLoading]);
 
@@ -751,13 +778,21 @@ export default function FlightsProcessingPage() {
                   </TableHeader>
                   <TableBody>
                     {bookedFlights.map((flight, index) => (
-                      <TableRow key={flight.id ? `flight-${flight.id}` : `trf-${flight.trfId}-${index}`}>
+                      <TableRow key={`flight-row-${flight.trfId}-${flight.id}-${index}`}>
                         <TableCell className="font-medium">{flight.trfId}</TableCell>
                         <TableCell>{flight.requestorName}</TableCell>
                         <TableCell>{flight.flightNumber}</TableCell>
                         <TableCell>{flight.departureLocation} → {flight.arrivalLocation}</TableCell>
                         <TableCell>
-                          {isValid(parseISO(flight.departureDate)) ? format(parseISO(flight.departureDate), 'PPP') : 'N/A'}
+                          {(() => {
+                            if (!flight.departureDate) return 'N/A';
+                            try {
+                              const parsedDate = parseISO(flight.departureDate);
+                              return isValid(parsedDate) ? format(parsedDate, 'PPP') : 'N/A';
+                            } catch (error) {
+                              return 'N/A';
+                            }
+                          })()}
                         </TableCell>
                         <TableCell>{flight.bookingReference}</TableCell>
                         <TableCell>

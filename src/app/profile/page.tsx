@@ -3,10 +3,10 @@
 import React from 'react';
 import { User as UserIcon } from "lucide-react";
 import ProfileForm from '@/components/profile/ProfileForm';
-import { useUserProfileContext } from '@/contexts/UserProfileContext';
+import { useUserProfile } from '@/hooks/use-user-profile';
 
 export default function ProfilePage() {
-  const { user, loading, error, refetch } = useUserProfileContext();
+  const { user, loading, error, refetch } = useUserProfile();
 
   const handleUserUpdate = () => {
     refetch(); // Refresh user data after update - this will update all components using the context

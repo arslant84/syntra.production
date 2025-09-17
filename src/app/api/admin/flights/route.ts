@@ -147,10 +147,8 @@ export const GET = withAuth(async function(request: NextRequest) {
             tfb.airline,
             tfb.departure_location,
             tfb.arrival_location,
-            tfb.departure_date,
-            tfb.departure_time,
-            tfb.arrival_date,
-            tfb.arrival_time,
+            tfb.departure_datetime,
+            tfb.arrival_datetime,
             tfb.booking_reference,
             tfb.status as flight_status,
             tfb.remarks,
@@ -186,8 +184,8 @@ export const GET = withAuth(async function(request: NextRequest) {
             tfb.flight_number,
             tfb.departure_location,
             tfb.arrival_location,
-            tfb.departure_datetime as departure_date,
-            tfb.arrival_datetime as arrival_date,
+            tfb.departure_datetime,
+            tfb.arrival_datetime,
             tfb.booking_reference,
             tfb.status as flight_status,
             tfb.remarks
@@ -229,23 +227,15 @@ export const GET = withAuth(async function(request: NextRequest) {
       // Create flight details from formal booking or itinerary data
       let flightDetails = null;
       if (hasFormalBooking) {
-        // Combine separate date and time fields into datetime format
-        const departureDateTime = trf.departure_date && trf.departure_time
-          ? `${trf.departure_date}T${trf.departure_time}:00`
-          : trf.departure_date;
-        const arrivalDateTime = trf.arrival_date && trf.arrival_time
-          ? `${trf.arrival_date}T${trf.arrival_time}:00`
-          : trf.arrival_date;
-
-        // Use formal flight booking data - ensure all fields are properly populated
+        // Use the datetime fields directly from the database
         flightDetails = {
           id: Number(trf.flight_booking_id),
           flightNumber: trf.flight_number || 'N/A',
           airline: trf.airline || 'N/A',
           departureLocation: trf.departure_location || 'N/A',
           arrivalLocation: trf.arrival_location || 'N/A',
-          departureDate: departureDateTime,
-          arrivalDate: arrivalDateTime,
+          departureDate: trf.departure_datetime,
+          arrivalDate: trf.arrival_datetime,
           bookingReference: trf.booking_reference || 'N/A',
           status: trf.flight_status || 'Confirmed',
           remarks: trf.remarks || 'Flight booked by admin'

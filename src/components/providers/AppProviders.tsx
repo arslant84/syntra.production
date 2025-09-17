@@ -15,9 +15,19 @@ export default function AppProviders({ children }: AppProvidersProps) {
 
   return (
     <SessionProvider>
-      {/* Temporarily disable UserProfileProvider everywhere to stop API calls */}
-      {children}
-      <Toaster />
+      {isLoginPage ? (
+        // Don't wrap login page with UserProfileProvider to avoid unnecessary API calls
+        <>
+          {children}
+          <Toaster />
+        </>
+      ) : (
+        // Wrap other pages with UserProfileProvider
+        <UserProfileProvider>
+          {children}
+          <Toaster />
+        </UserProfileProvider>
+      )}
     </SessionProvider>
   );
 }

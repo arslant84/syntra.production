@@ -787,9 +787,16 @@ export default function FlightsProcessingPage() {
                           {(() => {
                             if (!flight.departureDate) return 'N/A';
                             try {
-                              const parsedDate = parseISO(flight.departureDate);
-                              return isValid(parsedDate) ? format(parsedDate, 'PPP') : 'N/A';
+                              // Handle both ISO string and Date object formats
+                              const dateValue = typeof flight.departureDate === 'string'
+                                ? flight.departureDate.includes('T')
+                                  ? parseISO(flight.departureDate)
+                                  : parseISO(flight.departureDate + 'T00:00:00')
+                                : flight.departureDate;
+
+                              return isValid(dateValue) ? format(dateValue, 'PPP') : 'N/A';
                             } catch (error) {
+                              console.error('Date parsing error:', error, 'for value:', flight.departureDate);
                               return 'N/A';
                             }
                           })()}

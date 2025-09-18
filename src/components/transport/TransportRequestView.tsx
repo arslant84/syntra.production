@@ -136,7 +136,7 @@ export default function TransportRequestView({
               <div key={index} className="border rounded-lg p-4">
                 <div className="flex justify-between items-start mb-4">
                   <h4 className="text-lg font-semibold">Transport Detail #{index + 1}</h4>
-                  <Badge variant="outline">{detail.transportType} - {detail.vehicleType}</Badge>
+                  <Badge variant="outline">{detail.transportType}</Badge>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -196,6 +196,91 @@ export default function TransportRequestView({
           </CardHeader>
           <CardContent>
             <p>{transportRequest.additionalComments}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Transport Processing Details (for completed transport requests) */}
+      {(transportRequest.status === 'Completed' || transportRequest.status === 'Processing with Transport Admin') && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-primary" />
+              Transport Processing Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {transportRequest.bookingDetails ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-4 rounded-lg bg-green-50 border border-green-200">
+                {transportRequest.bookingDetails.vehicleType && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Vehicle Type</p>
+                    <p className="text-sm">{transportRequest.bookingDetails.vehicleType}</p>
+                  </div>
+                )}
+                {transportRequest.bookingDetails.vehicleNumber && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Vehicle Number</p>
+                    <p className="text-sm">{transportRequest.bookingDetails.vehicleNumber}</p>
+                  </div>
+                )}
+                {transportRequest.bookingDetails.driverName && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Driver Name</p>
+                    <p className="text-sm">{transportRequest.bookingDetails.driverName}</p>
+                  </div>
+                )}
+                {transportRequest.bookingDetails.driverContact && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Driver Contact</p>
+                    <p className="text-sm">{transportRequest.bookingDetails.driverContact}</p>
+                  </div>
+                )}
+                {transportRequest.bookingDetails.pickupTime && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Pickup Time</p>
+                    <p className="text-sm">{formatTime(transportRequest.bookingDetails.pickupTime)}</p>
+                  </div>
+                )}
+                {transportRequest.bookingDetails.dropoffTime && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Dropoff Time</p>
+                    <p className="text-sm">{formatTime(transportRequest.bookingDetails.dropoffTime)}</p>
+                  </div>
+                )}
+                {transportRequest.bookingDetails.actualRoute && (
+                  <div className="sm:col-span-2 md:col-span-3">
+                    <p className="text-sm font-medium text-gray-600">Actual Route</p>
+                    <p className="text-sm">{transportRequest.bookingDetails.actualRoute}</p>
+                  </div>
+                )}
+                {transportRequest.bookingDetails.bookingReference && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Booking Reference</p>
+                    <p className="text-sm">{transportRequest.bookingDetails.bookingReference}</p>
+                  </div>
+                )}
+                {transportRequest.bookingDetails.additionalNotes && (
+                  <div className="sm:col-span-2 md:col-span-3">
+                    <p className="text-sm font-medium text-gray-600">Transport Admin Notes</p>
+                    <p className="text-sm">{transportRequest.bookingDetails.additionalNotes}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className={`p-4 rounded-lg border ${transportRequest.status === 'Completed' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+                <p className={`text-sm font-medium ${transportRequest.status === 'Completed' ? 'text-green-700' : 'text-blue-700'}`}>
+                  {transportRequest.status === 'Completed'
+                    ? '✅ This transport request has been processed and completed.'
+                    : '🔄 This transport request is currently being processed by the Transport Administrator.'}
+                </p>
+                <p className={`text-xs mt-1 ${transportRequest.status === 'Completed' ? 'text-green-600' : 'text-blue-600'}`}>
+                  {transportRequest.status === 'Completed'
+                    ? 'Transport arrangements have been finalized. Please contact the Transport Administrator for specific vehicle and driver information.'
+                    : 'Transport booking is in progress. Vehicle and driver details will be updated once arrangements are confirmed.'}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

@@ -38,6 +38,8 @@ export default function ViewTransportRequestPage() {
         throw new Error(errorData.error || errorData.details || `Failed to fetch transport request ${transportId}: ${response.statusText}`);
       }
       const result = await response.json();
+      console.log('Transport API Response:', result);
+      console.log('Transport Booking Details:', result.bookingDetails);
       setTransportData(result as TransportRequestForm);
     } catch (err: any) {
       console.error("Error fetching transport request details:", err);

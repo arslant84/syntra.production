@@ -63,11 +63,14 @@ export default function AdminApprovalsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isActionPending, startActionTransition] = useTransition();
   const [rejectionComments, setRejectionComments] = useState("");
-  const [approvalComments, setApprovalComments] = useState(""); 
+  const [approvalComments, setApprovalComments] = useState("");
   const [selectedItemForAction, setSelectedItemForAction] = useState<ApprovableItem | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'trf' | 'claim' | 'visa' | 'accommodation' | 'transport'>('all');
   const [lastFetch, setLastFetch] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [hasInitialRefresh, setHasInitialRefresh] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const CACHE_DURATION = 3 * 60 * 1000; // 3 minutes cache
   const PAGE_SIZE = 20;
   
@@ -88,9 +91,17 @@ export default function AdminApprovalsPage() {
     
     // Check cache validity
     const now = Date.now();
-    if (!forceRefresh && pendingItems.length > 0 && (now - lastFetch) < CACHE_DURATION && pageNum === 1) {
+    const cacheIsValid = (now - lastFetch) < CACHE_DURATION;
+
+    // Force refresh if cache is stale or we haven't done initial refresh
+    if (!forceRefresh && pendingItems.length > 0 && cacheIsValid && hasInitialRefresh && pageNum === 1) {
       console.log('Using cached approval items');
       return;
+    }
+
+    // Mark that we're doing initial refresh
+    if (!hasInitialRefresh) {
+      setHasInitialRefresh(true);
     }
     
     setIsLoading(true);
@@ -112,9 +123,10 @@ export default function AdminApprovalsPage() {
       
       console.log(`AdminApprovalsPage: Using unified API endpoint for page ${pageNum}`);
       
-      // Use the new unified approvals endpoint
+      // Use the new unified approvals endpoint - temporarily increase page size for debugging
       const typeFilter = activeTab === 'all' ? '' : `&type=${activeTab === 'trf' ? 'trf' : activeTab}`;
-      const response = await fetch(`/api/admin/approvals?page=${pageNum}&limit=${PAGE_SIZE}${typeFilter}`);
+      const debugPageSize = activeTab === 'accommodation' ? 50 : PAGE_SIZE; // Larger page size for accommodation debugging
+      const response = await fetch(`/api/admin/approvals?page=${pageNum}&limit=${debugPageSize}${typeFilter}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch approval items: ${response.status} ${response.statusText}`);
@@ -147,6 +159,8 @@ export default function AdminApprovalsPage() {
       }));
       
       setPendingItems(pageNum === 1 ? allPendingItems : [...pendingItems, ...allPendingItems]);
+      setTotalCount(data.totalCount || allPendingItems.length);
+      setTotalPages(data.totalPages || 1);
       setLastFetch(now);
       setCurrentPage(pageNum);
       
@@ -154,6 +168,24 @@ export default function AdminApprovalsPage() {
         console.log("AdminApprovalsPage: No pending items found.");
       } else {
         console.log(`AdminApprovalsPage: Found ${allPendingItems.length} total pending items.`);
+
+        // Debug: Log breakdown by item type
+        const itemsByType = allPendingItems.reduce((acc, item) => {
+          acc[item.itemType] = (acc[item.itemType] || 0) + 1;
+          return acc;
+        }, {});
+        console.log('🔍 DEBUG - Items by type:', itemsByType);
+
+        // Debug: Show accommodation items specifically
+        const accommodationItems = allPendingItems.filter(item => item.itemType === 'Accommodation');
+        console.log(`🏠 DEBUG - Accommodation items found: ${accommodationItems.length}`);
+        if (accommodationItems.length > 0) {
+          console.log('🏠 DEBUG - Accommodation items:', accommodationItems.map(item => ({
+            id: item.id,
+            status: item.status,
+            requestorName: item.requestorName
+          })));
+        }
       }
       
     } catch (err: any) {
@@ -162,7 +194,7 @@ export default function AdminApprovalsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [role, sessionLoading, pendingItems.length, lastFetch]);
+  }, [role, sessionLoading]);
 
   useEffect(() => {
     fetchPendingItems();
@@ -278,7 +310,7 @@ export default function AdminApprovalsPage() {
 
   // Memoized filtering for performance
   const filteredItems = useMemo(() => {
-    return pendingItems.filter(item => {
+    const filtered = pendingItems.filter(item => {
       // Tab filter
       if (activeTab !== 'all') {
         if (activeTab === 'trf' && item.itemType !== 'TSR') return false;
@@ -323,12 +355,14 @@ export default function AdminApprovalsPage() {
       
       return true;
     });
+
+    return filtered;
   }, [pendingItems, activeTab, debouncedSearchTerm, statusFilter, departmentFilter, dateRangeFilter]);
   
-  // Memoized counts for performance
+  // Memoized counts for performance - use total count from API, not just loaded items
   const itemCounts = useMemo(() => {
     const counts = {
-      all: pendingItems.length,
+      all: totalCount, // Use total count from API instead of just loaded items
       trf: pendingItems.filter(i => i.itemType === 'TSR').length,
       claim: pendingItems.filter(i => i.itemType === 'Claim').length,
       visa: pendingItems.filter(i => i.itemType === 'Visa').length,
@@ -336,7 +370,7 @@ export default function AdminApprovalsPage() {
       transport: pendingItems.filter(i => i.itemType === 'Transport').length
     };
     return counts;
-  }, [pendingItems]);
+  }, [totalCount, pendingItems]);
 
   // Helper functions for filters
   const handleClearFilters = () => {
@@ -538,7 +572,12 @@ export default function AdminApprovalsPage() {
                 Items awaiting your verification or approval.
                 {hasActiveFilters && (
                   <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
-                    Filtered ({filteredItems.length} of {pendingItems.length})
+                    Filtered ({filteredItems.length} of {totalCount} total)
+                  </span>
+                )}
+                {!hasActiveFilters && totalCount > 0 && (
+                  <span className="ml-2 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded">
+                    Showing {pendingItems.length} of {totalCount} requests (Page {currentPage} of {totalPages})
                   </span>
                 )}
               </CardDescription>
@@ -703,17 +742,56 @@ export default function AdminApprovalsPage() {
               </TableBody>
               </Table>
               
-              {filteredItems.length >= PAGE_SIZE && (
-                <div className="flex justify-center mt-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={loadMore} 
-                    disabled={isLoading}
-                    className="w-full max-w-xs"
-                  >
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Load More Items
-                  </Button>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {((currentPage - 1) * PAGE_SIZE) + 1} to {Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount} results
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchPendingItems(true, currentPage - 1)}
+                      disabled={isLoading || currentPage <= 1}
+                    >
+                      Previous
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={pageNum === currentPage ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => fetchPendingItems(true, pageNum)}
+                            disabled={isLoading}
+                            className="w-8 h-8 p-0"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchPendingItems(true, currentPage + 1)}
+                      disabled={isLoading || currentPage >= totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

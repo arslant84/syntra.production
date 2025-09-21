@@ -40,14 +40,12 @@ export const GET = withAuth(async function(request: NextRequest) {
       });
     }
 
+    console.log(`API_ADMIN_APPROVALS_GET: User role: ${session.role}`);
     console.log(`API_ADMIN_APPROVALS_GET: Fetching items for statuses: [${roleSpecificStatuses.join(', ')}]`);
+    console.log(`API_ADMIN_APPROVALS_GET: canApprove: ${canApprove}, roleSpecificStatuses length: ${roleSpecificStatuses.length}`);
 
-    // System Administrator should see ALL requests regardless of status
+    // System Administrator should see only approval workflow statuses, not completed requests
     const isSystemAdmin = session.role === 'System Administrator';
-
-    if (isSystemAdmin) {
-      console.log('API_ADMIN_APPROVALS_GET: System Administrator - showing ALL statuses');
-    }
 
     let allItems: any[] = [];
     
@@ -57,36 +55,21 @@ export const GET = withAuth(async function(request: NextRequest) {
     // 1. TRFs (TSRs)
     if (!itemType || itemType === 'trf') {
       try {
-        const trfQuery = isSystemAdmin
-          ? sql`
-              SELECT
-                tr.id,
-                tr.requestor_name as "requestorName",
-                'TSR' as "itemType",
-                tr.purpose,
-                tr.status,
-                tr.submitted_at as "submittedAt",
-                tr.travel_type as "travelType",
-                '' as "destination"
-              FROM travel_requests tr
-              WHERE tr.travel_type != 'Accommodation'
-              ORDER BY tr.submitted_at DESC
-            `
-          : sql`
-              SELECT
-                tr.id,
-                tr.requestor_name as "requestorName",
-                'TSR' as "itemType",
-                tr.purpose,
-                tr.status,
-                tr.submitted_at as "submittedAt",
-                tr.travel_type as "travelType",
-                '' as "destination"
-              FROM travel_requests tr
-              WHERE status IN ${sql(roleSpecificStatuses)}
-                AND tr.travel_type != 'Accommodation'
-              ORDER BY tr.submitted_at DESC
-            `;
+        const trfQuery = sql`
+          SELECT
+            tr.id,
+            tr.requestor_name as "requestorName",
+            'TSR' as "itemType",
+            tr.purpose,
+            tr.status,
+            tr.submitted_at as "submittedAt",
+            tr.travel_type as "travelType",
+            '' as "destination"
+          FROM travel_requests tr
+          WHERE status IN ${sql(roleSpecificStatuses)}
+            AND tr.travel_type != 'Accommodation'
+          ORDER BY tr.submitted_at DESC
+        `;
         queries.push({ type: 'TSR', query: trfQuery });
       } catch (error: any) {
         console.warn('Error adding TRF query:', error);
@@ -96,36 +79,21 @@ export const GET = withAuth(async function(request: NextRequest) {
     // 2. Claims
     if (!itemType || itemType === 'claim') {
       try {
-        const claimQuery = isSystemAdmin
-          ? sql`
-              SELECT
-                c.id,
-                c.staff_name as "requestorName",
-                'Claim' as "itemType",
-                COALESCE(c.purpose_of_claim, 'Expense Claim') as "purpose",
-                c.status,
-                COALESCE(c.submitted_at, c.created_at) as "submittedAt",
-                COALESCE(c.total_advance_claim_amount, 0) as "amount",
-                COALESCE(c.document_number, c.id) as "documentNumber",
-                c.department_code as "department"
-              FROM expense_claims c
-              ORDER BY COALESCE(c.submitted_at, c.created_at) DESC
-            `
-          : sql`
-              SELECT
-                c.id,
-                c.staff_name as "requestorName",
-                'Claim' as "itemType",
-                COALESCE(c.purpose_of_claim, 'Expense Claim') as "purpose",
-                c.status,
-                COALESCE(c.submitted_at, c.created_at) as "submittedAt",
-                COALESCE(c.total_advance_claim_amount, 0) as "amount",
-                COALESCE(c.document_number, c.id) as "documentNumber",
-                c.department_code as "department"
-              FROM expense_claims c
-              WHERE status IN ${sql(roleSpecificStatuses)}
-              ORDER BY COALESCE(c.submitted_at, c.created_at) DESC
-            `;
+        const claimQuery = sql`
+          SELECT
+            c.id,
+            c.staff_name as "requestorName",
+            'Claim' as "itemType",
+            COALESCE(c.purpose_of_claim, 'Expense Claim') as "purpose",
+            c.status,
+            COALESCE(c.submitted_at, c.created_at) as "submittedAt",
+            COALESCE(c.total_advance_claim_amount, 0) as "amount",
+            COALESCE(c.document_number, c.id) as "documentNumber",
+            c.department_code as "department"
+          FROM expense_claims c
+          WHERE status IN ${sql(roleSpecificStatuses)}
+          ORDER BY COALESCE(c.submitted_at, c.created_at) DESC
+        `;
         queries.push({ type: 'Claim', query: claimQuery });
       } catch (error: any) {
         console.warn('Error adding Claims query:', error);
@@ -135,147 +103,71 @@ export const GET = withAuth(async function(request: NextRequest) {
     // 3. Visa Applications
     if (!itemType || itemType === 'visa') {
       try {
-        const visaQuery = isSystemAdmin
-          ? sql`
-              SELECT
-                v.id,
-                v.requestor_name as "requestorName",
-                'Visa' as "itemType",
-                COALESCE(v.travel_purpose, 'Visa Application') as "purpose",
-                v.status,
-                v.submitted_date as "submittedAt",
-                v.visa_type as "visaType",
-                v.destination
-              FROM visa_applications v
-              ORDER BY v.submitted_date DESC
-            `
-          : sql`
-              SELECT
-                v.id,
-                v.requestor_name as "requestorName",
-                'Visa' as "itemType",
-                COALESCE(v.travel_purpose, 'Visa Application') as "purpose",
-                v.status,
-                v.submitted_date as "submittedAt",
-                v.visa_type as "visaType",
-                v.destination
-              FROM visa_applications v
-              WHERE status IN ${sql(roleSpecificStatuses)}
-              ORDER BY v.submitted_date DESC
-            `;
+        const visaQuery = sql`
+          SELECT
+            v.id,
+            v.requestor_name as "requestorName",
+            'Visa' as "itemType",
+            COALESCE(v.travel_purpose, 'Visa Application') as "purpose",
+            v.status,
+            v.submitted_date as "submittedAt",
+            v.visa_type as "visaType",
+            v.destination
+          FROM visa_applications v
+          WHERE status IN ${sql(roleSpecificStatuses)}
+          ORDER BY v.submitted_date DESC
+        `;
         queries.push({ type: 'Visa', query: visaQuery });
       } catch (error: any) {
         console.warn('Error adding Visa query:', error);
       }
     }
     
-    // 4. Accommodation Requests  
+    // 4. Accommodation Requests
     if (!itemType || itemType === 'accommodation') {
+      console.log(`API_ADMIN_APPROVALS_GET: Processing accommodation requests. isSystemAdmin: ${isSystemAdmin}`);
       try {
-        const accommodationQuery = isSystemAdmin
-          ? sql`
-              (
-                SELECT
-                  tr.id,
-                  tr.requestor_name as "requestorName",
-                  'Accommodation' as "itemType",
-                  COALESCE(ad.remarks, tr.purpose, 'Accommodation Request') as "purpose",
-                  tr.status,
-                  tr.submitted_at as "submittedAt",
-                  ad.location,
-                  ad.check_in_date as "checkInDate",
-                  ad.check_out_date as "checkOutDate"
-                FROM travel_requests tr
-                LEFT JOIN trf_accommodation_details ad ON tr.id = ad.trf_id
-                WHERE tr.travel_type = 'Accommodation'
-                  AND ad.trf_id IS NOT NULL
-              )
-              UNION ALL
-              (
-                SELECT
-                  ar.id,
-                  ar.requestor_name as "requestorName",
-                  'Accommodation' as "itemType",
-                  'Accommodation Request' as "purpose",
-                  ar.status,
-                  COALESCE(ar.submitted_at, ar.created_at) as "submittedAt",
-                  'Location TBD' as "location",
-                  NULL as "checkInDate",
-                  NULL as "checkOutDate"
-                FROM accommodation_requests ar
-              )
-              ORDER BY "submittedAt" DESC
-            `
-          : sql`
-              (
-                SELECT
-                  tr.id,
-                  tr.requestor_name as "requestorName",
-                  'Accommodation' as "itemType",
-                  COALESCE(ad.remarks, tr.purpose, 'Accommodation Request') as "purpose",
-                  tr.status,
-                  tr.submitted_at as "submittedAt",
-                  ad.location,
-                  ad.check_in_date as "checkInDate",
-                  ad.check_out_date as "checkOutDate"
-                FROM travel_requests tr
-                LEFT JOIN trf_accommodation_details ad ON tr.id = ad.trf_id
-                WHERE tr.status IN ${sql(roleSpecificStatuses)}
-                  AND tr.travel_type = 'Accommodation'
-                  AND ad.trf_id IS NOT NULL
-              )
-              UNION ALL
-              (
-                SELECT
-                  ar.id,
-                  ar.requestor_name as "requestorName",
-                  'Accommodation' as "itemType",
-                  'Accommodation Request' as "purpose",
-                  ar.status,
-                  COALESCE(ar.submitted_at, ar.created_at) as "submittedAt",
-                  'Location TBD' as "location",
-                  NULL as "checkInDate",
-                  NULL as "checkOutDate"
-                FROM accommodation_requests ar
-                WHERE ar.status IN ${sql(roleSpecificStatuses)}
-              )
-              ORDER BY "submittedAt" DESC
-            `;
+        const accommodationQuery = sql`
+          SELECT
+            tr.id,
+            tr.requestor_name as "requestorName",
+            'Accommodation' as "itemType",
+            COALESCE(tr.purpose, 'Accommodation Request') as "purpose",
+            tr.status,
+            tr.submitted_at as "submittedAt",
+            tr.travel_type as "travelType",
+            COALESCE(ad.location, 'Location TBD') as "location",
+            ad.check_in_date as "checkInDate",
+            ad.check_out_date as "checkOutDate"
+          FROM travel_requests tr
+          LEFT JOIN trf_accommodation_details ad ON tr.id = ad.trf_id
+          WHERE tr.status IN ${sql(roleSpecificStatuses)}
+            AND tr.travel_type = 'Accommodation'
+          ORDER BY tr.submitted_at DESC
+        `;
         queries.push({ type: 'Accommodation', query: accommodationQuery });
+        console.log('API_ADMIN_APPROVALS_GET: Added Accommodation query to queries array');
       } catch (error: any) {
-        console.warn('Error adding Accommodation query:', error);
+        console.error('Error adding Accommodation query:', error);
       }
     }
     
     // 5. Transport Requests
     if (!itemType || itemType === 'transport') {
       try {
-        const transportQuery = isSystemAdmin
-          ? sql`
-              SELECT
-                t.id,
-                t.requestor_name as "requestorName",
-                'Transport' as "itemType",
-                t.purpose,
-                t.status,
-                COALESCE(t.submitted_at, t.created_at) as "submittedAt",
-                t.department
-              FROM transport_requests t
-              ORDER BY COALESCE(t.submitted_at, t.created_at) DESC
-            `
-          : sql`
-              SELECT
-                t.id,
-                t.requestor_name as "requestorName",
-                'Transport' as "itemType",
-                t.purpose,
-                t.status,
-                COALESCE(t.submitted_at, t.created_at) as "submittedAt",
-                t.department
-              FROM transport_requests t
-              WHERE status IN ${sql(roleSpecificStatuses)}
-              ORDER BY COALESCE(t.submitted_at, t.created_at) DESC
-            `;
+        const transportQuery = sql`
+          SELECT
+            t.id,
+            t.requestor_name as "requestorName",
+            'Transport' as "itemType",
+            t.purpose,
+            t.status,
+            COALESCE(t.submitted_at, t.created_at) as "submittedAt",
+            t.department
+          FROM transport_requests t
+          WHERE status IN ${sql(roleSpecificStatuses)}
+          ORDER BY COALESCE(t.submitted_at, t.created_at) DESC
+        `;
         queries.push({ type: 'Transport', query: transportQuery });
       } catch (error: any) {
         console.warn('Error adding Transport query:', error);
@@ -286,10 +178,23 @@ export const GET = withAuth(async function(request: NextRequest) {
     const results = await Promise.allSettled(
       queries.map(async ({ type, query }) => {
         try {
+          console.log(`API_ADMIN_APPROVALS_GET: Executing ${type} query...`);
           const result = await query;
+          console.log(`API_ADMIN_APPROVALS_GET: ${type} query returned ${result.length} items`);
+
+          // Debug accommodation results specifically
+          if (type === 'Accommodation') {
+            console.log(`API_ADMIN_APPROVALS_GET: Accommodation results details:`, result.map(r => ({ id: r.id, status: r.status })));
+          }
+
+          // Special logging for accommodation requests
+          if (type === 'Accommodation' && result.length > 0) {
+            console.log(`API_ADMIN_APPROVALS_GET: First 5 accommodation IDs:`, result.slice(0, 5).map(r => r.id));
+          }
+
           return { type, items: result };
         } catch (error: any) {
-          console.warn(`Error executing ${type} query:`, error);
+          console.error(`Error executing ${type} query:`, error);
           return { type, items: [] };
         }
       })
@@ -298,17 +203,51 @@ export const GET = withAuth(async function(request: NextRequest) {
     // Combine all results
     for (const result of results) {
       if (result.status === 'fulfilled') {
+        console.log(`API_ADMIN_APPROVALS_GET: Adding ${result.value.items.length} ${result.value.type} items to combined results`);
+
+        // Special logging for accommodation items being added
+        if (result.value.type === 'Accommodation' && result.value.items.length > 0) {
+          console.log(`API_ADMIN_APPROVALS_GET: Adding accommodation IDs:`, result.value.items.slice(0, 5).map(r => r.id));
+          console.log(`API_ADMIN_APPROVALS_GET: Total items before adding accommodation:`, allItems.length);
+        }
+
         allItems = [...allItems, ...result.value.items];
+
+        // Log total after adding this type
+        console.log(`API_ADMIN_APPROVALS_GET: Total items after adding ${result.value.type}:`, allItems.length);
+      } else {
+        console.error(`API_ADMIN_APPROVALS_GET: Promise rejected for query:`, result.reason);
       }
     }
     
     // Sort all items by submission date (newest first)
     allItems.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-    
+
+    // Log accommodation items in sorted array
+    const accommodationItems = allItems.filter(item => item.itemType === 'Accommodation');
+    console.log(`API_ADMIN_APPROVALS_GET: After sorting - accommodation items count: ${accommodationItems.length}`);
+    if (accommodationItems.length > 0) {
+      console.log(`API_ADMIN_APPROVALS_GET: First 5 accommodation IDs after sorting:`, accommodationItems.slice(0, 5).map(r => r.id));
+    }
+
     // Apply pagination to combined results
     const paginatedItems = allItems.slice(offset, offset + limit);
+
+    // Log accommodation items in paginated array
+    const paginatedAccommodationItems = paginatedItems.filter(item => item.itemType === 'Accommodation');
+    console.log(`API_ADMIN_APPROVALS_GET: After pagination - accommodation items count: ${paginatedAccommodationItems.length}`);
+    if (paginatedAccommodationItems.length > 0) {
+      console.log(`API_ADMIN_APPROVALS_GET: Paginated accommodation IDs:`, paginatedAccommodationItems.map(r => r.id));
+    }
     
     console.log(`API_ADMIN_APPROVALS_GET: Fetched ${paginatedItems.length} approval items from ${allItems.length} total`);
+
+    // Debug: Log breakdown by type
+    const itemsByType = allItems.reduce((acc, item) => {
+      acc[item.itemType] = (acc[item.itemType] || 0) + 1;
+      return acc;
+    }, {});
+    console.log('API_ADMIN_APPROVALS_GET: Items by type:', itemsByType);
     
     // Format items for client
     const itemsForClient = paginatedItems.map((item: any) => ({
@@ -319,6 +258,12 @@ export const GET = withAuth(async function(request: NextRequest) {
       checkOutDate: item.checkOutDate ? formatISO(new Date(item.checkOutDate)) : null,
       amount: item.amount !== null && item.amount !== undefined ? Number(item.amount) : null,
     }));
+
+    console.log('API_ADMIN_APPROVALS_GET: Final response summary:');
+    console.log(`  - Total items found: ${allItems.length}`);
+    console.log(`  - Items after pagination: ${paginatedItems.length}`);
+    console.log(`  - Items for client: ${itemsForClient.length}`);
+    console.log(`  - Final response item count: ${itemsForClient.length}`);
 
     return NextResponse.json({
       items: itemsForClient,

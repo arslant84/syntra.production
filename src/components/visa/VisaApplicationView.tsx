@@ -160,7 +160,7 @@ export default function VisaApplicationView({ visaData, canManageDocuments = fal
             </div>
           </section>
 
-          {/* Processing Details (for processed visas) */}
+          {/* Visa Processing Details (for processed visa applications) */}
           {(status === 'Processed' || status === 'Processing with Visa Admin') && (
             <section className="print:break-inside-avoid">
               <Separator className="my-2 print:hidden" />
@@ -168,51 +168,96 @@ export default function VisaApplicationView({ visaData, canManageDocuments = fal
                 <CheckCircle className="print:hidden" /> Visa Processing Details
               </h3>
               {processingDetails ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-4 rounded-lg print:grid-cols-3 print:p-0 bg-green-50 border border-green-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 p-4 rounded-lg bg-green-50 border border-green-200 print:grid-cols-3 print:p-0">
                   {processingDetails.paymentMethod && (
-                    <DetailItem label="Payment Method" value={processingDetails.paymentMethod} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Payment Method</p>
+                      <p className="text-sm">{processingDetails.paymentMethod}</p>
+                    </div>
                   )}
                   {processingDetails.paymentDate && (
-                    <DetailItem label="Payment Date" value={formatDateSafe(processingDetails.paymentDate)} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Payment Date</p>
+                      <p className="text-sm">{formatDateSafe(processingDetails.paymentDate)}</p>
+                    </div>
                   )}
                   {processingDetails.applicationFee && (
-                    <DetailItem label="Application Fee" value={`$${processingDetails.applicationFee}`} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Application Fee</p>
+                      <p className="text-sm">${processingDetails.applicationFee}</p>
+                    </div>
                   )}
                   {processingDetails.processingFee && (
-                    <DetailItem label="Processing Fee" value={`$${processingDetails.processingFee}`} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Processing Fee</p>
+                      <p className="text-sm">${processingDetails.processingFee}</p>
+                    </div>
                   )}
                   {processingDetails.totalFee && (
-                    <DetailItem label="Total Fee" value={`$${processingDetails.totalFee}`} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Fee</p>
+                      <p className="text-sm">${processingDetails.totalFee}</p>
+                    </div>
                   )}
                   {processingDetails.visaNumber && (
-                    <DetailItem label="Visa Number" value={processingDetails.visaNumber} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Visa Number</p>
+                      <p className="text-sm">{processingDetails.visaNumber}</p>
+                    </div>
                   )}
                   {processingDetails.visaValidFrom && (
-                    <DetailItem label="Visa Valid From" value={formatDateSafe(processingDetails.visaValidFrom)} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Visa Valid From</p>
+                      <p className="text-sm">{formatDateSafe(processingDetails.visaValidFrom)}</p>
+                    </div>
                   )}
                   {processingDetails.visaValidTo && (
-                    <DetailItem label="Visa Valid To" value={formatDateSafe(processingDetails.visaValidTo)} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Visa Valid To</p>
+                      <p className="text-sm">{formatDateSafe(processingDetails.visaValidTo)}</p>
+                    </div>
                   )}
                   {processingDetails.bankTransferReference && (
-                    <DetailItem label="Bank Transfer Reference" value={processingDetails.bankTransferReference} fullWidth />
+                    <div className="sm:col-span-2 md:col-span-3">
+                      <p className="text-sm font-medium text-gray-600">Bank Transfer Reference</p>
+                      <p className="text-sm">{processingDetails.bankTransferReference}</p>
+                    </div>
                   )}
                   {processingDetails.chequeNumber && (
-                    <DetailItem label="Cheque Number" value={processingDetails.chequeNumber} fullWidth />
+                    <div className="sm:col-span-2 md:col-span-3">
+                      <p className="text-sm font-medium text-gray-600">Cheque Number</p>
+                      <p className="text-sm">{processingDetails.chequeNumber}</p>
+                    </div>
                   )}
                   {processingDetails.verifiedBy && (
-                    <DetailItem label="Verified By" value={processingDetails.verifiedBy} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Verified By</p>
+                      <p className="text-sm">{processingDetails.verifiedBy}</p>
+                    </div>
                   )}
                   {processingDetails.authorizedBy && (
-                    <DetailItem label="Authorized By" value={processingDetails.authorizedBy} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Authorized By</p>
+                      <p className="text-sm">{processingDetails.authorizedBy}</p>
+                    </div>
                   )}
                   {processingDetails.processingNotes && (
-                    <DetailItem label="Processing Notes" value={processingDetails.processingNotes} fullWidth />
+                    <div className="sm:col-span-2 md:col-span-3">
+                      <p className="text-sm font-medium text-gray-600">Visa Admin Notes</p>
+                      <p className="text-sm">{processingDetails.processingNotes}</p>
+                    </div>
                   )}
                   {processingStartedAt && (
-                    <DetailItem label="Processing Started" value={formatDateSafe(processingStartedAt)} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Processing Started</p>
+                      <p className="text-sm">{formatDateSafe(processingStartedAt)}</p>
+                    </div>
                   )}
                   {processingCompletedAt && (
-                    <DetailItem label="Processing Completed" value={formatDateSafe(processingCompletedAt)} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Processing Completed</p>
+                      <p className="text-sm">{formatDateSafe(processingCompletedAt)}</p>
+                    </div>
                   )}
                 </div>
               ) : (

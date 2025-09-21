@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, AlertTriangle, ArrowLeft, Bed, Edit, Ban, Printer, Trash2 } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, Bed, Edit, Ban, Printer, Trash2, UserCheck, UserX } from 'lucide-react';
 
 
 const EDITABLE_STATUSES: BookingStatus[] = ["Pending Department Focal", "Rejected", "Draft", "Pending Assignment"];
@@ -98,9 +98,47 @@ export default function ViewAccommodationRequestPage() {
     }
   };
 
+  const handleCheckInOut = async (action: 'checkin' | 'checkout') => {
+    if (!requestData) return;
+    setIsActionPending(true);
+    try {
+      const response = await fetch('/api/accommodation/admin/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: requestData.id,
+          action,
+          notes: `${action === 'checkin' ? 'Check-in' : 'Check-out'} processed via accommodation view`
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to ${action === 'checkin' ? 'check in' : 'check out'} guest.`);
+      }
+
+      const result = await response.json();
+      setRequestData({ ...requestData, status: result.newStatus });
+      toast({
+        title: action === 'checkin' ? "Guest Checked In" : "Guest Checked Out",
+        description: `Guest has been successfully ${action === 'checkin' ? 'checked in' : 'checked out'}.`
+      });
+    } catch (err: any) {
+      toast({
+        title: `Error ${action === 'checkin' ? 'Checking In' : 'Checking Out'}`,
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
   const canEdit = requestData && EDITABLE_STATUSES.includes(requestData.status) && !TERMINAL_STATUSES.includes(requestData.status);
   const canCancel = requestData && CANCELLABLE_STATUSES.includes(requestData.status) && !TERMINAL_STATUSES.includes(requestData.status);
   const canDelete = requestData && DELETABLE_STATUSES.includes(requestData.status) && !TERMINAL_STATUSES.includes(requestData.status);
+  const canCheckIn = requestData && requestData.status === 'Accommodation Assigned';
+  const canCheckOut = requestData && requestData.status === 'Checked-in';
 
   const handlePrint = () => {
     window.print();
@@ -183,6 +221,60 @@ export default function ViewAccommodationRequestPage() {
                   <Edit className="mr-2 h-4 w-4" /> Edit Request
                 </Button>
               )}
+              {canCheckIn && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="default" disabled={isActionPending} className="bg-green-600 hover:bg-green-700">
+                      <UserCheck className="mr-2 h-4 w-4" /> Check In Guest
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirm Guest Check-In</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to check in the guest for accommodation request {requestId}? This will mark the guest as present in the assigned room.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isActionPending}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleCheckInOut('checkin')}
+                        disabled={isActionPending}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {isActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Confirm Check-In
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              {canCheckOut && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" disabled={isActionPending} className="border-orange-500 text-orange-700 hover:bg-orange-50">
+                      <UserX className="mr-2 h-4 w-4" /> Check Out Guest
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirm Guest Check-Out</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to check out the guest for accommodation request {requestId}? This will mark the stay as completed.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isActionPending}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleCheckInOut('checkout')}
+                        disabled={isActionPending}
+                        className="bg-orange-600 hover:bg-orange-700"
+                      >
+                        {isActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Confirm Check-Out
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
               {canCancel && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -199,9 +291,9 @@ export default function ViewAccommodationRequestPage() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel disabled={isActionPending}>Back</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={handleCancelRequest} 
-                        disabled={isActionPending} 
+                      <AlertDialogAction
+                        onClick={handleCancelRequest}
+                        disabled={isActionPending}
                         className="bg-destructive hover:bg-destructive/90"
                       >
                         {isActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Confirm Cancel

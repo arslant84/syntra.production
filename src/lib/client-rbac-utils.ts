@@ -63,27 +63,39 @@ export function getApprovalQueueFilters(userRole: string | null): {
       'Pending Line Manager/HOD'
     ],
     [ROLES.FINANCE_CLERK]: [
-      'Pending Finance Approval'
+      'Pending Finance Approval',
+      'Processing with Claims Admin'  // Claims being processed by Finance Clerk
     ],
     [ROLES.VISA_CLERK]: [
-      'Pending Visa Clerk'
+      'Pending Visa Clerk',
+      'Processing with Visa Admin',   // Visas being processed by Visa Clerk
+      'Awaiting Visa'                 // TSRs waiting for visa processing
+    ],
+    [ROLES.TRANSPORT_ADMIN]: [
+      'Processing with Transport Admin'  // Transport requests being processed
     ],
     [ROLES.ACCOMMODATION_ADMIN]: [
       'Accommodation Assigned',
       'Approved',
+      'Processing Accommodation',
       'Pending Accommodation Admin',
       'Pending Accommodation',
-      'Pending Booking'
+      'Pending Booking',
+      'Pending Department Focal',
+      'Pending Line Manager',
+      'Pending Line Manager/HOD',
+      'Pending HOD'
     ],
     [ROLES.TICKETING_ADMIN]: [
-      'Approved',  // Ticketing Admin processes all approved TRFs for flight booking
-      'Flights Booked'  // Can also view completed flight bookings
+      'Approved',        // Ticketing Admin processes all approved TRFs for flight booking
+      'TRF Processed',   // Processed TRFs awaiting flight booking
+      'Flights Booked'   // Can also view completed flight bookings
     ],
     [ROLES.ADMIN]: [
       'Pending Department Focal',
       'Pending Focal Approval',
       'Pending Line Manager',
-      'Pending Line Approval', 
+      'Pending Line Approval',
       'Pending Line Manager/HOD',
       'Pending HOD',
       'Pending HOD Approval',
@@ -91,25 +103,35 @@ export function getApprovalQueueFilters(userRole: string | null): {
       'Pending Visa Clerk',
       'Pending Verification',
       'Accommodation Assigned',
+      'Processing Accommodation',
       'Pending Accommodation Admin',
       'Pending Accommodation',
       'Pending Booking'
     ],
     [ROLES.SYSTEM_ADMINISTRATOR]: [
+      // Core approval workflow statuses - ONLY pending approvals up to HOD level
       'Pending Department Focal',
       'Pending Focal Approval',
       'Pending Line Manager',
       'Pending Line Approval',
-      'Pending Line Manager/HOD', 
+      'Pending Line Manager/HOD',
       'Pending HOD',
       'Pending HOD Approval',
       'Pending Finance Approval',
       'Pending Visa Clerk',
       'Pending Verification',
       'Accommodation Assigned',
+      'Processing Accommodation',
       'Pending Accommodation Admin',
       'Pending Accommodation',
       'Pending Booking'
+      // REMOVED: Post-approval statuses that should only appear in specialized admin queues:
+      // - 'TRF Processed' -> Only for Ticketing Admin
+      // - 'Processing with Claims Admin' -> Only for Finance Clerk
+      // - 'Processing with Visa Admin' -> Only for Visa Clerk
+      // - 'Processing with Transport Admin' -> Only for Transport Admin
+      // - 'Awaiting Visa' -> Only for Visa Clerk
+      // - 'Approved' -> Only for Accommodation Admin/Ticketing Admin
     ]
   };
 

@@ -77,7 +77,7 @@ export const POST = withAuth(async function(request: NextRequest) {
         }
     }
 
-    const updatedTrf = await sql.begin(async tx => {
+    const updatedTrf = await sql.begin(async (tx: any) => {
         const [trf] = await tx`
             UPDATE travel_requests 
             SET status = ${nextStatus}, 
@@ -164,16 +164,16 @@ export const POST = withAuth(async function(request: NextRequest) {
                 
                 console.log(`Created ${bookingRecords.length} booking records for TRF ${trfId} from ${startDate} to ${endDate}`);
                 
-            } catch (bookingError) {
+            } catch (bookingError: any) {
                 console.error(`Error creating booking records for TRF ${trfId}:`, bookingError);
                 console.error('Booking error details:', {
-                    message: bookingError.message,
-                    code: bookingError.code,
-                    constraint: bookingError.constraint_name,
-                    detail: bookingError.detail
+                    message: bookingError?.message || 'Unknown error',
+                    code: bookingError?.code || 'Unknown code',
+                    constraint: bookingError?.constraint_name || 'No constraint',
+                    detail: bookingError?.detail || 'No details'
                 });
                 // Rethrow booking errors to ensure transaction rollback
-                throw new Error(`Booking creation failed: ${bookingError.message}`);
+                throw new Error(`Booking creation failed: ${bookingError?.message || 'Unknown booking error'}`);
             }
         } else {
             console.log(`Skipping booking record creation - missing booking details (staffHouseId: ${staffHouseId}, roomId: ${roomId}, startDate: ${startDate}, endDate: ${endDate})`);

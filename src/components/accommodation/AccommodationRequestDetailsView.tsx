@@ -161,46 +161,135 @@ export default function AccommodationRequestDetailsView({ requestData }: Accommo
               <Bed className="w-5 h-5" /> Room Booking Details
             </CardTitle>
             <CardDescription>
-              Detailed booking information for your accommodation
+              Detailed booking information and accommodation assignment records
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
             <div className="space-y-4">
-              {bookingDetails.map((booking, index) => (
-                <div key={booking.id || index} className="border rounded-lg p-4 bg-white">
-                  <div className="flex items-start justify-between mb-3">
+              {/* Booking Summary */}
+              <div className="bg-blue-100 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-blue-900">Booking Summary</h4>
+                  <Badge variant="secondary" className="bg-blue-200 text-blue-800">
+                    {bookingDetails.length} day(s) booked
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-blue-700 font-medium">Guest:</span>
+                    <p className="text-blue-900">{bookingDetails[0]?.guestName || requestorName}</p>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 font-medium">Room:</span>
+                    <p className="text-blue-900">{bookingDetails[0]?.roomName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 font-medium">Staff House:</span>
+                    <p className="text-blue-900">{bookingDetails[0]?.staffHouseName || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Daily Booking Records */}
+              <div className="space-y-2">
+                <h5 className="font-semibold text-sm text-gray-800 mb-3">Daily Booking Records</h5>
+                <div className="grid gap-2">
+                  {bookingDetails.map((booking, index) => (
+                    <div key={booking.id || index} className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">
+                            {formatDateSafe(booking.bookingDate, "EEEE, MMMM do, yyyy")}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {booking.roomName} • {booking.staffHouseName}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={booking.bookingStatus} showIcon />
+                        {booking.bookingStatus === 'Confirmed' && (
+                          <Badge variant="outline" className="text-green-700 border-green-300">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Ready
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Room Details */}
+              <div className="bg-gray-50 border rounded-lg p-4">
+                <h5 className="font-semibold text-sm text-gray-800 mb-3">Room Information</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
+                  <DetailItem label="Room Name" value={bookingDetails[0]?.roomName || 'N/A'} />
+                  <DetailItem label="Room Type" value={bookingDetails[0]?.roomType || 'N/A'} />
+                  <DetailItem label="Capacity" value={bookingDetails[0]?.capacity ? `${bookingDetails[0].capacity} person(s)` : 'N/A'} />
+                  <DetailItem label="Staff House" value={bookingDetails[0]?.staffHouseName || 'N/A'} />
+                  <DetailItem label="Location" value={bookingDetails[0]?.location || 'N/A'} />
+                  <DetailItem label="Guest Gender" value={bookingDetails[0]?.gender || requestorGender || 'N/A'} />
+                </div>
+              </div>
+
+              {/* Check-in/Check-out Status */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h5 className="font-semibold text-sm text-green-800 mb-3">Stay Status</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-4 h-4 rounded-full",
+                      status === 'Checked-in' ? "bg-green-500" : "bg-gray-300"
+                    )}></div>
                     <div>
-                      <h4 className="font-semibold text-lg">
-                        {booking.guestName || requestorName}
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        {booking.gender || requestorGender} • {formatDateSafe(booking.bookingDate)}
+                      <p className="text-sm font-medium">Check-in Status</p>
+                      <p className="text-xs text-muted-foreground">
+                        {status === 'Checked-in' ? 'Guest has checked in' : 'Awaiting check-in'}
                       </p>
                     </div>
-                    <StatusBadge status={booking.bookingStatus} showIcon />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
-                    <DetailItem label="Room" value={booking.roomName || 'N/A'} />
-                    <DetailItem label="Staff House" value={booking.staffHouseName || 'N/A'} />
-                    <DetailItem label="Room Type" value={booking.roomType || 'N/A'} />
-                    <DetailItem label="Capacity" value={booking.capacity || 'N/A'} />
-                    <DetailItem label="Location" value={booking.location || 'N/A'} />
-                  </div>
-                  {booking.bookingNotes && (
-                    <div className="mt-3 pt-3 border-t">
-                      <DetailItem 
-                        label="Booking Notes" 
-                        value={
-                          <div className="p-2 bg-muted/30 rounded">
-                            <p className="text-sm whitespace-pre-wrap">{booking.bookingNotes}</p>
-                          </div>
-                        } 
-                        fullWidth 
-                      />
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-4 h-4 rounded-full",
+                      status === 'Checked-out' ? "bg-gray-600" : "bg-gray-300"
+                    )}></div>
+                    <div>
+                      <p className="text-sm font-medium">Check-out Status</p>
+                      <p className="text-xs text-muted-foreground">
+                        {status === 'Checked-out' ? 'Guest has checked out' : 'Stay in progress'}
+                      </p>
                     </div>
-                  )}
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              {/* Booking Notes */}
+              {bookingDetails.some(b => b.bookingNotes) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <h5 className="font-semibold text-sm text-amber-800 mb-3">Booking Notes & Instructions</h5>
+                  <div className="space-y-2">
+                    {bookingDetails.filter(b => b.bookingNotes).map((booking, index) => (
+                      <div key={index} className="p-3 bg-white rounded border border-amber-100">
+                        <div className="flex items-start gap-2">
+                          <CalendarDays className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-amber-800">
+                              {formatDateSafe(booking.bookingDate, "MMM dd, yyyy")}
+                            </p>
+                            <p className="text-sm text-amber-900 whitespace-pre-wrap mt-1">
+                              {booking.bookingNotes}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

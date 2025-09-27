@@ -42,10 +42,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleMicrosoftSignIn = () => {
-    setLoading(true);
-    signIn('azure-ad');
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-slate-100 flex items-center justify-center p-4">
@@ -150,23 +146,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Microsoft sign in option */}
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={handleMicrosoftSignIn}
-              disabled={loading}
-              className="w-full bg-white border border-gray-200 text-gray-700 py-3 px-4 rounded-lg font-semibold text-base transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500/20 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md flex items-center justify-center gap-3"
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8.64 9.05L1.73 2.14H8.64V9.05Z" fill="#F25022"/>
-                <path d="M9.36 9.05V2.14H16.27L9.36 9.05Z" fill="#7FBA00"/>
-                <path d="M9.36 9.77L16.27 16.68H9.36V9.77Z" fill="#00A4EF"/>
-                <path d="M8.64 9.77V16.68H1.73L8.64 9.77Z" fill="#FFB900"/>
-              </svg>
-              Sign in with Microsoft
-            </button>
-          </div>
         </div>
       </div>
     </div>

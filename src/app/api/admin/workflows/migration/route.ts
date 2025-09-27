@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { WorkflowMigrationService } from '@/lib/workflow-migration';
 
 // GET /api/admin/workflows/migration - Get migration status and analysis
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -90,7 +89,7 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/workflows/migration - Execute migration
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -219,7 +218,7 @@ export async function POST(request: NextRequest) {
 // DELETE /api/admin/workflows/migration - Rollback migration
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -1,7 +1,6 @@
 // src/app/api/auth/[...nextauth]/route.ts
 import NextAuth, { type NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import AzureADProvider from 'next-auth/providers/azure-ad';
 import bcrypt from 'bcryptjs';
 import { sql } from '@/lib/db'; // Assuming named export
 
@@ -18,16 +17,6 @@ if (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET === 'YOUR_STRONG
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    AzureADProvider({
-      clientId: process.env.AZURE_AD_CLIENT_ID!,
-      clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
-      tenantId: process.env.AZURE_AD_TENANT_ID!,
-      authorization: {
-        params: {
-          scope: "openid profile email User.Read"
-        }
-      }
-    }),
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
@@ -124,62 +113,12 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         console.log('JWT Callback: Initial sign-in, user object:', user);
         
-        // Handle Azure AD sign-in
-        if (account?.provider === 'azure-ad') {
-          console.log('JWT Callback: Azure AD sign-in detected');
-          
-          // Check if user exists in database, if not create them
-          let dbUser;
-          try {
-            if (!sql) {
-              console.error('JWT Callback: Database not available for Azure AD user lookup');
-              throw new Error('Database not available');
-            }
-
-            const existingUsers = await sql`
-              SELECT id, name, email, role_id, role,
-                     COALESCE(department, '') as department,
-                     COALESCE(staff_id, '') as staff_id
-              FROM users
-              WHERE email = ${user.email}
-              LIMIT 1
-            `;
-
-            if (existingUsers.length > 0) {
-              dbUser = existingUsers[0];
-              console.log('JWT Callback: Found existing user in database:', dbUser);
-            } else {
-              // Create new user with default role
-              const newUserResult = await sql`
-                INSERT INTO users (name, email, role_id, role, created_at, updated_at)
-                VALUES (${user.name}, ${user.email}, 1, 'user', NOW(), NOW())
-                RETURNING id, name, email, role_id, role
-              `;
-              dbUser = newUserResult[0];
-              console.log('JWT Callback: Created new user in database:', dbUser);
-            }
-
-            token.uid = dbUser.id;
-            token.roleId = dbUser.role_id;
-            token.role = dbUser.role;
-            token.department = dbUser.department || null;
-            token.staffId = dbUser.staff_id || null;
-          } catch (error) {
-            console.error('JWT Callback: Error handling Azure AD user:', error);
-            token.uid = user.id;
-            token.roleId = 1; // Default role
-            token.role = 'user';
-            token.department = null;
-            token.staffId = null;
-          }
-        } else {
-          // Handle credentials sign-in
-          token.uid = user.id;
-          token.roleId = user.roleId || null;
-          token.role = user.role || null;
-          token.department = user.department || null;
-          token.staffId = user.staffId || null;
-        }
+        // Handle credentials sign-in
+        token.uid = user.id;
+        token.roleId = user.roleId || null;
+        token.role = user.role || null;
+        token.department = user.department || null;
+        token.staffId = user.staffId || null;
 
         token.permissions = []; // Initialize as empty
 

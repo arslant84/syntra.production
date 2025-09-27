@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { WorkflowEngine } from '@/lib/workflow-engine';
 
 // GET /api/admin/workflows/executions - Get workflow executions
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -48,7 +47,7 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/workflows/executions - Start new workflow execution
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

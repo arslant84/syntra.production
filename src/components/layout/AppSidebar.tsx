@@ -84,53 +84,65 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const sidebarContext = useSidebar();
   const toggleSidebar = sidebarContext?.toggleSidebar;
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const userProfileContext = useOptionalUserProfile();
   const userProfile = userProfileContext?.user;
   const [navItems, setNavItems] = useState<NavItem[]>([]);
 
   // Load role-based navigation items with caching
   useEffect(() => {
+    const setFallbackNav = () => {
+      console.warn('AppSidebar: Session or navigation API failed. Loading fallback navigation.');
+      setNavItems([
+        { label: 'Approvals', href: '/admin/approvals', icon: CheckSquare },
+        { label: 'Users', href: '/admin/users', icon: Users },
+        { label: 'System Settings', href: '/admin/settings', icon: Settings },
+      ]);
+    };
+
     const fetchNavigation = async () => {
-      if (!session?.user) {
-        // Default items for unauthenticated users
-        setNavItems([
-          { label: 'Dashboard', href: '/', icon: LayoutDashboard }
-        ]);
+      // If session is loading or not authenticated, show fallback and stop.
+      if (sessionStatus === 'loading' || sessionStatus === 'unauthenticated') {
+        setFallbackNav();
         return;
       }
 
       try {
-        console.log('AppSidebar: Fetching role-based navigation...');
-        const response = await fetch('/api/navigation', {
-          headers: {
-            'Cache-Control': 'max-age=900', // 15 minutes browser cache - navigation rarely changes
-          }
-        });
+        const response = await fetch('/api/navigation');
         
         if (!response.ok) {
-          throw new Error(`Failed to fetch navigation: ${response.status}`);
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch navigation: ${response.status} ${response.statusText}`;
+          
+          if (contentType.includes('application/json')) {
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData?.error || errorData?.message || errorMessage;
+            } catch {
+              // If JSON parsing fails, use the default error message
+            }
+          } else {
+            // For non-JSON responses (like HTML 503 pages), use status text
+            errorMessage = `Failed to fetch navigation: ${response.status}`;
+          }
+          
+          throw new Error(errorMessage);
         }
-        
+
         const navigationData = await response.json();
-        console.log('AppSidebar: Received navigation data:', navigationData);
-        
-        // Convert icon strings to actual icon components
         const processedNavItems = navigationData.map((item: any) => ({
           ...item,
-          icon: iconMap[item.icon as keyof typeof iconMap] || LayoutDashboard
+          icon: iconMap[item.icon as keyof typeof iconMap] || LayoutDashboard,
         }));
-        
         setNavItems(processedNavItems);
       } catch (error) {
         console.error('AppSidebar: Error fetching navigation:', error);
-        // Fallback to basic navigation
-        setNavItems([{ label: 'Dashboard', href: '/', icon: LayoutDashboard }]);
+        setFallbackNav();
       }
     };
 
     fetchNavigation();
-  }, [session]);
+  }, [session, sessionStatus]);
 
   return (
     <Sidebar collapsible="icon" className="border-r flex flex-col">

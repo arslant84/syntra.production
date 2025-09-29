@@ -9,24 +9,15 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import NotificationTemplateForm from '@/components/admin/settings/NotificationTemplateForm';
 
-interface NotificationTemplate {
-  id: string;
-  name: string;
-  description?: string;
-  subject: string;
-  body: string;
-  type?: string;
-  eventType?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
+import { NotificationTemplate, NotificationTemplateFormValues } from '@/types/notifications';
 
 export default function NotificationTemplatesPage() {
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [eventTypes, setEventTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentTemplate, setCurrentTemplate] = useState<NotificationTemplate | null>(null);
+  const [currentTemplate, setCurrentTemplate] = useState<NotificationTemplateFormValues | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSetupLoading, setIsSetupLoading] = useState(false);
@@ -36,7 +27,13 @@ export default function NotificationTemplatesPage() {
     try {
       const response = await fetch('/api/admin/notification-templates');
       if (!response.ok) {
-        throw new Error('Failed to fetch notification templates');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch notification templates: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       const data = await response.json();
       setTemplates(data);
@@ -53,7 +50,13 @@ export default function NotificationTemplatesPage() {
     try {
       const response = await fetch('/api/admin/notification-events');
       if (!response.ok) {
-        throw new Error('Failed to fetch event types');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch event types: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       const data = await response.json();
       setEventTypes(data.eventTypes || []);
@@ -77,24 +80,38 @@ export default function NotificationTemplatesPage() {
 
   const handleOpenModal = async (template: NotificationTemplate | null = null) => {
     if (template) {
-      // Fetch the full template data when editing
+      setEditingTemplateId(template.id);
+      // Fetch the full template data to get the most up-to-date version
       try {
         const response = await fetch(`/api/admin/notification-templates/${template.id}`);
         if (!response.ok) {
-          throw new Error('Failed to fetch template details');
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch template details: ${response.status} ${response.statusText}`;
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json().catch(() => null);
+            errorMessage = errorData?.error || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
-        const fullTemplate = await response.json();
-        console.log('Full template data:', fullTemplate);
-        setCurrentTemplate(fullTemplate);
-      } catch (error) {
+        const fullTemplate: NotificationTemplate = await response.json();
+        setCurrentTemplate({
+          name: fullTemplate.name,
+          description: fullTemplate.description,
+          subject: fullTemplate.subject,
+          body: fullTemplate.body,
+          type: fullTemplate.type,
+          eventType: fullTemplate.eventType,
+        });
+      } catch (error: any) {
         toast({
           title: 'Error',
-          description: 'Failed to fetch template details for editing.',
+          description: error.message || 'Failed to fetch template details for editing.',
           variant: 'destructive',
         });
         return;
       }
     } else {
+      setEditingTemplateId(null);
       setCurrentTemplate(null);
     }
     setIsModalOpen(true);
@@ -102,6 +119,7 @@ export default function NotificationTemplatesPage() {
 
   const handleCloseModal = () => {
     setCurrentTemplate(null);
+    setEditingTemplateId(null);
     setIsModalOpen(false);
     setSubmitError(null);
   };
@@ -110,8 +128,8 @@ export default function NotificationTemplatesPage() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      const method = currentTemplate ? 'PUT' : 'POST';
-      const url = currentTemplate ? `/api/admin/notification-templates/${currentTemplate.id}` : '/api/admin/notification-templates';
+      const method = editingTemplateId ? 'PUT' : 'POST';
+      const url = editingTemplateId ? `/api/admin/notification-templates/${editingTemplateId}` : '/api/admin/notification-templates';
 
       const response = await fetch(url, {
         method,
@@ -122,13 +140,18 @@ export default function NotificationTemplatesPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save template');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to save template: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       toast({
         title: 'Success',
-        description: `Template ${currentTemplate ? 'updated' : 'created'} successfully.`,
+        description: `Template ${editingTemplateId ? 'updated' : 'created'} successfully.`,
       });
       handleCloseModal();
       fetchTemplates();
@@ -155,7 +178,13 @@ export default function NotificationTemplatesPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete notification template');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete notification template: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       setTemplates(templates.filter((template) => template.id !== templateId));
@@ -183,8 +212,13 @@ export default function NotificationTemplatesPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || 'Failed to setup default templates');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to setup default templates: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.details || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -275,7 +309,7 @@ export default function NotificationTemplatesPage() {
                   <TableRow key={template.id}>
                     <TableCell>{template.name}</TableCell>
                     <TableCell>{template.subject}</TableCell>
-                    <TableCell>{new Date(template.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>{new Date(template.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="icon" onClick={() => handleOpenModal(template)}>

@@ -35,8 +35,13 @@ export default function ViewVisaPage() {
     try {
       const response = await fetch(`/api/visa/${visaId}`);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || `Failed to fetch visa application ${visaId}: ${response.statusText}`);
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch visa application ${visaId}: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.details || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       const result = await response.json();
       console.log('Fetched visa data:', result);
@@ -56,13 +61,20 @@ export default function ViewVisaPage() {
     try {
       // Check if user has permission to manage visa documents
       const response = await fetch('/api/user/permissions');
-      if (response.ok) {
-        const data = await response.json();
-        const permissions = data.permissions || [];
-        const canManage = permissions.includes('process_visa_applications') || 
-                         permissions.includes('manage_visa_documents');
-        setCanManageDocuments(canManage);
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to check permissions: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      const data = await response.json();
+      const permissions = data.permissions || [];
+      const canManage = permissions.includes('process_visa_applications') || 
+                       permissions.includes('manage_visa_documents');
+      setCanManageDocuments(canManage);
     } catch (error) {
       console.error('Error checking permissions:', error);
       // Default to false if permission check fails
@@ -85,8 +97,13 @@ export default function ViewVisaPage() {
         body: JSON.stringify({ action: "cancel" }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to cancel visa application.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to cancel visa application: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.details || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       const updatedVisa = await response.json();
       setVisaData(updatedVisa as VisaApplication);
@@ -106,8 +123,13 @@ export default function ViewVisaPage() {
         method: 'DELETE',
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to delete visa application.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete visa application: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.details || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       toast({ title: "Visa Application Deleted", description: `Visa Application ID ${visaId} has been permanently deleted.` });
       router.push("/visa");

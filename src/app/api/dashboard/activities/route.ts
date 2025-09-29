@@ -104,7 +104,7 @@ async function validateAllEntities(trfIds: string[], claimIds: string[], visaIds
       const trfResults = await sql`
         SELECT id FROM travel_requests WHERE id = ANY(${trfIds})
       `;
-      trfResults.forEach(row => validTrfs.add(row.id));
+      trfResults.forEach((row: any) => validTrfs.add(row.id));
     }
 
     // Single query to validate all claims (check both tables)
@@ -112,7 +112,7 @@ async function validateAllEntities(trfIds: string[], claimIds: string[], visaIds
       const expenseClaimsResults = await sql`
         SELECT id FROM expense_claims WHERE id = ANY(${claimIds})
       `;
-      expenseClaimsResults.forEach(row => validClaims.add(row.id));
+      expenseClaimsResults.forEach((row: any) => validClaims.add(row.id));
       
       // Check claims table for any remaining IDs
       const remainingClaimIds = claimIds.filter(id => !validClaims.has(id));
@@ -120,7 +120,7 @@ async function validateAllEntities(trfIds: string[], claimIds: string[], visaIds
         const claimsResults = await sql`
           SELECT id FROM claims WHERE id = ANY(${remainingClaimIds})
         `;
-        claimsResults.forEach(row => validClaims.add(row.id));
+        claimsResults.forEach((row: any) => validClaims.add(row.id));
       }
     }
 
@@ -129,7 +129,7 @@ async function validateAllEntities(trfIds: string[], claimIds: string[], visaIds
       const visaResults = await sql`
         SELECT id FROM visa_applications WHERE id = ANY(${visaIds})
       `;
-      visaResults.forEach(row => validVisas.add(row.id));
+      visaResults.forEach((row: any) => validVisas.add(row.id));
     }
 
   } catch (error) {

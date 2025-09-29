@@ -27,7 +27,22 @@ export function useUserDetails() {
             statusText: response.statusText,
             body: errorText
           });
-          throw new Error(`Failed to fetch user details: ${response.status} ${response.statusText}. ${errorText}`);
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch user details: ${response.status} ${response.statusText}`;
+          
+          if (contentType.includes('application/json')) {
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData?.error || errorData?.message || errorMessage;
+            } catch {
+              // If JSON parsing fails, use the default error message
+            }
+          } else {
+            // For non-JSON responses (like HTML 503 pages), use status text
+            errorMessage = `Failed to fetch user details: ${response.status}`;
+          }
+          
+          throw new Error(errorMessage);
         }
 
         const data = await response.json();

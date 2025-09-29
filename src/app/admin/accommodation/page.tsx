@@ -46,20 +46,36 @@ export default function AccommodationAdminPage() {
       const response = await fetch('/api/admin/accommodation?limit=25&processing=false');
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Accommodation requests fetch failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
-        
         // If it's an authentication error, don't spam the console
         if (response.status === 401 || response.status === 403) {
           console.warn('Authentication required for accommodation requests');
           return;
         }
         
-        throw new Error(`Failed to fetch accommodation requests: ${response.status} ${response.statusText}`);
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch accommodation requests: ${response.status} ${response.statusText}`;
+        let errorData: any = {};
+        
+        if (contentType.includes('application/json')) {
+          try {
+            errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+            console.log('Failed to parse JSON error response, using default message');
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch accommodation requests: ${response.status}`;
+        }
+        
+        console.error('Accommodation requests fetch failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -82,7 +98,7 @@ export default function AccommodationAdminPage() {
       }
       
       // Apply role-based filtering
-      const filteredRequests = requests.filter(request =>
+      const filteredRequests = requests.filter((request: any) =>
         shouldShowRequest(role, { ...request, itemType: 'accommodation' }, userId)
       );
       
@@ -92,17 +108,17 @@ export default function AccommodationAdminPage() {
       // Calculate statistics using useMemo for performance
       const newStats = {
         total: filteredRequests.length,
-        pending: filteredRequests.filter(req => 
+        pending: filteredRequests.filter((req: any) => 
           ['Pending Department Focal', 'Pending Line Manager/HOD', 'Pending Accommodation Admin'].includes(req.status)
         ).length,
-        approved: filteredRequests.filter(req => req.status === 'Approved').length,
-        processing: filteredRequests.filter(req => 
+        approved: filteredRequests.filter((req: any) => req.status === 'Approved').length,
+        processing: filteredRequests.filter((req: any) => 
           ['Processing', 'Processing Accommodation', 'Room Assigned'].includes(req.status)
         ).length,
-        completed: filteredRequests.filter(req => 
+        completed: filteredRequests.filter((req: any) => 
           ['Completed', 'Check-out Completed'].includes(req.status)
         ).length,
-        rejected: filteredRequests.filter(req => 
+        rejected: filteredRequests.filter((req: any) => 
           ['Rejected', 'Cancelled'].includes(req.status)
         ).length,
       };

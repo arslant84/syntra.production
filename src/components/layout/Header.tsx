@@ -32,7 +32,10 @@ export default function Header({ showDesktopLogo = true }: HeaderProps) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-  const [navItems, setNavItems] = useState<NavItem[]>([]);
+  
+  // Initialize with default navigation to prevent hydration mismatch
+  const defaultNavigation = [{ label: 'Home', href: '/', icon: Home }];
+  const [navItems, setNavItems] = useState<NavItem[]>(defaultNavigation);
 
   // Load role-based navigation items from API
   useEffect(() => {
@@ -42,14 +45,11 @@ export default function Header({ showDesktopLogo = true }: HeaderProps) {
       }
 
       if (!session?.user) {
-        // Default items for unauthenticated users
-        setNavItems([
-          { label: 'Home', href: '/', icon: Home }
-        ]);
+        // Keep default navigation for unauthenticated users (already set in initial state)
         return;
       }
 
-      // Immediately set default authenticated user navigation
+      // Define a robust default navigation list that can be used as a fallback.
       const defaultAuthNavigation = [
         { label: 'Home', href: '/', icon: Home },
         { label: 'TSR', href: '/trf', icon: FileText },
@@ -58,8 +58,6 @@ export default function Header({ showDesktopLogo = true }: HeaderProps) {
         { label: 'Accommodation', href: '/accommodation', icon: BedDouble },
         { label: 'Claims', href: '/claims', icon: ReceiptText }
       ];
-      
-      setNavItems(defaultAuthNavigation);
 
       try {
         console.log('Header: Fetching role-based navigation for user:', session.user.email);
@@ -71,7 +69,22 @@ export default function Header({ showDesktopLogo = true }: HeaderProps) {
         });
         
         if (!response.ok) {
-          throw new Error(`Failed to fetch navigation: ${response.status}`);
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch navigation: ${response.status} ${response.statusText}`;
+          
+          if (contentType.includes('application/json')) {
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData?.error || errorData?.message || errorMessage;
+            } catch {
+              // If JSON parsing fails, use the default error message
+            }
+          } else {
+            // For non-JSON responses (like HTML 503 pages), use status text
+            errorMessage = `Failed to fetch navigation: ${response.status}`;
+          }
+          
+          throw new Error(errorMessage);
         }
         
         const navigationData = await response.json();
@@ -113,8 +126,9 @@ export default function Header({ showDesktopLogo = true }: HeaderProps) {
         setNavItems(headerNavItems);
       } catch (error) {
         console.error('Header: Error fetching navigation:', error);
-        // Keep the default authenticated navigation if API fails (don't overwrite)
+        // Explicitly set the default navigation on API error to prevent buttons from disappearing.
         console.log('Header: Using default navigation due to API error');
+        setNavItems(defaultAuthNavigation);
       }
     };
 

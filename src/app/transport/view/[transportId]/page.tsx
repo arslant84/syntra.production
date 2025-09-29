@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 const EDITABLE_STATUSES: TransportRequestForm['status'][] = ["Pending Department Focal", "Rejected", "Draft"];
 const CANCELLABLE_STATUSES: TransportRequestForm['status'][] = ["Pending Department Focal", "Pending Line Manager", "Pending HOD"];
 const DELETABLE_STATUSES: TransportRequestForm['status'][] = ["Pending Department Focal", "Rejected", "Draft"];
-const TERMINAL_OR_PROCESSING_STATUSES: TransportRequestForm['status'][] = ["Approved", "Cancelled", "Processing", "Completed"];
+const TERMINAL_OR_PROCESSING_STATUSES: TransportRequestForm['status'][] = ["Approved", "Cancelled", "Processing with Transport Admin", "Completed"];
 
 export default function ViewTransportRequestPage() {
   const params = useParams();
@@ -34,8 +34,21 @@ export default function ViewTransportRequestPage() {
     try {
       const response = await fetch(`/api/transport/${transportId}`);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || `Failed to fetch transport request ${transportId}: ${response.statusText}`);
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch transport request ${transportId}: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.details || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch transport request ${transportId}: ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
       const result = await response.json();
       console.log('Transport API Response:', result);
@@ -67,8 +80,21 @@ export default function ViewTransportRequestPage() {
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to cancel transport request.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to cancel transport request: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.details || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to cancel transport request: ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
       const updatedRequest = await response.json();
       setTransportData(updatedRequest as TransportRequestForm);
@@ -88,8 +114,21 @@ export default function ViewTransportRequestPage() {
         method: 'DELETE',
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to delete transport request.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete transport request: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.details || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to delete transport request: ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
       toast({ title: "Transport Request Deleted", description: `Transport request ID ${transportId} has been permanently deleted.` });
       router.push("/transport"); // Redirect to the transport list page

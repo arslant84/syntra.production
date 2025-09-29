@@ -102,8 +102,13 @@ export default function VisaDocuments({
           setDocuments([]);
           return;
         }
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to fetch documents');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch documents: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -128,8 +133,13 @@ export default function VisaDocuments({
       const response = await fetch(`/api/visa/${visaId}/documents/${documentId}`);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to download document');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to download document: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       // Create blob and download
@@ -165,8 +175,13 @@ export default function VisaDocuments({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to delete document');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete document: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       // Refresh documents list
@@ -226,8 +241,13 @@ export default function VisaDocuments({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to upload document');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to upload document: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       // Refresh documents list
@@ -338,7 +358,7 @@ export default function VisaDocuments({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <p className="text-sm font-medium truncate">{doc.fileName}</p>
-                        <Badge variant={getDocumentTypeBadge(doc.documentType)} size="sm">
+                        <Badge variant={getDocumentTypeBadge(doc.documentType)}>
                           {getDocumentTypeLabel(doc.documentType)}
                         </Badge>
                       </div>

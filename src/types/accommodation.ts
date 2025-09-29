@@ -1,6 +1,25 @@
 
 export type LocationType = 'Ashgabat' | 'Kiyanly' | 'Turkmenbashy';
 export type GuestGender = 'Male' | 'Female';
+
+// Accommodation request workflow statuses
+export type AccommodationRequestStatus = 
+  | 'Draft' 
+  | 'Pending Department Focal' 
+  | 'Pending Line Manager' 
+  | 'Pending HOD' 
+  | 'Approved' 
+  | 'Processing'
+  | 'Completed'
+  | 'Rejected' 
+  | 'Cancelled'
+  | 'Pending Assignment'
+  | 'Accommodation Assigned'
+  | 'Checked-in'
+  | 'Checked-out'
+  | 'Confirmed'
+  | 'Blocked';
+
 // Database booking statuses from accommodation_bookings table
 export type BookingStatus = 
   | 'Confirmed'
@@ -68,7 +87,7 @@ export interface AccommodationRequestDetails {
   requestedCheckInDate: Date;
   requestedCheckOutDate: Date;
   requestedRoomType?: string; // e.g., "Single Room", "Shared - Male"
-  status: BookingStatus;
+  status: AccommodationRequestStatus;
   assignedRoomId?: string;
   assignedRoomName?: string;
   assignedStaffHouseId?: string;

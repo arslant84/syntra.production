@@ -81,7 +81,13 @@ export default function ClaimViewPage() {
         console.log('API response status:', response.status);
         
         if (!response.ok) {
-          throw new Error(`Error fetching claim: ${response.statusText}`);
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Error fetching claim: ${response.status} ${response.statusText}`;
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json().catch(() => null);
+            errorMessage = errorData?.error || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
         
         const data = await response.json();
@@ -123,8 +129,13 @@ export default function ClaimViewPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to cancel claim.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to cancel claim: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.details || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -155,8 +166,13 @@ export default function ClaimViewPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to delete claim.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete claim: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.details || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       toast({ 

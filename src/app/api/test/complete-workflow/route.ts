@@ -190,14 +190,17 @@ export async function POST(request: NextRequest) {
       department,
       result,
       timestamp: new Date().toISOString(),
-      expectedEmailFlow: {
-        'submission': 'TO: Department Focal, CC: Requestor',
-        'department_focal_approval': 'TO: Line Manager, CC: Requestor',
-        'line_manager_approval': 'TO: HOD, CC: Requestor', 
-        'hod_approval': 'TO: Processing Admin, CC: Requestor',
-        'processing': 'TO: Requestor, CC: Processing Admin',
-        'completion': 'TO: Requestor, CC: Processing Admin'
-      }[testType] || 'Workflow notification sent'
+      expectedEmailFlow: (() => {
+        const emailFlows: Record<string, string> = {
+          'submission': 'TO: Department Focal, CC: Requestor',
+          'department_focal_approval': 'TO: Line Manager, CC: Requestor',
+          'line_manager_approval': 'TO: HOD, CC: Requestor', 
+          'hod_approval': 'TO: Processing Admin, CC: Requestor',
+          'processing': 'TO: Requestor, CC: Processing Admin',
+          'completion': 'TO: Requestor, CC: Processing Admin'
+        };
+        return emailFlows[testType] || 'Workflow notification sent';
+      })()
     });
 
   } catch (error: any) {

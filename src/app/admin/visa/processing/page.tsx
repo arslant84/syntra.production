@@ -1,18 +1,17 @@
 "use client";
-
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO, isValid } from "date-fns";
-import { FileCheck, Eye, Search, Upload, CheckCircle, XCircle, Clock, AlertTriangle, FileText, Loader2, Globe } from "lucide-react";
+import { FileCheck, Eye, Search, Upload, CheckCircle, XCircle, Clock, AlertTriangle, FileText, Loader2, Globe as GlobeIcon } from 'lucide-react';
 import { useSessionPermissions } from '@/hooks/use-session-permissions';
 import { StatusBadge } from '@/lib/status-utils';
 import { useToast } from '@/hooks/use-toast';
@@ -83,23 +82,28 @@ const VisaProcessingPage = () => {
   const fetchVisas = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch approved visas (ready for processing) - these are HOD approved applications
-      const approvedResponse = await fetch(`/api/admin/visa?statuses=Processing with Visa Admin`);
-      if (approvedResponse.ok) {
-        const approvedData = await approvedResponse.json();
-        setApprovedVisas(approvedData);
-      }
-      
-      // Fetch processing visas (this will be empty now as we removed the intermediate processing status)
-      // Keep for future use if needed, but set to empty for now
+      const fetchByStatus = async (status: string) => {
+        const response = await fetch(`/api/admin/visa?statuses=${status}`);
+        if (!response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch ${status} visa applications: ${response.status} ${response.statusText}`;
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json().catch(() => null);
+            errorMessage = errorData?.error || errorMessage;
+          }
+          throw new Error(errorMessage);
+        }
+        return await response.json();
+      };
+
+      const [approved, completed] = await Promise.all([
+        fetchByStatus('Processing with Visa Admin'),
+        fetchByStatus('Processed,Rejected'),
+      ]);
+
+      setApprovedVisas(approved);
       setProcessingVisas([]);
-      
-      // Fetch completed visas
-      const completedResponse = await fetch(`/api/admin/visa?statuses=Processed,Rejected`);
-      if (completedResponse.ok) {
-        const completedData = await completedResponse.json();
-        setCompletedVisas(completedData);
-      }
+      setCompletedVisas(completed);
       
     } catch (error) {
       console.error('Error fetching visas:', error);
@@ -136,26 +140,33 @@ const VisaProcessingPage = () => {
     try {
       // Fetch full visa details
       const response = await fetch(`/api/visa/${visa.id}`);
-      if (response.ok) {
-        const visaData = await response.json();
-        console.log('Visa data from API:', visaData);
-        console.log('Visa application:', visaData.visaApplication);
-        console.log('Visa application ID:', visaData.visaApplication?.id);
-        setSelectedVisa(visaData.visaApplication);
-        setProcessingAction('complete'); // Visa admin always completes processing directly
-        
-        // Reset processing details
-        setProcessingDetails({
-          paymentMethod: 'Bank Transfer',
-          applicationFee: 0,
-          processingFee: 0,
-          totalFee: 0,
-          verifiedBy: '',
-          authorizedBy: ''
-        });
-        
-        setIsProcessingDialogOpen(true);
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch visa details: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      const visaData = await response.json();
+      console.log('Visa data from API:', visaData);
+      console.log('Visa application:', visaData.visaApplication);
+      console.log('Visa application ID:', visaData.visaApplication?.id);
+      setSelectedVisa(visaData.visaApplication);
+      setProcessingAction('complete'); // Visa admin always completes processing directly
+      
+      // Reset processing details
+      setProcessingDetails({
+        paymentMethod: 'Bank Transfer',
+        applicationFee: 0,
+        processingFee: 0,
+        totalFee: 0,
+        verifiedBy: '',
+        authorizedBy: ''
+      });
+      
+      setIsProcessingDialogOpen(true);
     } catch (error) {
       toast({
         title: "Error",
@@ -185,21 +196,21 @@ const VisaProcessingPage = () => {
         }),
       });
       
-      if (response.ok) {
-        toast({
-          title: "Success", 
-          description: "Visa processing completed successfully",
-        });
-        setIsProcessingDialogOpen(false);
-        fetchVisas(); // Refresh the data
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to process visa",
-          variant: "destructive",
-        });
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to process visa: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      toast({
+        title: "Success", 
+        description: "Visa processing completed successfully",
+      });
+      setIsProcessingDialogOpen(false);
+      fetchVisas(); // Refresh the data
     } catch (error) {
       toast({
         title: "Error",
@@ -351,7 +362,7 @@ const VisaProcessingPage = () => {
                   <TableCell>{visa.requestorName}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <Globe className="h-4 w-4 text-muted-foreground" />
+                      <GlobeIcon className="h-4 w-4 text-muted-foreground" />
                       {visa.destination}
                     </div>
                   </TableCell>
@@ -671,26 +682,5 @@ const VisaProcessingPage = () => {
   );
 };
 
-// Globe icon component
-function Globe(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <line x1="2" x2="22" y1="12" y2="12" />
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-    </svg>
-  );
-}
 
 export default VisaProcessingPage;

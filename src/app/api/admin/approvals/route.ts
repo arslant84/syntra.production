@@ -184,12 +184,12 @@ export const GET = withAuth(async function(request: NextRequest) {
 
           // Debug accommodation results specifically
           if (type === 'Accommodation') {
-            console.log(`API_ADMIN_APPROVALS_GET: Accommodation results details:`, result.map(r => ({ id: r.id, status: r.status })));
+            console.log(`API_ADMIN_APPROVALS_GET: Accommodation results details:`, result.map((r: any) => ({ id: r.id, status: r.status })));
           }
 
           // Special logging for accommodation requests
           if (type === 'Accommodation' && result.length > 0) {
-            console.log(`API_ADMIN_APPROVALS_GET: First 5 accommodation IDs:`, result.slice(0, 5).map(r => r.id));
+            console.log(`API_ADMIN_APPROVALS_GET: First 5 accommodation IDs:`, result.slice(0, 5).map((r: any) => r.id));
           }
 
           return { type, items: result };
@@ -207,7 +207,7 @@ export const GET = withAuth(async function(request: NextRequest) {
 
         // Special logging for accommodation items being added
         if (result.value.type === 'Accommodation' && result.value.items.length > 0) {
-          console.log(`API_ADMIN_APPROVALS_GET: Adding accommodation IDs:`, result.value.items.slice(0, 5).map(r => r.id));
+          console.log(`API_ADMIN_APPROVALS_GET: Adding accommodation IDs:`, result.value.items.slice(0, 5).map((r: any) => r.id));
           console.log(`API_ADMIN_APPROVALS_GET: Total items before adding accommodation:`, allItems.length);
         }
 

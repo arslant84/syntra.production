@@ -1,28 +1,31 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
-import { requireAuth, createAuthError } from '@/lib/auth-utils';
-import { hasPermission } from '@/lib/permissions';
-import { withAuth, getUserIdentifier } from '@/lib/api-protection';
-import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
-import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-export const GET = withRateLimit(RATE_LIMITS.DASHBOARD)(withAuth(async function(request: NextRequest) {
+export async function GET(request: NextRequest) {
   console.log('DASHBOARD_SUMMARY_API_CALLED: Dashboard summary API endpoint hit');
   try {
-    const session = (request as any).user;
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.email) {
+      console.log('No session found, returning unauthorized');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
     console.log('DASHBOARD_SUMMARY_SESSION: Session data:', session);
-    const userIdentifier = await getUserIdentifier(session);
+    
+    // Create a simple user identifier from session
+    const userIdentifier = {
+      userId: session.user.id || session.user.email,
+      email: session.user.email,
+      staffId: session.user.id
+    };
+    
     console.log('DASHBOARD_SUMMARY_USER_ID: Got user identifier:', userIdentifier);
 
-    // Cache dashboard data per user
-    const cacheKey = userCacheKey(userIdentifier.userId, 'dashboard-summary');
-    const dashboardData = await withCache(
-      cacheKey,
-      async () => {
-        return await fetchDashboardData(userIdentifier, session);
-      },
-      CACHE_TTL.DASHBOARD_STATS
-    );
+    // Fetch dashboard data directly without caching
+    const dashboardData = await fetchDashboardData(userIdentifier, session.user);
 
     return NextResponse.json(dashboardData, {
       headers: {
@@ -36,9 +39,9 @@ export const GET = withRateLimit(RATE_LIMITS.DASHBOARD)(withAuth(async function(
       { status: 500 }
     );
   }
-}));
+}
 
-// Extract dashboard data fetching logic for caching
+// Extract dashboard data fetching logic
 async function fetchDashboardData(userIdentifier: any, session: any) {
     console.log(`Dashboard summary for user ${session.role} (${userIdentifier.userId})`);
     console.log('SUMMARY_DEBUG: User identifier:', userIdentifier);
@@ -52,25 +55,6 @@ async function fetchDashboardData(userIdentifier: any, session: any) {
     
     console.log('SUMMARY_DEBUG: User IDs for query:', userIds);
     console.log('SUMMARY_DEBUG: User email:', userIdentifier.email);
-    
-    // Build user filter conditions for different tables
-    const userFilterCondition = userIds.length > 1 
-      ? `(staff_id = ${userIds[0]} OR staff_id = ${userIds[1]} OR requestor_name ILIKE '%${userIdentifier.email}%')` 
-      : `(staff_id = ${userIds[0]} OR requestor_name ILIKE '%${userIdentifier.email}%')`;
-    
-    // Quick check for ANY data in database (debugging)
-    try {
-      const totalCountsResult = await sql`
-        SELECT 
-          (SELECT COUNT(*) FROM travel_requests) as total_trfs,
-          (SELECT COUNT(*) FROM expense_claims) as total_claims,
-          (SELECT COUNT(*) FROM visa_applications) as total_visas,
-          (SELECT COUNT(*) FROM transport_requests) as total_transport
-      `;
-      console.log('SUMMARY_DEBUG: Database totals:', totalCountsResult[0]);
-    } catch (countError) {
-      console.error('SUMMARY_DEBUG: Error checking database totals:', countError);
-    }
     
     const startTime = performance.now();
     

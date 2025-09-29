@@ -17,16 +17,20 @@ export interface ExternalPartyRequestorInformation {
 }
 
 export interface ItinerarySegment {
-  id?: string; 
-  date: Date | null;
-  day: string; 
+  id?: string;
+  date: string;
+  day: string;
   from: string;
+  from_location?: string;
   to: string;
-  etd: string; 
-  eta: string; 
-  flightNumber: string; 
+  to_location?: string;
+  etd: string;
+  eta: string;
+  flightNumber: string;
   flightClass: string;
   remarks: string;
+  departure_date?: string;
+  arrival_date?: string;
 }
 
 export type TripType = 'One Way' | 'Round Trip';
@@ -189,6 +193,8 @@ export interface TravelRequestForm extends TravelRequestData, ApprovalSubmission
   submittedAt?: Date | string; // Add submittedAt from database
   updatedAt?: Date | string;   // Add updatedAt from database
   flightDetails?: FlightDetails; // Flight processing details from flight admin
+  purpose?: string;
+  requestedDate?: string;
 }
 
 export interface ApprovalStep {

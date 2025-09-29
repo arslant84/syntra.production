@@ -66,7 +66,13 @@ export default function AdminClaimsPage() {
         const response = await fetch('/api/admin/claims');
         
         if (!response.ok) {
-          throw new Error(`Error fetching claims: ${response.statusText}`);
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Error fetching claims: ${response.status} ${response.statusText}`;
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json().catch(() => null);
+            errorMessage = errorData?.error || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
         
         const data = await response.json();
@@ -156,21 +162,21 @@ export default function AdminClaimsPage() {
         }),
       });
 
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: `Claim ${action}ed successfully`,
-        });
-        // Refresh the data
-        window.location.reload();
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.error || `Failed to ${action} claim`,
-          variant: "destructive",
-        });
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to ${action} claim: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      toast({
+        title: "Success",
+        description: `Claim ${action}ed successfully`,
+      });
+      // Refresh the data
+      window.location.reload();
     } catch (error) {
       toast({
         title: "Error",
@@ -212,22 +218,22 @@ export default function AdminClaimsPage() {
         body: JSON.stringify(requestBody),
       });
 
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: "Claim processing completed successfully",
-        });
-        setProcessingDialogOpen(false);
-        // Refresh the data
-        window.location.reload();
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to process claim",
-          variant: "destructive",
-        });
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to process claim: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      toast({
+        title: "Success",
+        description: "Claim processing completed successfully",
+      });
+      setProcessingDialogOpen(false);
+      // Refresh the data
+      window.location.reload();
     } catch (error) {
       toast({
         title: "Error",
@@ -368,7 +374,7 @@ export default function AdminClaimsPage() {
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-40 text-red-500">
               <AlertCircle className="w-12 h-12 mb-3" />
-              <p>Error: {error}</p>
+              <p>{error}</p>
             </div>
           ) : filteredClaims.length > 0 ? (
             <Table>
@@ -501,7 +507,7 @@ export default function AdminClaimsPage() {
               </>
             )}
 
-            {processingAction === 'approve' && (
+            {(processingAction === 'approve' || processingAction === 'reject') && (
               <div className="space-y-2">
                 <Label>Processing Options</Label>
                 <div className="flex gap-2">
@@ -530,8 +536,8 @@ export default function AdminClaimsPage() {
               <Textarea
                 id="processing-comments"
                 placeholder={
-                  processingAction === 'reject' 
-                    ? "Enter reason for rejection" 
+                  processingAction === 'reject'
+                    ? "Enter reason for rejection"
                     : "Enter any additional comments or notes"
                 }
                 value={processingComments}

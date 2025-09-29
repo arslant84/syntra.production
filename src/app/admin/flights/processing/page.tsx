@@ -95,13 +95,18 @@ export default function FlightsProcessingPage() {
       const statusesToFetch = ["Approved"].join(',');
       const response = await fetch(`/api/trf?statuses=${encodeURIComponent(statusesToFetch)}&limit=50`);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || `Failed to fetch TRFs: ${response.status}`);
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch TRFs: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.details || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       const data = await response.json();
       
       // Apply role-based filtering for personal vs admin view using client-side logic
-      const filteredTrfs = (data.trfs || []).filter(trf =>
+      const filteredTrfs = (data.trfs || []).filter((trf: TravelRequestForm) =>
         shouldShowRequest(role, { ...trf, itemType: 'trf' }, userId)
       );
       
@@ -146,55 +151,57 @@ export default function FlightsProcessingPage() {
     try {
       // Fetch only booked flights using the dedicated bookedOnly parameter
       const response = await fetch('/api/admin/flights?limit=200&bookedOnly=true');
-      if (response.ok) {
-        const data = await response.json();
-
-        // All returned TRFs should have flight bookings since we used bookedOnly=true
-        console.log('🔍 Booked Flights API Response:', {
-          totalTrfs: (data.trfs || []).length,
-          sampleTrf: data.trfs?.[0],
-          hasFlightBooking: data.trfs?.[0]?.hasFlightBooking,
-          flightDetails: data.trfs?.[0]?.flightDetails
-        });
-
-        const bookedFlightsData = (data.trfs || [])
-          .filter((trf: any) => {
-            const hasBooking = trf.hasFlightBooking && trf.flightDetails;
-            if (!hasBooking) {
-              console.log(`❌ TSR ${trf.id} filtered out:`, {
-                hasFlightBooking: trf.hasFlightBooking,
-                hasFlightDetails: !!trf.flightDetails,
-                status: trf.status
-              });
-            }
-            return hasBooking;
-          })
-          .map((trf: any) => ({
-            id: trf.flightDetails.id,
-            trfId: trf.id,
-            flightNumber: trf.flightDetails.flightNumber,
-            airline: trf.flightDetails.airline,
-            departureLocation: trf.flightDetails.departureLocation,
-            arrivalLocation: trf.flightDetails.arrivalLocation,
-            departureDate: trf.flightDetails.departureDate,
-            arrivalDate: trf.flightDetails.arrivalDate,
-            bookingReference: trf.flightDetails.bookingReference,
-            status: trf.flightDetails.status,
-            remarks: trf.flightDetails.remarks,
-            requestorName: trf.requestorName,
-            travelType: trf.travelType,
-            department: trf.department
-          }));
-
-        console.log(`✅ Final booked flights count: ${bookedFlightsData.length}`);
-
-        setBookedFlights(bookedFlightsData);
-      } else {
-        console.error('❌ Booked flights API call failed:', {
-          status: response.status,
-          statusText: response.statusText
-        });
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch booked flights: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      const data = await response.json();
+
+      // All returned TRFs should have flight bookings since we used bookedOnly=true
+      console.log('🔍 Booked Flights API Response:', {
+        totalTrfs: (data.trfs || []).length,
+        sampleTrf: data.trfs?.[0],
+        hasFlightBooking: data.trfs?.[0]?.hasFlightBooking,
+        flightDetails: data.trfs?.[0]?.flightDetails
+      });
+
+      const bookedFlightsData = (data.trfs || [])
+        .filter((trf: any) => {
+          const hasBooking = trf.hasFlightBooking && trf.flightDetails;
+          if (!hasBooking) {
+            console.log(`❌ TSR ${trf.id} filtered out:`, {
+              hasFlightBooking: trf.hasFlightBooking,
+              hasFlightDetails: !!trf.flightDetails,
+              status: trf.status
+            });
+          }
+          return hasBooking;
+        })
+        .map((trf: any) => ({
+          id: trf.flightDetails.id,
+          trfId: trf.id,
+          flightNumber: trf.flightDetails.flightNumber,
+          airline: trf.flightDetails.airline,
+          departureLocation: trf.flightDetails.departureLocation,
+          arrivalLocation: trf.flightDetails.arrivalLocation,
+          departureDate: trf.flightDetails.departureDate,
+          arrivalDate: trf.flightDetails.arrivalDate,
+          bookingReference: trf.flightDetails.bookingReference,
+          status: trf.flightDetails.status,
+          remarks: trf.flightDetails.remarks,
+          requestorName: trf.requestorName,
+          travelType: trf.travelType,
+          department: trf.department
+        }));
+
+      console.log(`✅ Final booked flights count: ${bookedFlightsData.length}`);
+
+      setBookedFlights(bookedFlightsData);
     } catch (err: any) {
       console.error('❌ Exception in fetchBookedFlights:', err);
     }
@@ -241,8 +248,13 @@ export default function FlightsProcessingPage() {
         body: JSON.stringify(payload),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to process flight booking.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to process flight booking: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.details || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       const updatedTrf = await response.json();
       toast({
@@ -284,8 +296,13 @@ export default function FlightsProcessingPage() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to cancel request.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to cancel request: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.details || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       
       toast({
@@ -320,8 +337,13 @@ export default function FlightsProcessingPage() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to cancel booking.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to cancel booking: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.details || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       
       toast({
@@ -346,28 +368,36 @@ export default function FlightsProcessingPage() {
       if (trfItem.id) {
         try {
             const res = await fetch(`/api/trf/${trfItem.id}`);
-            if (!res.ok) throw new Error('Failed to fetch full TRF details');
+            if (!res.ok) {
+              const contentType = res.headers.get('content-type') || '';
+              let errorMessage = `Failed to fetch full TRF details: ${res.status} ${res.statusText}`;
+              if (contentType.includes('application/json')) {
+                const errorData = await res.json().catch(() => null);
+                errorMessage = errorData?.error || errorMessage;
+              }
+              throw new Error(errorMessage);
+            }
             const fullTrfData = await res.json();
             const fetchedTrf = fullTrfData.trf as TravelRequestForm;
 
             // Map to AdminTrfListItemForFlights structure for consistency
             let destinationSummary = 'N/A';
             let mainRequestedDate = fetchedTrf.submittedAt; // Fallback
-            let itinerary = undefined;
+            let itinerary: ItinerarySegment[] | undefined = undefined;
             let purpose = 'N/A';
 
             if (fetchedTrf.domesticTravelDetails?.itinerary?.length) {
-                destinationSummary = fetchedTrf.domesticTravelDetails.itinerary.map(s => `${s.from_location || s.from} > ${s.to_location || s.to}`).join(', ');
+                destinationSummary = fetchedTrf.domesticTravelDetails.itinerary.map((s: ItinerarySegment) => `${s.from_location || s.from} > ${s.to_location || s.to}`).join(', ');
                 mainRequestedDate = fetchedTrf.domesticTravelDetails.itinerary[0].date || mainRequestedDate;
                 itinerary = fetchedTrf.domesticTravelDetails.itinerary;
                 purpose = fetchedTrf.domesticTravelDetails.purpose;
             } else if (fetchedTrf.overseasTravelDetails?.itinerary?.length) {
-                destinationSummary = fetchedTrf.overseasTravelDetails.itinerary.map(s => `${s.from_location || s.from} > ${s.to_location || s.to}`).join(', ');
+                destinationSummary = fetchedTrf.overseasTravelDetails.itinerary.map((s: ItinerarySegment) => `${s.from_location || s.from} > ${s.to_location || s.to}`).join(', ');
                 mainRequestedDate = fetchedTrf.overseasTravelDetails.itinerary[0].date || mainRequestedDate;
                 itinerary = fetchedTrf.overseasTravelDetails.itinerary;
                 purpose = fetchedTrf.overseasTravelDetails.purpose;
             } else if (fetchedTrf.externalPartiesTravelDetails?.itinerary?.length) {
-                destinationSummary = fetchedTrf.externalPartiesTravelDetails.itinerary.map(s => `${s.from_location || s.from} > ${s.to_location || s.to}`).join(', ');
+                destinationSummary = fetchedTrf.externalPartiesTravelDetails.itinerary.map((s: ItinerarySegment) => `${s.from_location || s.from} > ${s.to_location || s.to}`).join(', ');
                 mainRequestedDate = fetchedTrf.externalPartiesTravelDetails.itinerary[0].date || mainRequestedDate;
                 itinerary = fetchedTrf.externalPartiesTravelDetails.itinerary;
                 purpose = fetchedTrf.externalPartiesTravelDetails.purpose;
@@ -689,7 +719,7 @@ export default function FlightsProcessingPage() {
                                         </Button>
                                       </PopoverTrigger>
                                       <PopoverContent className="w-auto p-0">
-                                        <Calendar mode="single" selected={departureDate} onSelect={setDepartureDate} initialFocus />
+                                        <Calendar mode="single" selected={departureDate || undefined} onSelect={(day) => setDepartureDate(day || null)} initialFocus />
                                       </PopoverContent>
                                     </Popover>
                                 </div>
@@ -709,13 +739,12 @@ export default function FlightsProcessingPage() {
                                         </Button>
                                       </PopoverTrigger>
                                       <PopoverContent className="w-auto p-0">
-                                        <Calendar mode="single" selected={arrivalDate} onSelect={setArrivalDate} disabled={(date) => departureDate ? date < departureDate : false} initialFocus />
+                                        <Calendar mode="single" selected={arrivalDate || undefined} onSelect={(day) => setArrivalDate(day || null)} initialFocus />
                                       </PopoverContent>
                                     </Popover>
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label htmlFor="arrivalTime">Arrival Time (HH:MM)</Label>
-                                  <Input id="arrivalTime" type="time" step="900" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
                                 </div>
                             </div>
                             <div className="space-y-1.5">

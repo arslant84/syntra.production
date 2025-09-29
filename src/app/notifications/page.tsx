@@ -35,10 +35,17 @@ export default function NotificationsPage() {
       params.append('limit', '100');
       
       const response = await fetch(`/api/notifications?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch notifications: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      const data = await response.json();
+      setNotifications(data.notifications || []);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
@@ -48,11 +55,21 @@ export default function NotificationsPage() {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      await fetch(`/api/notifications/actions`, {
+      const response = await fetch(`/api/notifications/actions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'mark_read', notificationIds: [notificationId] })
       });
+
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to mark notification as read: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
       
       // Update local state
       setNotifications(prev => 
@@ -65,11 +82,21 @@ export default function NotificationsPage() {
 
   const deleteNotification = async (notificationId: string) => {
     try {
-      await fetch(`/api/notifications/actions`, {
+      const response = await fetch(`/api/notifications/actions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'dismiss', notificationIds: [notificationId] })
       });
+
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete notification: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
       
       // Remove from local state
       setNotifications(prev => prev.filter(n => n.id !== notificationId));

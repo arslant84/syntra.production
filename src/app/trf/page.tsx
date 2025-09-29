@@ -32,7 +32,7 @@ type SortConfig = {
 const ALL_STATUSES_VALUE = "__ALL_STATUSES__";
 const ALL_TRAVEL_TYPES_VALUE = "__ALL_TRAVEL_TYPES__";
 
-const trfStatusesList: TrfStatus[] = ["Draft", "Pending Department Focal", "Pending Line Manager", "Pending HOD", "Approved", "Rejected", "Cancelled", "Processing Flights", "Processing Accommodation", "Awaiting Visa", "TSR Processed"];
+const trfStatusesList: TrfStatus[] = ["Draft", "Pending Department Focal", "Pending Line Manager", "Pending HOD", "Approved", "Rejected", "Cancelled", "Processing Flights", "Processing Accommodation", "Awaiting Visa", "TRF Processed"];
 const travelTypesList: Exclude<TravelType, "">[] = ["Domestic", "Overseas", "Home Leave Passage", "External Parties"];
 
 export default function TSRPage() {
@@ -73,11 +73,21 @@ export default function TSRPage() {
       console.log(`TSRPage: Fetching TSRs with params: ${params.toString()}`);
       const response = await fetch(`/api/trf?${params.toString()}`);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ details: "Failed to parse error response." }));
-        let errorMessage = errorData.details || errorData.error || `Failed to fetch TSRs. Server responded with status ${response.status}.`;
-        if (typeof errorData.details === 'object') {
-            errorMessage = Object.values(errorData.details).flat().join(' ');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch TSRs: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorData?.details || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch TSRs: ${response.status}`;
         }
+        
         throw new Error(errorMessage);
       }
       const data = await response.json();
@@ -330,5 +340,3 @@ export default function TSRPage() {
     </div>
   );
 }
-
-    

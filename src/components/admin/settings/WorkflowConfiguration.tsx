@@ -106,7 +106,15 @@ export default function WorkflowConfiguration() {
     try {
       setIsLoading(true);
       const response = await fetch('/api/admin/workflows');
-      if (!response.ok) throw new Error('Failed to fetch workflows');
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch workflows: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
       
       const result = await response.json();
       console.log('Fetched workflows:', result);
@@ -223,7 +231,15 @@ export default function WorkflowConfiguration() {
         });
       }
 
-      if (!response.ok) throw new Error('Failed to save step');
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to save step: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
 
       toast({
         title: 'Success',
@@ -278,7 +294,15 @@ export default function WorkflowConfiguration() {
         })
       });
 
-      if (!response.ok) throw new Error('Failed to delete step');
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete step: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
 
       toast({
         title: 'Success',

@@ -33,15 +33,31 @@ export function useNotifications(): UseNotificationsReturn {
   const refreshCounts = useCallback(async () => {
     try {
       const response = await fetch('/api/notifications/counts');
-      if (response.ok) {
-        const countsData = await response.json();
-        setCounts(countsData);
-      } else if (response.status === 403 || response.status === 401) {
-        // User doesn't have permission or not authenticated - silently handle
-        setCounts({ total: 0, unread: 0, pendingActions: 0, approvalRequests: 0, statusUpdates: 0 });
-      } else {
-        console.warn(`Notification counts API returned ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 403 || response.status === 401) {
+          // User doesn't have permission or not authenticated - silently handle
+          setCounts({ total: 0, unread: 0, pendingActions: 0, approvalRequests: 0, statusUpdates: 0 });
+          return;
+        }
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch notification counts: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch notification counts: ${response.status}`;
+        }
+        
+        throw new Error(errorMessage);
       }
+      const countsData = await response.json();
+      setCounts(countsData);
     } catch (err) {
       // Silently handle network errors to avoid console spam
       setCounts({ total: 0, unread: 0, pendingActions: 0, approvalRequests: 0, statusUpdates: 0 });
@@ -60,16 +76,22 @@ export function useNotifications(): UseNotificationsReturn {
       
       const response = await fetch(`/api/notifications?${params}`);
       
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
-      } else if (response.status === 403) {
-        // User doesn't have permission - silently handle
-        setNotifications([]);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to fetch notifications');
+      if (!response.ok) {
+        if (response.status === 403) {
+          // User doesn't have permission - silently handle
+          setNotifications([]);
+          return;
+        }
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch notifications: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      const data = await response.json();
+      setNotifications(data.notifications || []);
     } catch (err) {
       setError('Network error fetching notifications');
       console.error('Error fetching notifications:', err);
@@ -87,15 +109,22 @@ export function useNotifications(): UseNotificationsReturn {
         body: JSON.stringify({ action: 'mark_read', notificationId })
       });
 
-      if (response.ok) {
-        // Update local state
-        setNotifications(prev => 
-          prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
-        );
-        
-        // Refresh counts
-        await refreshCounts();
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to mark notification as read: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      // Update local state
+      setNotifications(prev => 
+        prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
+      );
+      
+      // Refresh counts
+      await refreshCounts();
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }
@@ -110,13 +139,20 @@ export function useNotifications(): UseNotificationsReturn {
         body: JSON.stringify({ action: 'mark_all_read' })
       });
 
-      if (response.ok) {
-        // Update local state
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-        
-        // Refresh counts
-        await refreshCounts();
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to mark all notifications as read: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      // Update local state
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      
+      // Refresh counts
+      await refreshCounts();
     } catch (err) {
       console.error('Error marking all notifications as read:', err);
     }
@@ -131,13 +167,20 @@ export function useNotifications(): UseNotificationsReturn {
         body: JSON.stringify({ action: 'dismiss', notificationId })
       });
 
-      if (response.ok) {
-        // Remove from local state
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
-        
-        // Refresh counts
-        await refreshCounts();
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to dismiss notification: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      // Remove from local state
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      
+      // Refresh counts
+      await refreshCounts();
     } catch (err) {
       console.error('Error dismissing notification:', err);
     }

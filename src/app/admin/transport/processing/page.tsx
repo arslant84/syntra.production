@@ -91,53 +91,37 @@ export default function TransportProcessingPage() {
     setIsLoading(true);
     setError(null);
     try {
-      // Fetch approved requests (ready for transport admin processing)
-      const approvedResponse = await fetch(`/api/admin/transport?statuses=Approved&fullDetails=true&limit=50`);
-      if (approvedResponse.ok) {
-        const approvedData = await approvedResponse.json();
-        console.log('Approved transport data:', approvedData);
-        const dataArray = Array.isArray(approvedData) ? approvedData : (approvedData.data || []);
-        const filteredApproved = dataArray.filter(req =>
+      const fetchByStatus = async (status: string) => {
+        const response = await fetch(`/api/admin/transport?statuses=${status}&fullDetails=true&limit=50`);
+        if (!response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch ${status} transport requests: ${response.status} ${response.statusText}`;
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json().catch(() => null);
+            errorMessage = errorData?.error || errorMessage;
+          }
+          throw new Error(errorMessage);
+        }
+        const data = await response.json();
+        const dataArray = Array.isArray(data) ? data : (data.data || []);
+        return dataArray.filter((req: any) =>
           shouldShowRequest(role, { ...req, itemType: 'transport' }, userId)
-        ).map(req => ({
-          ...req,
-          transportDetails: req.transportDetails || []
-        }));
-        setApprovedTransportRequests(filteredApproved);
-      }
-
-      // Fetch processing requests
-      const processingResponse = await fetch(`/api/admin/transport?statuses=Processing with Transport Admin&fullDetails=true&limit=50`);
-      if (processingResponse.ok) {
-        const processingData = await processingResponse.json();
-        console.log('Processing transport data:', processingData);
-        const dataArray = Array.isArray(processingData) ? processingData : (processingData.data || []);
-        const filteredProcessing = dataArray.filter(req =>
-          shouldShowRequest(role, { ...req, itemType: 'transport' }, userId)
-        ).map(req => ({
-          ...req,
-          transportDetails: req.transportDetails || []
-        }));
-        setProcessingTransportRequests(filteredProcessing);
-      }
-
-      // Fetch completed requests
-      const completedResponse = await fetch(`/api/admin/transport?statuses=Completed&fullDetails=true&limit=50`);
-      if (completedResponse.ok) {
-        const completedData = await completedResponse.json();
-        console.log('Completed transport data:', completedData);
-        console.log('First completed request booking details:', completedData[0]?.bookingDetails);
-        const dataArray = Array.isArray(completedData) ? completedData : (completedData.data || []);
-        const filteredCompleted = dataArray.filter(req =>
-          shouldShowRequest(role, { ...req, itemType: 'transport' }, userId)
-        ).map(req => ({
+        ).map((req: any) => ({
           ...req,
           transportDetails: req.transportDetails || [],
           bookingDetails: req.bookingDetails || null
         }));
-        console.log('Filtered completed requests:', filteredCompleted);
-        setCompletedTransportRequests(filteredCompleted);
-      }
+      };
+
+      const [approved, processing, completed] = await Promise.all([
+        fetchByStatus('Approved'),
+        fetchByStatus('Processing with Transport Admin'),
+        fetchByStatus('Completed'),
+      ]);
+
+      setApprovedTransportRequests(approved);
+      setProcessingTransportRequests(processing);
+      setCompletedTransportRequests(completed);
 
     } catch (err: any) {
       console.error('Error fetching transport requests:', err);
@@ -175,8 +159,13 @@ export default function TransportProcessingPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to start processing');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to start processing: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       toast({
@@ -228,8 +217,13 @@ export default function TransportProcessingPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to complete processing');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to complete processing: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       toast({

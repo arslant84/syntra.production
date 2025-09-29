@@ -31,7 +31,7 @@ type SortConfig = {
 
 const ALL_STATUSES_VALUE = "__ALL_STATUSES__";
 
-const transportStatusesList: TransportRequestStatus[] = ["Draft", "Pending Department Focal", "Pending Line Manager", "Pending HOD", "Approved", "Rejected", "Cancelled", "Processing", "Completed"];
+const transportStatusesList: TransportRequestStatus[] = ["Draft", "Pending Department Focal", "Pending Line Manager", "Pending HOD", "Approved", "Rejected", "Cancelled", "Processing with Transport Admin", "Completed"];
 
 export default function TransportRequestsPage() {
   const [transportRequests, setTransportRequests] = useState<TransportListItem[]>([]);
@@ -66,23 +66,21 @@ export default function TransportRequestsPage() {
       console.log(`TransportRequestsPage: Fetching transport requests with params: ${params.toString()}`);
       const response = await fetch(`/api/transport?${params.toString()}`);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ details: "Failed to parse error response." }));
-        let errorMessage = "Failed to fetch transport requests.";
-        if (errorData.details) {
-            if (typeof errorData.details === 'object' && errorData.details !== null) {
-                try {
-                    errorMessage = Object.values(errorData.details).flat().join(' ');
-                } catch (e) {
-                    errorMessage = JSON.stringify(errorData.details);
-                }
-            } else {
-                errorMessage = String(errorData.details);
-            }
-        } else if (errorData.error) {
-            errorMessage = String(errorData.error);
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch transport requests: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorData?.details || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
         } else {
-            errorMessage = `Failed to fetch transport requests. Server responded with status ${response.status}.`;
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch transport requests: ${response.status}`;
         }
+        
         throw new Error(errorMessage);
       }
       const data = await response.json();
@@ -104,6 +102,7 @@ export default function TransportRequestsPage() {
       }
     } catch (err: any) {
       console.error("TransportRequestsPage: Error fetching transport requests:", err);
+      // Cache-busting comment: Force browser to recognize updated error handling
       setError(err.message);
       setTransportRequests([]);
       setTotalRequests(0);

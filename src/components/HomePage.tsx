@@ -62,113 +62,82 @@ export default function HomePageContent() {
   const [error, setError] = useState('');
 
   const fetchDashboardData = async () => {
-    // Prevent multiple concurrent requests
     if (isFetching) {
       console.log('⏸️ Skipping fetch - already fetching');
       return;
     }
     
-    console.log('🚀 Starting fetchDashboardData...');
     setIsLoading(true);
     setIsFetching(true);
     setError('');
     
     try {
-      console.log('🔄 Fetching dashboard data...');
       const startTime = performance.now();
-      
+      console.log('🚀 Fetching dashboard data...');
+
       const [summaryResponse, activitiesResponse] = await Promise.all([
-        fetch('/api/dashboard/summary', {
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }),
-        fetch('/api/dashboard/activities', {
-          credentials: 'include', 
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        })
+        fetch('/api/dashboard/summary'),
+        fetch('/api/dashboard/activities')
       ]);
 
-      console.log('📊 Summary response status:', summaryResponse.status);
-      console.log('📊 Summary response URL:', summaryResponse.url);
-      console.log('📋 Activities response status:', activitiesResponse.status);
-      console.log('📋 Activities response URL:', activitiesResponse.url);
-
-      // Handle authentication redirects more accurately
-      const summaryText = summaryResponse.ok ? null : await summaryResponse.text();
-      const activitiesText = activitiesResponse.ok ? null : await activitiesResponse.text();
-      
-      if (summaryResponse.status === 401 || (summaryText && summaryText.includes('login'))) {
-        console.log('Summary API requires authentication, redirecting...');
-        window.location.href = '/login';
-        return;
-      }
-      if (activitiesResponse.status === 401 || (activitiesText && activitiesText.includes('login'))) {
-        console.log('Activities API requires authentication, redirecting...');
-        window.location.href = '/login';
-        return;
-      }
-
+      // Check summary response
       if (!summaryResponse.ok) {
-        console.error('Summary API error:', summaryText || `Status: ${summaryResponse.status}`);
-        throw new Error(`Failed to fetch summary data: ${summaryResponse.status}`);
+        const contentType = summaryResponse.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch summary data: ${summaryResponse.status} ${summaryResponse.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await summaryResponse.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch summary data: ${summaryResponse.status}`;
+        }
+        
+        throw new Error(errorMessage);
       }
+
+      // Check activities response
       if (!activitiesResponse.ok) {
-        console.error('Activities API error:', activitiesText || `Status: ${activitiesResponse.status}`);
-        throw new Error(`Failed to fetch activities: ${activitiesResponse.status}`);
+        const contentType = activitiesResponse.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch activities: ${activitiesResponse.status} ${activitiesResponse.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await activitiesResponse.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch activities: ${activitiesResponse.status}`;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const [summaryData, activitiesData] = await Promise.all([
         summaryResponse.json(),
-        activitiesResponse.json()
+        activitiesResponse.json(),
       ]);
 
       const endTime = performance.now();
       console.log(`✅ Dashboard data loaded in ${Math.round(endTime - startTime)}ms`);
-      console.log('📊 Raw Summary data:', JSON.stringify(summaryData, null, 2));
-      console.log('📋 Raw Activities data:', JSON.stringify(activitiesData, null, 2));
-      console.log('📋 Activities count:', activitiesData?.length || 0);
 
-      // Ensure activitiesData is an array
-      const safeActivitiesData = Array.isArray(activitiesData) ? activitiesData : [];
-      
-      const transformedActivities = safeActivitiesData.map((activity: ActivityItem) => ({
-        ...activity,
-        title: activity.title?.replace(/TRF/g, 'TSR') || 'Unknown Activity',
-        type: activity.type?.replace(/TRF/g, 'TSR') || 'Unknown Type',
-      }));
+      const safeActivities = Array.isArray(activitiesData) ? activitiesData : (activitiesData.activities || []);
 
-      // Ensure summary data has proper structure
-      const safeSummaryData = {
-        pendingTsrs: parseInt(summaryData?.pendingTsrs?.toString() || '0') || 0,
-        visaUpdates: parseInt(summaryData?.visaUpdates?.toString() || '0') || 0,
-        draftClaims: parseInt(summaryData?.draftClaims?.toString() || '0') || 0,
-        pendingAccommodation: parseInt(summaryData?.pendingAccommodation?.toString() || '0') || 0,
-        pendingTransport: parseInt(summaryData?.pendingTransport?.toString() || '0') || 0,
-      };
-
-      console.log('✅ Final summary data:', safeSummaryData);
-      console.log('✅ Final activities count:', transformedActivities.length);
-
-      setSummary(safeSummaryData);
-      setActivities(transformedActivities);
-      setFilteredActivities(transformedActivities);
-      
-      // Debug why we might have no activities
-      if (transformedActivities.length === 0) {
-        console.log('📋 No activities returned from API - check API logs and database');
-        console.log('📋 This could mean:');
-        console.log('📋 1. User has no data in database');
-        console.log('📋 2. User authentication/identification issue');
-        console.log('📋 3. Database query not matching user correctly');
-        console.log('📋 4. API returning empty but should have data');
-      }
-    } catch (err: any) {
-      console.error('❌ Error fetching dashboard data:', err);
-      setError(`Failed to load dashboard data: ${err.message}`);
+      setSummary(summaryData);
+      setActivities(safeActivities);
+      setError('');
+    } catch (error: any) {
+      console.error('❌ Error fetching dashboard data:', error.message);
+      setError(error.message || 'An unexpected error occurred.');
+      setSummary({ pendingTsrs: 0, visaUpdates: 0, draftClaims: 0, pendingAccommodation: 0, pendingTransport: 0 });
+      setActivities([]);
     } finally {
       setIsLoading(false);
       setIsFetching(false);

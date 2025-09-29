@@ -102,23 +102,25 @@ const AccommodationProcessingPage = () => {
           response = await fetch(url);
           console.log('TRF endpoint response status:', response.status);
         }
-      } catch (fetchError) {
+      } catch (fetchError: unknown) {
         console.error('Fetch attempt failed:', fetchError);
-        throw new Error(`Network error: ${fetchError.message}`);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Unknown error';
+        throw new Error(`Network error: ${errorMessage}`);
       }
       
       // Response is already set above
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('TRF fetch error response:', errorText);
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText };
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch TRFs: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.details || errorMessage;
+        } else {
+          const text = await response.text().catch(() => null);
+          if (text) errorMessage = text;
         }
-        throw new Error(errorData.error || errorData.details || `Failed to fetch TRFs: ${response.status}`);
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -151,7 +153,7 @@ const AccommodationProcessingPage = () => {
       if (requests.length > 0) {
         console.log('First request sample:', requests[0]);
       console.log('All requests full details:');
-      requests.forEach((req, index) => {
+      requests.forEach((req: any, index: number) => {
         console.log(`Request ${index + 1}:`, {
           id: req.id,
           status: req.status,
@@ -219,7 +221,7 @@ const AccommodationProcessingPage = () => {
       console.log('Filtered TRFs needing accommodation:', trfsWithAccommodationNeeds.length);
       
       // Separate pending vs assigned requests
-      console.log('All filtered requests before status separation:', trfsWithAccommodationNeeds.map(item => ({
+      console.log('All filtered requests before status separation:', trfsWithAccommodationNeeds.map((item: any) => ({
         id: item.id,
         status: item.status,
         statusType: typeof item.status
@@ -237,8 +239,8 @@ const AccommodationProcessingPage = () => {
       });
       
       console.log('Pending requests:', pendingRequests.length, 'Assigned requests:', assignedRequests.length);
-      console.log('Pending request IDs:', pendingRequests.map(r => r.id));
-      console.log('Assigned request IDs:', assignedRequests.map(r => r.id));
+      console.log('Pending request IDs:', pendingRequests.map((r: any) => r.id));
+      console.log('Assigned request IDs:', assignedRequests.map((r: any) => r.id));
       setPendingAccommodationTRFs(pendingRequests);
       
       // Update booked accommodations with assigned requests
@@ -255,13 +257,12 @@ const AccommodationProcessingPage = () => {
   const fetchStaffHouses = useCallback(async () => {
     try {
       const response = await fetch('/api/accommodation?dataType=staffHouses');
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Staff houses data:', data);
-        setStaffHouses(data.staffHouses || []);
-      } else {
-        console.error('Failed to fetch staff houses:', response.status);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch staff houses: ${response.status}`);
       }
+      const data = await response.json();
+      console.log('Staff houses data:', data);
+      setStaffHouses(data.staffHouses || []);
     } catch (error) {
       console.error('Error fetching staff houses:', error);
     }
@@ -271,13 +272,12 @@ const AccommodationProcessingPage = () => {
   const fetchBookings = useCallback(async () => {
     try {
       const response = await fetch(`/api/accommodation?dataType=bookings&year=${currentMonth.getFullYear()}&month=${currentMonth.getMonth() + 1}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Bookings data:', data);
-        setBookings(data.bookings || []);
-      } else {
-        console.error('Failed to fetch bookings:', response.status);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch bookings: ${response.status}`);
       }
+      const data = await response.json();
+      console.log('Bookings data:', data);
+      setBookings(data.bookings || []);
     } catch (error) {
       console.error('Error fetching bookings:', error);
     }
@@ -290,28 +290,20 @@ const AccommodationProcessingPage = () => {
       // - Ad-hoc accommodations with "Accommodation Assigned" status
       // - TSR accommodations with "TRF Processed" status
       const response = await fetch('/api/admin/accommodation?statuses=Accommodation Assigned,TRF Processed&processing=true');
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Booked accommodations API response:', data);
-        
-        let bookedData = Array.isArray(data) ? data : data.requests || [];
-        
-        // Filter to only include requests that have actual booking records (booking_count > 0)
-        // This ensures we only show truly "booked" accommodations, not just status changes
-        console.log('Raw booked data before filtering:', bookedData);
-        
-        // Note: The accommodation service should ideally filter this, but we can add client-side verification
-        setBookedAccommodations(bookedData);
-      } else {
-        console.error('Failed to fetch booked accommodations:', response.status, response.statusText);
-        // Try to get error details
-        try {
-          const errorData = await response.json();
-          console.error('Booked accommodations API error details:', errorData);
-        } catch (parseError) {
-          console.error('Could not parse error response');
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch booked accommodations: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
         }
+        throw new Error(errorMessage);
       }
+      const data = await response.json();
+      console.log('Booked accommodations API response:', data);
+      let bookedData = Array.isArray(data) ? data : data.requests || [];
+      console.log('Raw booked data before filtering:', bookedData);
+      setBookedAccommodations(bookedData);
     } catch (error) {
       console.error('Error fetching booked accommodations:', error);
     }
@@ -442,22 +434,23 @@ const AccommodationProcessingPage = () => {
         body: JSON.stringify({ trfId: accommodationId }),
       });
 
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: "Accommodation booking cancelled successfully",
-        });
-        // Refresh data
-        fetchBookedAccommodations();
-        fetchBookings();
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to cancel accommodation",
-          variant: "destructive",
-        });
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to cancel accommodation: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+
+      toast({
+        title: "Success",
+        description: "Accommodation booking cancelled successfully",
+      });
+      // Refresh data
+      fetchBookedAccommodations();
+      fetchBookings();
     } catch (error) {
       toast({
         title: "Error",
@@ -543,21 +536,26 @@ const AccommodationProcessingPage = () => {
         fetchBookings();
       } else {
         console.log('Response not ok, status:', response.status);
-        const contentType = response.headers.get('content-type');
+        const contentType = response.headers.get('content-type') || '';
         console.log('Content type:', contentType);
         
-        let error;
-        try {
-          if (contentType && contentType.includes('application/json')) {
-            error = await response.json();
-          } else {
-            const textResponse = await response.text();
-            console.log('Non-JSON response:', textResponse);
-            error = { error: textResponse || 'Unknown error occurred' };
+        let errorMessage = `Failed to assign accommodation: ${response.status} ${response.statusText}`;
+        let error = { error: errorMessage };
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+            error = { error: errorMessage };
+          } catch {
+            // If JSON parsing fails, use the default error message
+            console.log('Failed to parse JSON error response, using default message');
           }
-        } catch (parseError) {
-          console.error('Error parsing response:', parseError);
-          error = { error: `Failed to parse error response (Status: ${response.status})` };
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to assign accommodation: ${response.status}`;
+          error = { error: errorMessage };
+          console.log('Non-JSON response received, using status-based error message');
         }
         
         console.error('Assignment error:', error);
@@ -575,7 +573,7 @@ const AccommodationProcessingPage = () => {
         } else {
           toast({
             title: "Error",
-            description: error.error || error.details || "Failed to assign accommodation",
+            description: error.error || "Failed to assign accommodation",
             variant: "destructive",
           });
         }

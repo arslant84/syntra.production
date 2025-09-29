@@ -118,7 +118,7 @@ export default function AccommodationRequestsPage() {
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-64 text-red-500">
-              <p>Error: {error}</p>
+              <p>{error}</p>
             </div>
           ) : filteredRequests.length > 0 ? (
             <div className="overflow-x-auto">

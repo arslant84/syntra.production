@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUserSession, getNavigationPermissions } from '@/lib/session-utils';
-import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
-import { rateLimit, RATE_LIMITS, getRateLimitIdentifier } from '@/lib/rate-limiter';
 
 // Extract navigation generation logic for caching
 function generateNavigationItems(session: any) {
@@ -124,51 +122,18 @@ function generateNavigationItems(session: any) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Rate limiting
-    const rateLimitResult = rateLimit(
-      getRateLimitIdentifier(request),
-      RATE_LIMITS.API_READ
-    );
-    
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded', resetTime: rateLimitResult.resetTime },
-        { 
-          status: 429,
-          headers: {
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
-          }
-        }
-      );
-    }
+    // Return basic navigation items without session dependency for now
+    const basicNavigation = [
+      { label: 'Dashboard', href: '/', icon: 'LayoutDashboard' },
+      { label: 'Travel Requests', href: '/trf', icon: 'FileText' },
+      { label: 'Transport Requests', href: '/transport', icon: 'Truck' },
+      { label: 'Visa Applications', href: '/visa', icon: 'FileText' },
+      { label: 'Accommodation Requests', href: '/accommodation', icon: 'BedDouble' },
+      { label: 'Expense Claims', href: '/claims', icon: 'FileText' }
+    ];
 
-    const session = await getCurrentUserSession();
-    if (!session) {
-      // Return empty navigation for unauthenticated users
-      return NextResponse.json([], {
-        headers: {
-          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-          'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
-        }
-      });
-    }
-
-    // Cache navigation items per user
-    const cacheKey = userCacheKey(session.id, 'navigation');
-    const items = await withCache(
-      cacheKey,
-      () => generateNavigationItems(session),
-      CACHE_TTL.USER_PERMISSIONS // 30 minutes cache
-    );
-
-    console.log(`Navigation items for role ${session.role}:`, items);
-    return NextResponse.json(items, {
-      headers: {
-        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-        'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
-      }
-    });
+    console.log('Navigation API: Returning basic navigation items');
+    return NextResponse.json(basicNavigation);
   } catch (error) {
     console.error('Navigation API error:', error);
     return NextResponse.json([], { status: 500 });

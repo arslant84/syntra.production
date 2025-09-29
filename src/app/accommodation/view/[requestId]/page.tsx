@@ -3,7 +3,7 @@
 import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import AccommodationRequestDetailsView from '@/components/accommodation/AccommodationRequestDetailsView';
-import type { AccommodationRequestDetails, BookingStatus } from '@/types/accommodation';
+import type { AccommodationRequestDetails, AccommodationRequestStatus } from '@/types/accommodation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -11,10 +11,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertTriangle, ArrowLeft, Bed, Edit, Ban, Printer, Trash2, UserCheck, UserX } from 'lucide-react';
 
 
-const EDITABLE_STATUSES: BookingStatus[] = ["Pending Department Focal", "Rejected", "Draft", "Pending Assignment"];
-const CANCELLABLE_STATUSES: BookingStatus[] = ["Pending Department Focal", "Pending Line Manager", "Pending HOD", "Pending Assignment"];
-const DELETABLE_STATUSES: BookingStatus[] = ["Pending Department Focal", "Rejected", "Draft", "Pending Assignment"];
-const TERMINAL_STATUSES: BookingStatus[] = ["Approved", "Cancelled", "Processing", "Completed", "Confirmed", "Blocked"];
+const EDITABLE_STATUSES: AccommodationRequestStatus[] = ["Pending Department Focal", "Rejected", "Draft", "Pending Assignment"];
+const CANCELLABLE_STATUSES: AccommodationRequestStatus[] = ["Pending Department Focal", "Pending Line Manager", "Pending HOD", "Pending Assignment"];
+const DELETABLE_STATUSES: AccommodationRequestStatus[] = ["Pending Department Focal", "Rejected", "Draft", "Pending Assignment"];
+const TERMINAL_STATUSES: AccommodationRequestStatus[] = ["Approved", "Cancelled", "Processing", "Completed", "Confirmed", "Blocked"];
 
 export default function ViewAccommodationRequestPage() {
   const params = useParams();
@@ -36,10 +36,15 @@ export default function ViewAccommodationRequestPage() {
         const response = await fetch(`/api/accommodation/requests/${requestId}`);
         
         if (!response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch accommodation request details: ${response.status} ${response.statusText}`;
           if (response.status === 404) {
-            throw new Error(`Accommodation Request with ID ${requestId} not found.`);
+            errorMessage = `Accommodation Request with ID ${requestId} not found.`;
+          } else if (contentType.includes('application/json')) {
+            const errorData = await response.json().catch(() => null);
+            errorMessage = errorData?.error || errorMessage;
           }
-          throw new Error('Failed to fetch accommodation request details');
+          throw new Error(errorMessage);
         }
         
         const data = await response.json();
@@ -67,10 +72,15 @@ export default function ViewAccommodationRequestPage() {
         body: JSON.stringify({ action: 'cancel' }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to cancel accommodation request.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to cancel accommodation request: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
-      setRequestData({ ...requestData, status: "Cancelled" });
+      setRequestData({ ...requestData, status: "Cancelled" as AccommodationRequestStatus });
       toast({ title: "Accommodation Request Cancelled", description: `Accommodation request ID ${requestId} has been cancelled.` });
     } catch (err: any) {
       toast({ title: "Error Cancelling Request", description: err.message, variant: "destructive" });
@@ -87,8 +97,13 @@ export default function ViewAccommodationRequestPage() {
         method: 'DELETE',
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to delete accommodation request.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete accommodation request: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       toast({ title: "Accommodation Request Deleted", description: `Accommodation request ID ${requestId} has been permanently deleted.` });
       router.push("/accommodation");
@@ -113,12 +128,17 @@ export default function ViewAccommodationRequestPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to ${action === 'checkin' ? 'check in' : 'check out'} guest.`);
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to ${action === 'checkin' ? 'check in' : 'check out'} guest: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
-      setRequestData({ ...requestData, status: result.newStatus });
+      setRequestData({ ...requestData, status: result.newStatus as AccommodationRequestStatus });
       toast({
         title: action === 'checkin' ? "Guest Checked In" : "Guest Checked Out",
         description: `Guest has been successfully ${action === 'checkin' ? 'checked in' : 'checked out'}.`

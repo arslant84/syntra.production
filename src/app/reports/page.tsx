@@ -223,7 +223,13 @@ export default function ReportsPage() {
         
         const response = await fetch(url);
         if (!response.ok) {
-          throw new Error(`Failed to fetch TSR status data: ${response.status} ${response.statusText}`);
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch TSR status data: ${response.status} ${response.statusText}`;
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json().catch(() => null);
+            errorMessage = errorData?.error || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
         const data = await response.json();
         if (data.statusByMonth && Array.isArray(data.statusByMonth)) {
@@ -307,16 +313,29 @@ export default function ReportsPage() {
         
         const response = await fetch(url);
         
-        // Always try to parse the response, even if status is not OK
-        const data = await response.json();
+        if (!response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch expense claim data: ${response.status} ${response.statusText}`;
+          
+          if (contentType.includes('application/json')) {
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData?.error || errorData?.details || errorMessage;
+            } catch {
+              // If JSON parsing fails, use the default error message
+            }
+          } else {
+            // For non-JSON responses (like HTML 503 pages), use status text
+            errorMessage = `Failed to fetch expense claim data: ${response.status}`;
+          }
+          
+          throw new Error(errorMessage);
+        }
         
+        const data = await response.json();
         if (data.statusByMonth && Array.isArray(data.statusByMonth)) {
           console.log('Received expense claim data:', data.statusByMonth);
           setExpenseClaimData(data.statusByMonth);
-        } else if (data.error) {
-          // API returned an error message
-          console.warn('API returned error:', data.error, data.details || '');
-          throw new Error(data.error);
         } else {
           // Unexpected data format
           console.warn('Unexpected data format from API:', data);
@@ -365,7 +384,22 @@ export default function ReportsPage() {
         const response = await fetch(url);
         
         if (!response.ok) {
-          throw new Error(`Failed to fetch accommodation data: ${response.status} ${response.statusText}`);
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch accommodation data: ${response.status} ${response.statusText}`;
+          
+          if (contentType.includes('application/json')) {
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData?.error || errorMessage;
+            } catch {
+              // If JSON parsing fails, use the default error message
+            }
+          } else {
+            // For non-JSON responses (like HTML 503 pages), use status text
+            errorMessage = `Failed to fetch accommodation data: ${response.status}`;
+          }
+          
+          throw new Error(errorMessage);
         }
         
         const data = await response.json();
@@ -417,9 +451,26 @@ export default function ReportsPage() {
         
         const response = await fetch(url);
         
-        // Always try to parse the response, even if status is not OK
-        const data = await response.json();
+        if (!response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch visa data: ${response.status} ${response.statusText}`;
+          
+          if (contentType.includes('application/json')) {
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData?.error || errorData?.message || errorMessage;
+            } catch {
+              // If JSON parsing fails, use the default error message
+            }
+          } else {
+            // For non-JSON responses (like HTML 503 pages), use status text
+            errorMessage = `Failed to fetch visa data: ${response.status}`;
+          }
+          
+          throw new Error(errorMessage);
+        }
         
+        const data = await response.json();
         if (data.statusByMonth && Array.isArray(data.statusByMonth)) {
           console.log('Received visa data:', data.statusByMonth);
           setVisaData(data.statusByMonth.map((item: any) => ({
@@ -428,10 +479,6 @@ export default function ReportsPage() {
             approved: item.approved || 0,
             rejected: item.rejected || 0,
           })));
-        } else if (data.error) {
-          // API returned an error message
-          console.warn('Visa API returned error:', data.error, data.details || '');
-          throw new Error(data.error);
         } else {
           // Unexpected data format
           console.warn('Unexpected data format from Visa API:', data);
@@ -480,9 +527,26 @@ export default function ReportsPage() {
         
         const response = await fetch(url);
         
-        // Always try to parse the response, even if status is not OK
-        const data = await response.json();
+        if (!response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch transport data: ${response.status} ${response.statusText}`;
+          
+          if (contentType.includes('application/json')) {
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData?.error || errorData?.message || errorMessage;
+            } catch {
+              // If JSON parsing fails, use the default error message
+            }
+          } else {
+            // For non-JSON responses (like HTML 503 pages), use status text
+            errorMessage = `Failed to fetch transport data: ${response.status}`;
+          }
+          
+          throw new Error(errorMessage);
+        }
         
+        const data = await response.json();
         if (data.statusByMonth && Array.isArray(data.statusByMonth)) {
           console.log('Received transport data:', data.statusByMonth);
           setTransportData(data.statusByMonth.map((item: any) => ({
@@ -491,10 +555,6 @@ export default function ReportsPage() {
             approved: item.approved || 0,
             rejected: item.rejected || 0,
           })));
-        } else if (data.error) {
-          // API returned an error message
-          console.warn('Transport API returned error:', data.error, data.details || '');
-          throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
         } else {
           // Unexpected data format
           console.warn('Unexpected data format from Transport API:', data);

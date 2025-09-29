@@ -62,8 +62,13 @@ export default function SystemSettingsPage() {
     try {
       const response = await fetch('/api/admin/settings/roles');
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch roles: ${response.status}`);
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch roles: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       const rolesData = await response.json();
       setRoles(rolesData);
@@ -82,8 +87,13 @@ export default function SystemSettingsPage() {
     try {
       const response = await fetch('/api/admin/settings/permissions');
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch permissions: ${response.status}`);
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch permissions: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       const permissionsData = await response.json();
       setPermissions(permissionsData);
@@ -125,8 +135,13 @@ export default function SystemSettingsPage() {
         });
         
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `Failed to update role: ${response.status}`);
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to update role: ${response.status} ${response.statusText}`;
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json().catch(() => null);
+            errorMessage = errorData?.error || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
         
         toast({
@@ -144,8 +159,13 @@ export default function SystemSettingsPage() {
         });
         
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `Failed to create role: ${response.status}`);
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to create role: ${response.status} ${response.statusText}`;
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json().catch(() => null);
+            errorMessage = errorData?.error || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
         
         toast({
@@ -181,8 +201,13 @@ export default function SystemSettingsPage() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to delete role: ${response.status}`);
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete role: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       
       toast({

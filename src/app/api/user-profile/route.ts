@@ -3,8 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { sql } from '@/lib/db';
 import { z } from 'zod';
-import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
-import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
 
 const profileUpdateSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
@@ -14,7 +12,7 @@ const profileUpdateSchema = z.object({
 });
 
 // GET - Get current user's profile
-export const GET = withRateLimit(RATE_LIMITS.API_READ)(async function(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // Removed debugging logs - issue resolved
 
@@ -46,7 +44,7 @@ export const GET = withRateLimit(RATE_LIMITS.API_READ)(async function(request: N
 });
 
 // PATCH - Update current user's profile
-export const PATCH = withRateLimit(RATE_LIMITS.API_WRITE)(async function(request: NextRequest) {
+export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     

@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 const EDITABLE_STATUSES: TravelRequestForm['status'][] = ["Pending Department Focal", "Rejected", "Draft"];
 const CANCELLABLE_STATUSES: TravelRequestForm['status'][] = ["Pending Department Focal", "Pending Line Manager", "Pending HOD"];
 const DELETABLE_STATUSES: TravelRequestForm['status'][] = ["Pending Department Focal", "Rejected", "Draft"];
-const TERMINAL_OR_PROCESSING_STATUSES: TravelRequestForm['status'][] = ["Approved", "Cancelled", "TSR Processed", "Processing Flights", "Processing Accommodation", "Awaiting Visa"];
+const TERMINAL_OR_PROCESSING_STATUSES: TravelRequestForm['status'][] = ["Approved", "Cancelled", "TRF Processed", "Processing Flights", "Processing Accommodation", "Awaiting Visa"];
 
 
 export default function ViewTSRPage() {
@@ -47,7 +47,21 @@ export default function ViewTSRPage() {
     try {
       const response = await fetch(`/api/trf/${trfId}`);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const contentType = response.headers.get('content-type') || '';
+        let errorData: any = {};
+        let errorMessage = `Failed to fetch TSR ${trfId}: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.details || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch TSR ${trfId}: ${response.status}`;
+        }
         
         // Handle accommodation request redirect
         if (errorData.redirectTo && trfId?.startsWith('ACCOM-')) {
@@ -58,7 +72,7 @@ export default function ViewTSRPage() {
           return;
         }
         
-        throw new Error(errorData.error || errorData.details || `Failed to fetch TSR ${trfId}: ${response.statusText}`);
+        throw new Error(errorMessage);
       }
       const result = await response.json();
       setTrfData(result.trf as TravelRequestForm);
@@ -90,8 +104,22 @@ export default function ViewTSRPage() {
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to cancel TSR.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to cancel TSR: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.details || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to cancel TSR: ${response.status}`;
+        }
+        
+        throw new Error(errorMessage);
       }
       const updatedTrf = await response.json();
       setTrfData(updatedTrf.trf as TravelRequestForm);
@@ -111,8 +139,22 @@ export default function ViewTSRPage() {
         method: 'DELETE',
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.details || "Failed to delete TSR.");
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete TSR: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.details || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to delete TSR: ${response.status}`;
+        }
+        
+        throw new Error(errorMessage);
       }
       toast({ title: "TSR Deleted", description: `TSR ID ${trfId} has been permanently deleted.` });
       router.push("/trf"); // Redirect to the TSR list page

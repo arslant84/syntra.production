@@ -46,20 +46,22 @@ export default function FlightsAdminPage() {
       const response = await fetch('/api/admin/flights?stats=true');
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Flight statistics fetch failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch flight statistics: ${response.status} ${response.statusText}`;
         
-        // If it's an authentication error, don't spam the console
-        if (response.status === 401 || response.status === 403) {
-          console.warn('Authentication required for flight statistics');
-          return;
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch flight statistics: ${response.status}`;
         }
         
-        throw new Error(`Failed to fetch flight statistics: ${response.status} ${response.statusText}`);
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -96,20 +98,22 @@ export default function FlightsAdminPage() {
       const response = await fetch('/api/admin/flights');
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Flight applications fetch failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch flight applications: ${response.status} ${response.statusText}`;
         
-        // If it's an authentication error, don't spam the console
-        if (response.status === 401 || response.status === 403) {
-          console.warn('Authentication required for flight applications');
-          return;
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch flight applications: ${response.status}`;
         }
         
-        throw new Error(`Failed to fetch flight applications: ${response.status} ${response.statusText}`);
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();

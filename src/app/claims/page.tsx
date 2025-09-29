@@ -49,7 +49,22 @@ export default function ClaimsPage() {
         console.log('Raw API response headers:', JSON.stringify(Object.fromEntries([...response.headers])));
         
         if (!response.ok) {
-          throw new Error(`Error fetching claims: ${response.statusText}`);
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch claims: ${response.status} ${response.statusText}`;
+          
+          if (contentType.includes('application/json')) {
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData?.error || errorData?.message || errorMessage;
+            } catch {
+              // If JSON parsing fails, use the default error message
+            }
+          } else {
+            // For non-JSON responses (like HTML 503 pages), use status text
+            errorMessage = `Failed to fetch claims: ${response.status}`;
+          }
+          
+          throw new Error(errorMessage);
         }
         
         const data = await response.json();
@@ -178,7 +193,7 @@ export default function ClaimsPage() {
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-64 text-red-500">
-              <p>Error: {error}</p>
+              <p>{error}</p>
             </div>
           ) : filteredClaims.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">

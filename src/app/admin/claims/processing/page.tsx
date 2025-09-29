@@ -88,15 +88,22 @@ export default function ClaimsProcessingPage() {
     setIsLoading(true);
     setError(null);
     try {
-      // Fetch approved claims (ready for claims admin processing)
-      const approvedResponse = await fetch(`/api/admin/claims?statuses=Approved&fullDetails=true&limit=50`);
-      if (approvedResponse.ok) {
-        const approvedData = await approvedResponse.json();
-        console.log('Approved claims data:', approvedData);
-        const dataArray = Array.isArray(approvedData) ? approvedData : (approvedData.data || []);
-        const filteredApproved = dataArray.filter(req =>
+      const fetchByStatus = async (status: string) => {
+        const response = await fetch(`/api/admin/claims?statuses=${status}&fullDetails=true&limit=50`);
+        if (!response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Failed to fetch ${status} claims: ${response.status} ${response.statusText}`;
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json().catch(() => null);
+            errorMessage = errorData?.error || errorMessage;
+          }
+          throw new Error(errorMessage);
+        }
+        const data = await response.json();
+        const dataArray = Array.isArray(data) ? data : (data.data || []);
+        return dataArray.filter((req: any) =>
           shouldShowRequest(role, { ...req, itemType: 'claim' }, userId)
-        ).map(req => ({
+        ).map((req: any) => ({
           ...req,
           documentNumber: req.documentNumber || req.document_number,
           requestorName: req.requestorName || req.staff_name,
@@ -104,46 +111,17 @@ export default function ClaimsProcessingPage() {
           purpose: req.purpose || req.purpose_of_claim,
           expenseItems: req.expenseItems || req.expense_items || []
         }));
-        setApprovedClaims(filteredApproved);
-      }
+      };
 
-      // Fetch processing claims
-      const processingResponse = await fetch(`/api/admin/claims?statuses=Processing with Claims Admin&fullDetails=true&limit=50`);
-      if (processingResponse.ok) {
-        const processingData = await processingResponse.json();
-        console.log('Processing claims data:', processingData);
-        const dataArray = Array.isArray(processingData) ? processingData : (processingData.data || []);
-        const filteredProcessing = dataArray.filter(req =>
-          shouldShowRequest(role, { ...req, itemType: 'claim' }, userId)
-        ).map(req => ({
-          ...req,
-          documentNumber: req.documentNumber || req.document_number,
-          requestorName: req.requestorName || req.staff_name,
-          department: req.department || req.department_code,
-          purpose: req.purpose || req.purpose_of_claim,
-          expenseItems: req.expenseItems || req.expense_items || []
-        }));
-        setProcessingClaims(filteredProcessing);
-      }
+      const [approved, processing, completed] = await Promise.all([
+        fetchByStatus('Approved'),
+        fetchByStatus('Processing with Claims Admin'),
+        fetchByStatus('Processed'),
+      ]);
 
-      // Fetch completed claims
-      const completedResponse = await fetch(`/api/admin/claims?statuses=Processed&fullDetails=true&limit=50`);
-      if (completedResponse.ok) {
-        const completedData = await completedResponse.json();
-        console.log('Completed claims data:', completedData);
-        const dataArray = Array.isArray(completedData) ? completedData : (completedData.data || []);
-        const filteredCompleted = dataArray.filter(req =>
-          shouldShowRequest(role, { ...req, itemType: 'claim' }, userId)
-        ).map(req => ({
-          ...req,
-          documentNumber: req.documentNumber || req.document_number,
-          requestorName: req.requestorName || req.staff_name,
-          department: req.department || req.department_code,
-          purpose: req.purpose || req.purpose_of_claim,
-          expenseItems: req.expenseItems || req.expense_items || []
-        }));
-        setCompletedClaims(filteredCompleted);
-      }
+      setApprovedClaims(approved);
+      setProcessingClaims(processing);
+      setCompletedClaims(completed);
 
     } catch (err: any) {
       console.error('Error fetching claims:', err);
@@ -181,8 +159,13 @@ export default function ClaimsProcessingPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to start processing');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to start processing: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       toast({
@@ -234,8 +217,13 @@ export default function ClaimsProcessingPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to complete processing');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to complete processing: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       toast({

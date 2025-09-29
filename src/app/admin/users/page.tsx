@@ -95,12 +95,22 @@ export default function UserManagementPage() {
       const response = await fetchWithRetry('/api/roles');
       
       if (!response.ok) {
-        let errorDetails = `Failed to fetch roles: ${response.status}`;
-        try {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch roles: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
             const errorData = await response.json();
-            errorDetails = errorData.details || errorData.error || errorDetails;
-        } catch (e) { /* Ignore if parsing fails, use status */ }
-        throw new Error(errorDetails);
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch roles: ${response.status}`;
+        }
+        
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -135,15 +145,22 @@ export default function UserManagementPage() {
     try {
       const response = await fetch(`/api/users?${params.toString()}`);
       if (!response.ok) {
-        const responseText = await response.text();
-        let message = `Server error ${response.status}: ${response.statusText || 'Status text not available'}.`;
-        try {
-            const errorJson = JSON.parse(responseText);
-            message = errorJson.details || errorJson.error || errorJson.message || message;
-        } catch (e) {
-            message += ` Raw response: ${responseText.substring(0,200)}...`;
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch users: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch users: ${response.status}`;
         }
-        throw new Error(message);
+        
+        throw new Error(errorMessage);
       }
       const data = await response.json();
       console.log("CLIENT_FETCH_USERS: Fetched data:", data);
@@ -152,7 +169,7 @@ export default function UserManagementPage() {
       setTotalPages(data.totalPages || 1);
       setCurrentPage(data.currentPage || 1);
     } catch (err: any) {
-      console.error("CLIENT_FETCH_USERS: Error fetching users:", err);
+      console.error("CLIENT_FETCH_USERS: Error fetching users:", err.message);
       setError(err.message || "An unknown error occurred while fetching users.");
       setUsers([]); setTotalUsers(0); setTotalPages(1);
     } finally {
@@ -190,23 +207,23 @@ export default function UserManagementPage() {
             credentials: 'include',
         });
         if (!response.ok) {
-            let errorMessage = `Server error ${response.status}`;
-            let errorDetails = undefined;
-            try {
-                const data = await response.json();
-                errorMessage = data?.error || data?.message || data?.details || errorMessage;
-                errorDetails = data?.details;
-            } catch (e) {
-                try {
-                    const text = await response.text();
-                    if (text) errorMessage += `: ${text}`;
-                } catch {}
-            }
-            // Create a proper Error object with additional properties
-            const error = new Error(errorMessage);
-            (error as any).details = errorDetails;
-            (error as any).status = response.status;
-            throw error;
+          const contentType = response.headers.get('content-type') || '';
+          let errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          let errorDetails = undefined;
+
+          if (contentType.includes('application/json')) {
+            const data = await response.json().catch(() => null);
+            errorMessage = data?.error || data?.message || data?.details || errorMessage;
+            errorDetails = data?.details;
+          } else {
+            const text = await response.text().catch(() => null);
+            if (text) errorMessage = text;
+          }
+
+          const error = new Error(errorMessage);
+          (error as any).details = errorDetails;
+          (error as any).status = response.status;
+          throw error;
         }
         let result;
         try {
@@ -236,15 +253,15 @@ export default function UserManagementPage() {
             throw new Error("An unspecified error occurred. Server may be down or sent an empty error response.");
         }
         
-        // Handle object errors with message or details
-        if (typeof error === 'object' && (error.message || error.details || error.error)) {
-            const errorMessage = error.message || error.error || 'An error occurred';
-            const newError = new Error(errorMessage);
-            (newError as any).details = error.details;
-            (newError as any).status = error.status;
-            throw newError;
-        }
-        
+                // Handle object errors with message or details
+                if (typeof error === 'object' && ((error as any).message || (error as any).details || (error as any).error)) {
+                  const errorMessage = (error as any).message || (error as any).error || 'An error occurred';
+                  const newError = new Error(errorMessage);
+                  (newError as any).details = (error as any).details;
+                  (newError as any).status = (error as any).status;
+                  throw newError;
+              }
+
         // Handle string errors
         if (typeof error === 'string') {
             throw new Error(error);
@@ -269,9 +286,16 @@ export default function UserManagementPage() {
           credentials: 'include',
         });
         if (!response.ok) {
-          const responseText = await response.text(); let errorDetails = `Failed to update role: ${response.status}.`;
-          try { const errorJson = JSON.parse(responseText); errorDetails = errorJson.details || errorJson.error || errorDetails; } catch (e) { errorDetails += ` Server: ${responseText.substring(0,100)}...`;}
-          throw new Error(errorDetails);
+            const contentType = response.headers.get('content-type') || '';
+            let errorMessage = `Failed to update role: ${response.status} ${response.statusText}`;
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json().catch(() => null);
+                errorMessage = errorData?.details || errorData?.error || errorMessage;
+            } else {
+                const text = await response.text().catch(() => null);
+                if (text) errorMessage = text.substring(0, 100);
+            }
+            throw new Error(errorMessage);
         }
         const updatedUserResponse = await response.json();
         setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, role_id: updatedUserResponse.user.role_id, roleName: updatedUserResponse.user.roleName } : u));
@@ -291,9 +315,16 @@ export default function UserManagementPage() {
           credentials: 'include',
         });
         if (!response.ok) {
-          const responseText = await response.text(); let errorDetails = `Failed to update status: ${response.status}.`;
-          try { const errorJson = JSON.parse(responseText); errorDetails = errorJson.details || errorJson.error || errorDetails; } catch (e) { errorDetails += ` Server: ${responseText.substring(0,100)}...`;}
-          throw new Error(errorDetails);
+            const contentType = response.headers.get('content-type') || '';
+            let errorMessage = `Failed to update status: ${response.status} ${response.statusText}`;
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json().catch(() => null);
+                errorMessage = errorData?.details || errorData?.error || errorMessage;
+            } else {
+                const text = await response.text().catch(() => null);
+                if (text) errorMessage = text.substring(0, 100);
+            }
+            throw new Error(errorMessage);
         }
         const updatedUserResponse = await response.json();
         setUsers(prevUsers => prevUsers.map(u => u.id === user.id ? { ...u, status: updatedUserResponse.user.status } : u));
@@ -311,9 +342,16 @@ export default function UserManagementPage() {
       try {
         const response = await fetch(`/api/users/${userToDelete.id!}`, { method: 'DELETE', credentials: 'include' });
         if (!response.ok) {
-          const responseText = await response.text(); let errorDetails = `Failed to delete user: ${response.status}.`;
-          try { const errorJson = JSON.parse(responseText); errorDetails = errorJson.details || errorJson.error || errorDetails; } catch (e) { errorDetails += ` Server: ${responseText.substring(0,100)}...`;}
-          throw new Error(errorDetails);
+            const contentType = response.headers.get('content-type') || '';
+            let errorMessage = `Failed to delete user: ${response.status} ${response.statusText}`;
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json().catch(() => null);
+                errorMessage = errorData?.details || errorData?.error || errorMessage;
+            } else {
+                const text = await response.text().catch(() => null);
+                if (text) errorMessage = text.substring(0, 100);
+            }
+            throw new Error(errorMessage);
         }
         toast({ title: "User Deleted", description: `User ${userToDelete.name} has been deleted.` });
         fetchUsers(currentPage); // Re-fetch to update list and pagination

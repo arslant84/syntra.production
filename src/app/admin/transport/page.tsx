@@ -33,7 +33,7 @@ type SortConfig = {
 
 const ALL_STATUSES_VALUE = "__ALL_STATUSES__";
 
-const transportStatusesList: TransportRequestStatus[] = ["Draft", "Pending Department Focal", "Pending Line Manager", "Pending HOD", "Approved", "Rejected", "Cancelled", "Processing", "Completed"];
+const transportStatusesList: TransportRequestStatus[] = ["Draft", "Pending Department Focal", "Pending Line Manager", "Pending HOD", "Approved", "Rejected", "Cancelled",  "Completed"];
 
 export default function AdminTransportRequestsPage() {
   const [transportRequests, setTransportRequests] = useState<TransportListItem[]>([]);
@@ -53,64 +53,56 @@ export default function AdminTransportRequestsPage() {
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'submittedAt', direction: 'descending' });
 
   const fetchTransportRequests = useCallback(async (page = 1) => {
-    if (sessionLoading || !role) {
-      return; // Don't fetch while session is loading or role is not available
-    }
-    
+    if (sessionLoading || !role) return;
+
     setIsLoading(true);
     setError(null);
-    const params = new URLSearchParams({
-      page: String(page),
-      limit: String(limit),
-      admin: "true", // Admin flag to get all transport requests
-    });
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
     if (statusFilter !== ALL_STATUSES_VALUE) params.append('status', statusFilter);
-    if (sortConfig.key && sortConfig.direction) {
-      params.append('sortBy', sortConfig.key);
-      params.append('sortOrder', sortConfig.direction);
+    if (sortConfig.key) params.append('sortBy', sortConfig.key);
+    if (sortConfig.direction) params.append('sortOrder', sortConfig.direction);
+    if (canViewAllRequests(role)) {
+      params.set('statuses', transportStatusesList.join(','));
     }
 
     try {
-      console.log(`AdminTransportRequestsPage: Fetching transport requests with params: ${params.toString()}`);
-      const response = await fetch(`/api/admin/transport?${params.toString()}`);
+      const response = await fetch(`/api/transport?${params.toString()}`);
+      const contentType = response.headers.get('content-type') || '';
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ details: "Failed to parse error response." }));
-        let errorMessage = errorData.details || errorData.error || `Failed to fetch transport requests. Server responded with status ${response.status}.`;
-        if (typeof errorData.details === 'object') {
-            errorMessage = Object.values(errorData.details).flat().join(' ');
+        let errorMessage = `Failed to fetch transport requests: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch transport requests: ${response.status}`;
         }
+        
         throw new Error(errorMessage);
       }
-      const data = await response.json();
-      console.log("AdminTransportRequestsPage: Fetched transport requests data:", data);
-      
-      // Handle both paginated and non-paginated responses
-      if (Array.isArray(data)) {
-        // Non-paginated response (current format)
-        // Apply role-based filtering for personal vs admin view using client-side logic
-        // Also filter to show only actual transport requests (not auto-generated ones)
-        const filteredRequests = data
-          .filter(request => request.id && (request.id.startsWith('TRN-') || request.id.startsWith('TSR-'))) // Only transport-related requests
-          .filter(request => shouldShowRequest(role, { ...request, itemType: 'transport' }, userId));
-        setTransportRequests(filteredRequests);
-        setTotalRequests(filteredRequests.length);
-        setTotalPages(1);
-        setCurrentPage(1);
-      } else {
-        // Paginated response (future format)
-        // Apply role-based filtering for personal vs admin view using client-side logic
-        // Also filter to show only actual transport requests (not auto-generated ones)
-        const filteredRequests = (data.transportRequests || [])
-          .filter(request => request.id && (request.id.startsWith('TRN-') || request.id.startsWith('TSR-'))) // Only transport-related requests
-          .filter(request => shouldShowRequest(role, { ...request, itemType: 'transport' }, userId));
-        setTransportRequests(filteredRequests);
-        setTotalRequests(data.totalCount || 0);
-        setTotalPages(data.totalPages || 1);
-        setCurrentPage(data.currentPage || 1);
+
+      if (!contentType.includes('application/json')) {
+        throw new Error('Invalid response from server: Expected JSON but received HTML/text.');
       }
+
+      const data = await response.json();
+      const items = Array.isArray(data) ? data : data.transportRequests || [];
+      const filtered = items.filter((req: any) => shouldShowRequest(role, { ...req, itemType: 'transport' }, userId));
+      
+      setTransportRequests(filtered);
+      setTotalRequests(Array.isArray(data) ? filtered.length : data.totalCount || 0);
+      setTotalPages(Array.isArray(data) ? 1 : data.totalPages || 1);
+      setCurrentPage(Array.isArray(data) ? 1 : data.currentPage || 1);
+
     } catch (err: any) {
-      console.error("AdminTransportRequestsPage: Error fetching transport requests:", err);
+      console.error("AdminTransportRequestsPage: Error fetching transport requests:", err.message);
       setError(err.message);
       setTransportRequests([]);
       setTotalRequests(0);
@@ -128,9 +120,6 @@ export default function AdminTransportRequestsPage() {
     if (currentPage !== 1) setCurrentPage(1);
     else fetchTransportRequests(1); 
   }, [debouncedSearchTerm, statusFilter, sortConfig]);
-
-  // Using unified status badge system
-
 
   const handleSort = (key: SortConfig['key']) => {
     if (!key) return;
@@ -162,7 +151,6 @@ export default function AdminTransportRequestsPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header Section */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Settings className="w-8 h-8 text-primary" />
@@ -180,8 +168,6 @@ export default function AdminTransportRequestsPage() {
           </Button>
         </div>
       </div>
-
-      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -230,8 +216,6 @@ export default function AdminTransportRequestsPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Filters Card */}
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -270,8 +254,6 @@ export default function AdminTransportRequestsPage() {
           </CardContent>
         )}
       </Card>
-
-      {/* Transport Requests List Card */}
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

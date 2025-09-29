@@ -54,9 +54,16 @@ export default function NotificationEventsPage() {
       console.log('Response ok:', response.ok);
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API error response:', errorText);
-        throw new Error(`Failed to fetch event types: ${response.status} - ${errorText}`);
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch event types: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        } else {
+          const text = await response.text().catch(() => null);
+          if (text) errorMessage = text;
+        }
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -64,7 +71,7 @@ export default function NotificationEventsPage() {
       console.log('Event types count:', data.eventTypes?.length || 0);
       
       setEventTypes(data.eventTypes || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching event types:', error);
       toast({
         title: 'Error',
@@ -77,7 +84,15 @@ export default function NotificationEventsPage() {
   const fetchUserSubscriptions = async () => {
     try {
       const response = await fetch('/api/admin/notification-subscriptions');
-      if (!response.ok) throw new Error('Failed to fetch user subscriptions');
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch user subscriptions: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
       const data = await response.json();
       setUserSubscriptions(data.subscriptions || []);
     } catch (error) {
@@ -106,7 +121,15 @@ export default function NotificationEventsPage() {
         body: JSON.stringify({ isActive }),
       });
       
-      if (!response.ok) throw new Error('Failed to update event');
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to update event: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
       
       setEventTypes(prev => prev.map(event => 
         event.id === eventId ? { ...event, isActive } : event
@@ -133,7 +156,15 @@ export default function NotificationEventsPage() {
         body: JSON.stringify({ isEnabled }),
       });
       
-      if (!response.ok) throw new Error('Failed to update subscription');
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to update subscription: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
       
       setUserSubscriptions(prev => prev.map(sub => 
         sub.id === subscriptionId ? { ...sub, isEnabled } : sub

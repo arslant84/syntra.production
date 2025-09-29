@@ -71,7 +71,22 @@ export default function LocationManagement({ onLocationChange }: LocationManagem
       clearTimeout(timeoutId);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch locations');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch locations: ${response.status} ${response.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to fetch locations: ${response.status}`;
+        }
+        
+        throw new Error(errorMessage);
       }
       const data = await response.json();
       setLocations(data.locations || []);
@@ -83,7 +98,7 @@ export default function LocationManagement({ onLocationChange }: LocationManagem
       console.error('Error fetching locations:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load accommodation locations',
+        description: error instanceof Error ? error.message : 'Failed to load accommodation locations',
         variant: 'destructive'
       });
     } finally {
@@ -121,8 +136,13 @@ export default function LocationManagement({ onLocationChange }: LocationManagem
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save location');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to save location: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.message || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       toast({
@@ -182,28 +202,37 @@ export default function LocationManagement({ onLocationChange }: LocationManagem
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete location: ${response.status} ${response.statusText}`;
+        let errorData: any = null;
+
+        if (contentType.includes('application/json')) {
+          errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorData?.message || errorMessage;
+        }
+
         // Handle specific error cases with more detailed messages
-        if (response.status === 409) {
+        if (response.status === 409 && errorData) {
           if (errorData.hasBookings) {
             toast({
               title: 'Cannot Delete Location',
               description: errorData.message || 'This location has active bookings. Please cancel or reassign all bookings before deleting.',
               variant: 'destructive'
             });
+            // Return to prevent throwing a generic error
+            return;
           } else if (errorData.hasRooms) {
             toast({
               title: 'Cannot Delete Location',
               description: errorData.message || 'This location has rooms assigned to it. Please delete all rooms first.',
               variant: 'destructive'
             });
-          } else {
-            throw new Error(errorData.error || 'Failed to delete location');
+            // Return to prevent throwing a generic error
+            return;
           }
-        } else {
-          throw new Error(errorData.error || 'Failed to delete location');
         }
+        
+        throw new Error(errorMessage);
       } else {
         toast({
           title: 'Success',

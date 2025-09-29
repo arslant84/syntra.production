@@ -114,8 +114,22 @@ export default function ExternalPartiesFormContent() {
         try {
           const response = await fetch(`/api/trf/${editId}`);
           if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || errorData.details || `Failed to fetch TSR ${editId}: ${response.statusText}`);
+            const contentType = response.headers.get('content-type') || '';
+            let errorMessage = `Failed to fetch TSR ${editId}: ${response.status} ${response.statusText}`;
+            
+            if (contentType.includes('application/json')) {
+              try {
+                const errorData = await response.json();
+                errorMessage = errorData?.error || errorData?.details || errorMessage;
+              } catch {
+                // If JSON parsing fails, use the default error message
+              }
+            } else {
+              // For non-JSON responses (like HTML 503 pages), use status text
+              errorMessage = `Failed to fetch TSR ${editId}: ${response.status}`;
+            }
+            
+            throw new Error(errorMessage);
           }
           const result = await response.json();
           const fetchedTsr = parseDatesInExternalPartiesTSRData(result.trf) as TravelRequestForm;
@@ -219,8 +233,21 @@ export default function ExternalPartiesFormContent() {
         body: JSON.stringify(finalTSRData),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        let errorMessage = errorData.error || errorData.details || `Failed to ${isEditMode ? 'update' : 'submit'} TSR. Server responded with status ${response.status}.`;
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to ${isEditMode ? 'update' : 'submit'} TSR: ${response.status} ${response.statusText}`;
+        let errorData: any = {};
+        
+        if (contentType.includes('application/json')) {
+          try {
+            errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.details || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the default error message
+          }
+        } else {
+          // For non-JSON responses (like HTML 503 pages), use status text
+          errorMessage = `Failed to ${isEditMode ? 'update' : 'submit'} TSR: ${response.status}`;
+        }
          if (typeof errorData.details === 'object' && errorData.details.fieldErrors) { 
              errorMessage = Object.values(errorData.details.fieldErrors).flat().join('; ') || "Validation failed with multiple errors.";
         } else if (typeof errorData.details === 'object' && errorData.details.formErrors) {

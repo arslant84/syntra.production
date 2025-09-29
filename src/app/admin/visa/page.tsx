@@ -3,24 +3,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { format, parseISO, isValid } from "date-fns";
-import { FileCheck, Eye, Search, ArrowUpDown, X, ListFilter, Loader2, AlertTriangle, Settings, CheckCircle, XCircle, Clock, Globe, FileText } from "lucide-react";
+import { FileCheck, Eye, Search, ArrowUpDown, X, ListFilter, Loader2, AlertTriangle, Plane, FileText, CheckCircle, XCircle, Clock, Settings } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useSessionPermissions } from '@/hooks/use-session-permissions';
 import { canViewAllRequests, shouldShowRequest } from '@/lib/client-rbac-utils';
 import { StatusBadge } from '@/lib/status-utils';
 
-interface VisaListItem {
+interface VisaApplication {
   id: string;
-  requestorName: string; 
-  staffId?: string;
-  purpose: string;
+  requestorName: string;
   destination: string;
+  purpose: string;
   status: string;
   submittedAt: string;
 }
@@ -31,16 +30,14 @@ type SortConfig = {
 };
 
 const ALL_STATUSES_VALUE = "__ALL_STATUSES__";
-
-const visaStatusesList = ["Draft", "Pending Department Focal", "Pending Line Manager", "Pending HOD", "Processing with Visa Admin", "Processed", "Rejected", "Cancelled"];
+const visaStatusesList = ['Pending Department Focal', 'Pending Line Manager/HOD', 'Pending Visa Clerk', 'Approved', 'Processing with Visa Admin', 'Visa Issued', 'Visa Rejected', 'Rejected', 'Cancelled'];
 
 export default function AdminVisaPage() {
-  const [visaApplications, setVisaApplications] = useState<VisaListItem[]>([]);
+  const [visaApplications, setVisaApplications] = useState<VisaApplication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
   const { role, userId, isLoading: sessionLoading } = useSessionPermissions();
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalApplications, setTotalApplications] = useState(0);
@@ -51,124 +48,70 @@ export default function AdminVisaPage() {
   const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUSES_VALUE);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'submittedAt', direction: 'descending' });
 
-  // Statistics state
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    approved: 0,
-    processing: 0,
-    completed: 0,
-    rejected: 0
-  });
+  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, processing: 0, completed: 0, rejected: 0 });
 
   const fetchVisaApplications = useCallback(async (page = 1) => {
-    if (sessionLoading || !role) {
-      return; // Don't fetch while session is loading or role is not available
-    }
-    
+    if (sessionLoading || !role) return;
+
     setIsLoading(true);
     setError(null);
-    const params = new URLSearchParams({
-      page: String(page),
-      limit: String(limit),
-      admin: "true", // Admin flag to get all visa applications
-    });
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
     if (statusFilter !== ALL_STATUSES_VALUE) params.append('status', statusFilter);
-    if (sortConfig.key && sortConfig.direction) {
-      params.append('sortBy', sortConfig.key);
-      params.append('sortOrder', sortConfig.direction);
-    }
+    if (sortConfig.key) params.append('sortBy', sortConfig.key);
+    if (sortConfig.direction) params.append('sortOrder', sortConfig.direction);
 
     try {
-      console.log(`AdminVisaPage: Fetching visa applications with params: ${params.toString()}`);
       const response = await fetch(`/api/admin/visa?${params.toString()}`);
+      const contentType = response.headers.get('content-type') || '';
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ details: "Failed to parse error response." }));
-        let errorMessage = errorData.details || errorData.error || `Failed to fetch visa applications. Server responded with status ${response.status}.`;
-        if (typeof errorData.details === 'object') {
-            errorMessage = Object.values(errorData.details).flat().join(' ');
+        let errorMessage = `Failed to fetch visa applications: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => ({}));
+          errorMessage = errorData.error || errorData.message || errorMessage;
         }
         throw new Error(errorMessage);
       }
-      const data = await response.json();
-      console.log("AdminVisaPage: Fetched visa applications data:", data);
-      
-      // Handle both paginated and non-paginated responses
-      if (Array.isArray(data)) {
-        // Non-paginated response (current format)
-        // Apply role-based filtering for personal vs admin view using client-side logic
-        const filteredApplications = data.filter(application => 
-          shouldShowRequest(role, { ...application, itemType: 'visa' }, userId)
-        );
-        setVisaApplications(filteredApplications);
-        setTotalApplications(filteredApplications.length);
-        setTotalPages(1);
-        setCurrentPage(1);
 
-        // Calculate statistics
-        const newStats = {
-          total: filteredApplications.length,
-          pending: filteredApplications.filter(app => 
-            ['Pending Department Focal', 'Pending Line Manager/HOD', 'Pending Visa Clerk'].includes(app.status)
-          ).length,
-          approved: filteredApplications.filter(app => app.status === 'Approved').length,
-          processing: filteredApplications.filter(app => app.status === 'Processing with Visa Admin').length,
-          completed: filteredApplications.filter(app => 
-            ['Visa Issued', 'Visa Rejected'].includes(app.status)
-          ).length,
-          rejected: filteredApplications.filter(app => 
-            ['Rejected', 'Cancelled'].includes(app.status)
-          ).length,
-        };
-        setStats(newStats);
-      } else {
-        // Paginated response (future format)
-        const filteredApplications = (data.applications || []).filter(application => 
-          shouldShowRequest(role, { ...application, itemType: 'visa' }, userId)
-        );
-        setVisaApplications(filteredApplications);
-        setTotalApplications(data.totalCount || filteredApplications.length);
-        setTotalPages(data.totalPages || 1);
-        setCurrentPage(data.currentPage || 1);
-        
-        // Use stats from server if available, otherwise calculate
-        if (data.stats) {
-          setStats(data.stats);
-        } else {
-          const newStats = {
-            total: filteredApplications.length,
-            pending: filteredApplications.filter(app => 
-              ['Pending Department Focal', 'Pending Line Manager/HOD', 'Pending Visa Clerk'].includes(app.status)
-            ).length,
-            approved: filteredApplications.filter(app => app.status === 'Approved').length,
-            processing: filteredApplications.filter(app => app.status === 'Processing with Visa Admin').length,
-            completed: filteredApplications.filter(app => 
-              ['Visa Issued', 'Visa Rejected'].includes(app.status)
-            ).length,
-            rejected: filteredApplications.filter(app => 
-              ['Rejected', 'Cancelled'].includes(app.status)
-            ).length,
-          };
-          setStats(newStats);
-        }
+      if (!contentType.includes('application/json')) {
+        throw new Error('Invalid response from server: Expected JSON but received HTML/text.');
       }
+
+      const data = await response.json();
+      const items = Array.isArray(data) ? data : data.applications || [];
+      const filtered = items.filter((app: any) => shouldShowRequest(role, { ...app, itemType: 'visa' }, userId));
+
+      setVisaApplications(filtered);
+      setTotalApplications(Array.isArray(data) ? filtered.length : data.totalCount || 0);
+      setTotalPages(Array.isArray(data) ? 1 : data.totalPages || 1);
+      setCurrentPage(Array.isArray(data) ? 1 : data.currentPage || 1);
+
+      const newStats = {
+        total: filtered.length,
+        pending: filtered.filter((app: any) => ['Pending Department Focal', 'Pending Line Manager/HOD', 'Pending Visa Clerk'].includes(app.status)).length,
+        approved: filtered.filter((app: any) => app.status === 'Approved').length,
+        processing: filtered.filter((app: any) => app.status === 'Processing with Visa Admin').length,
+        completed: filtered.filter((app: any) => ['Visa Issued', 'Visa Rejected'].includes(app.status)).length,
+        rejected: filtered.filter((app: any) => ['Rejected', 'Cancelled'].includes(app.status)).length,
+      };
+      setStats(newStats);
+
     } catch (err: any) {
-      console.error("AdminVisaPage: Error fetching visa applications:", err);
+      console.error("AdminVisaPage: Error fetching visa applications:", err.message);
       setError(err.message);
       setVisaApplications([]);
       setTotalApplications(0);
       setTotalPages(1);
-      setCurrentPage(1);
       setStats({ total: 0, pending: 0, approved: 0, processing: 0, completed: 0, rejected: 0 });
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedSearchTerm, statusFilter, sortConfig.key, sortConfig.direction, role, userId, sessionLoading]);
+  }, [debouncedSearchTerm, statusFilter, sortConfig, limit, role, userId, sessionLoading]);
 
   useEffect(() => {
     fetchVisaApplications(currentPage);
-  }, [fetchVisaApplications, currentPage]);
+  }, [currentPage, fetchVisaApplications]);
 
   const handleSort = (key: SortConfig['key']) => {
     if (!key) return;
@@ -225,7 +168,6 @@ export default function AdminVisaPage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -269,7 +211,6 @@ export default function AdminVisaPage() {
         </Card>
       </div>
 
-      {/* Filters and Search */}
       <Card>
         <CardHeader>
           <CardTitle>Filter & Search Applications</CardTitle>
@@ -308,7 +249,7 @@ export default function AdminVisaPage() {
                   Clear
                 </Button>
               )}
-            </div>
+                          </div>
           </div>
         </CardContent>
       </Card>
@@ -423,12 +364,7 @@ export default function AdminVisaPage() {
                       <TableRow key={application.id}>
                         <TableCell className="font-medium">{application.id}</TableCell>
                         <TableCell>{application.requestorName}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Globe className="h-4 w-4 text-muted-foreground" />
-                            {application.destination}
-                          </div>
-                        </TableCell>
+                        <TableCell>{application.destination}</TableCell>
                         <TableCell>{application.purpose}</TableCell>
                         <TableCell>
                           <StatusBadge status={application.status} showIcon />
@@ -451,27 +387,5 @@ export default function AdminVisaPage() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-// Globe icon component (same as visa processing page)
-function Globe(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <line x1="2" x2="22" y1="12" y2="12" />
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-    </svg>
   );
 }

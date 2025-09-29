@@ -29,7 +29,13 @@ export async function getApplicationSettings(publicOnly = false): Promise<Applic
     const response = await fetch(url);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch application settings: ${response.status}`);
+      const contentType = response.headers.get('content-type') || '';
+      let errorMessage = `Failed to fetch application settings: ${response.status} ${response.statusText}`;
+      if (contentType.includes('application/json')) {
+        const errorData = await response.json().catch(() => null);
+        errorMessage = errorData?.error || errorMessage;
+      }
+      throw new Error(errorMessage);
     }
     
     const result = await response.json();
@@ -75,7 +81,13 @@ export async function updateApplicationSetting(settingUpdate: ApplicationSetting
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to update application setting: ${response.status}`);
+      const contentType = response.headers.get('content-type') || '';
+      let errorMessage = `Failed to update application setting: ${response.status} ${response.statusText}`;
+      if (contentType.includes('application/json')) {
+        const errorData = await response.json().catch(() => null);
+        errorMessage = errorData?.error || errorMessage;
+      }
+      throw new Error(errorMessage);
     }
     
     const result = await response.json();
@@ -106,7 +118,13 @@ export async function updateApplicationSettings(settingUpdates: ApplicationSetti
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to update application settings: ${response.status}`);
+      const contentType = response.headers.get('content-type') || '';
+      let errorMessage = `Failed to update application settings: ${response.status} ${response.statusText}`;
+      if (contentType.includes('application/json')) {
+        const errorData = await response.json().catch(() => null);
+        errorMessage = errorData?.error || errorMessage;
+      }
+      throw new Error(errorMessage);
     }
     
     const result = await response.json();
@@ -137,7 +155,13 @@ export async function createApplicationSetting(settingData: ApplicationSettingUp
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to create application setting: ${response.status}`);
+      const contentType = response.headers.get('content-type') || '';
+      let errorMessage = `Failed to create application setting: ${response.status} ${response.statusText}`;
+      if (contentType.includes('application/json')) {
+        const errorData = await response.json().catch(() => null);
+        errorMessage = errorData?.error || errorMessage;
+      }
+      throw new Error(errorMessage);
     }
     
     const result = await response.json();

@@ -84,7 +84,13 @@ export default function RoomManagement({ onRoomChange }: RoomManagementProps) {
       clearTimeout(timeoutId);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch locations');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch locations: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       const data = await response.json();
       setStaffHouses(data.locations || []);
@@ -120,7 +126,13 @@ export default function RoomManagement({ onRoomChange }: RoomManagementProps) {
       clearTimeout(timeoutId);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch rooms');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to fetch rooms: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       const data = await response.json();
       setRooms(data.rooms || []);
@@ -179,8 +191,13 @@ export default function RoomManagement({ onRoomChange }: RoomManagementProps) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save room');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to save room: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       toast({
@@ -242,8 +259,13 @@ export default function RoomManagement({ onRoomChange }: RoomManagementProps) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete room');
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to delete room: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       toast({

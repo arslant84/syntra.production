@@ -83,15 +83,22 @@ export default function WorkflowSettingsPage() {
   const loadWorkflows = async () => {
     try {
       const response = await fetch('/api/admin/workflows');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          const workflowsWithCounts = data.data.map((workflow: any) => ({
-            ...workflow,
-            stepCount: workflow.steps?.length || 0
-          }));
-          setWorkflows(workflowsWithCounts);
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to load workflows: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
         }
+        throw new Error(errorMessage);
+      }
+      const data = await response.json();
+      if (data.success) {
+        const workflowsWithCounts = data.data.map((workflow: any) => ({
+          ...workflow,
+          stepCount: workflow.steps?.length || 0
+        }));
+        setWorkflows(workflowsWithCounts);
       }
     } catch (error) {
       console.error('Error loading workflows:', error);
@@ -101,23 +108,30 @@ export default function WorkflowSettingsPage() {
   const loadMigrationStatus = async () => {
     try {
       const response = await fetch('/api/admin/workflows/migration');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          // Transform migration history into status
-          const modules = ['trf', 'claims', 'visa', 'transport', 'accommodation'];
-          const statuses = modules.map(module => {
-            const migration = data.migrations.find((m: any) => m.module === module && m.status === 'completed');
-            return {
-              module,
-              status: migration ? 'migrated' : 'not_migrated',
-              workflowId: migration?.workflowId,
-              migrationDate: migration?.migrationDate,
-              complexity: getModuleComplexity(module)
-            };
-          });
-          setMigrationStatuses(statuses);
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to load migration status: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
         }
+        throw new Error(errorMessage);
+      }
+      const data = await response.json();
+      if (data.success) {
+        // Transform migration history into status
+        const modules = ['trf', 'claims', 'visa', 'transport', 'accommodation'];
+        const statuses: MigrationStatus[] = modules.map(module => {
+          const migration = data.migrations.find((m: any) => m.module === module && m.status === 'completed');
+          return {
+            module,
+            status: migration ? 'migrated' as const : 'not_migrated' as const,
+            workflowId: migration?.workflowId,
+            migrationDate: migration?.migrationDate,
+            complexity: getModuleComplexity(module)
+          };
+        });
+        setMigrationStatuses(statuses);
       }
     } catch (error) {
       console.error('Error loading migration status:', error);
@@ -127,11 +141,18 @@ export default function WorkflowSettingsPage() {
   const loadMigrationReport = async () => {
     try {
       const response = await fetch('/api/admin/workflows/migration?action=report');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setMigrationReport(data.report);
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to load migration report: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
         }
+        throw new Error(errorMessage);
+      }
+      const data = await response.json();
+      if (data.success) {
+        setMigrationReport(data.report);
       }
     } catch (error) {
       console.error('Error loading migration report:', error);
@@ -193,9 +214,17 @@ export default function WorkflowSettingsPage() {
         body: JSON.stringify(requestBody)
       });
 
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to save workflow: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.error || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
       const data = await response.json();
-      
-      if (response.ok && data.success) {
+      if (data.success) {
         setShowBuilder(false);
         setEditingWorkflow(null);
         await loadWorkflows();
@@ -224,9 +253,17 @@ export default function WorkflowSettingsPage() {
         })
       });
 
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to migrate module: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.message || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
       const data = await response.json();
-      
-      if (response.ok && data.success) {
+      if (data.success) {
         setMigrationResults(prev => ({
           ...prev,
           [module]: { success: true, message: data.message }
@@ -256,9 +293,17 @@ export default function WorkflowSettingsPage() {
         method: 'DELETE'
       });
 
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorMessage = `Failed to rollback module: ${response.status} ${response.statusText}`;
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => null);
+          errorMessage = errorData?.message || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
       const data = await response.json();
-      
-      if (response.ok && data.success) {
+      if (data.success) {
         setMigrationResults(prev => ({
           ...prev,
           [module]: { success: true, message: data.message }

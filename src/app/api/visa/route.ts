@@ -249,10 +249,65 @@ export const GET = withRateLimit(RATE_LIMITS.API_READ)(withAuth(async function(r
   // Get query parameters for filtering
   const statusesParam = request.nextUrl.searchParams.get('statuses');
   const limit = request.nextUrl.searchParams.get('limit') || '50';
+  const summary = request.nextUrl.searchParams.get('summary');
+  const year = request.nextUrl.searchParams.get('year') || new Date().getFullYear().toString();
+  const fromDate = request.nextUrl.searchParams.get('fromDate');
+  const toDate = request.nextUrl.searchParams.get('toDate');
   
   try {
     console.log("API_VISA_GET (PostgreSQL): Attempting to query visa applications.");
     console.log("API_VISA_GET (PostgreSQL): Status filter:", statusesParam || 'None');
+
+    // Handle summary requests for reports page
+    if (summary === 'true') {
+      console.log("API_VISA_GET (PostgreSQL): Generating summary data for reports");
+
+      // Generate user filter for summary
+      let userFilter = '';
+      if (!shouldBypassUserFilter(session, statusesParam)) {
+        userFilter = ` AND ${generateUniversalUserFilter(session, '', {
+          staffIdField: 'staff_id',
+          nameField: 'requestor_name',
+          emailField: 'email',
+          userIdField: 'user_id'
+        })}`;
+      }
+
+      // Build date filter
+      let dateFilter = '';
+      if (fromDate && toDate) {
+        dateFilter = ` AND submitted_date BETWEEN '${fromDate}' AND '${toDate}'`;
+      } else {
+        // Default to current year if no date range specified
+        dateFilter = ` AND EXTRACT(YEAR FROM submitted_date) = ${parseInt(year)}`;
+      }
+
+      // Query to get status counts by month
+      const summaryQuery = `
+        SELECT
+          TO_CHAR(submitted_date, 'YYYY-MM') as month,
+          COUNT(*) FILTER (WHERE status LIKE '%Pending%' OR status = 'Draft' OR status IS NULL) as pending,
+          COUNT(*) FILTER (WHERE status LIKE '%Approved%' OR status = 'Completed') as approved,
+          COUNT(*) FILTER (WHERE status LIKE '%Rejected%' OR status LIKE '%Denied%') as rejected
+        FROM visa_applications
+        WHERE 1=1${userFilter}${dateFilter}
+        GROUP BY TO_CHAR(submitted_date, 'YYYY-MM')
+        ORDER BY month
+      `;
+
+      const summaryData = await sql.unsafe(summaryQuery);
+
+      // Format data for frontend
+      const statusByMonth = summaryData.map(row => ({
+        month: row.month,
+        pending: parseInt(row.pending) || 0,
+        approved: parseInt(row.approved) || 0,
+        rejected: parseInt(row.rejected) || 0
+      }));
+
+      console.log("API_VISA_GET (PostgreSQL): Generated summary data:", statusByMonth);
+      return NextResponse.json({ statusByMonth });
+    }
     
     let apps;
     

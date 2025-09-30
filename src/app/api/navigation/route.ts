@@ -122,8 +122,30 @@ function generateNavigationItems(session: any) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Return basic navigation items without session dependency for now
-    const basicNavigation = [
+    // Get the current user session to determine navigation permissions
+    const session = await getCurrentUserSession();
+
+    if (!session) {
+      // Return basic navigation for unauthenticated users
+      const basicNavigation = [
+        { label: 'Dashboard', href: '/', icon: 'LayoutDashboard' }
+      ];
+      console.log('Navigation API: No session, returning basic navigation');
+      return NextResponse.json(basicNavigation);
+    }
+
+    // Generate navigation items based on user permissions
+    const navigationItems = generateNavigationItems(session);
+
+    console.log('Navigation API: Returning permission-based navigation for user:', session.email, 'role:', session.role);
+    console.log('Navigation API: User permissions:', session.permissions);
+    console.log('Navigation API: Generated navigation items:', navigationItems.map(item => item.label));
+
+    return NextResponse.json(navigationItems);
+  } catch (error) {
+    console.error('Navigation API error:', error);
+    // Return basic navigation as fallback
+    const fallbackNavigation = [
       { label: 'Dashboard', href: '/', icon: 'LayoutDashboard' },
       { label: 'Travel Requests', href: '/trf', icon: 'FileText' },
       { label: 'Transport Requests', href: '/transport', icon: 'Truck' },
@@ -131,11 +153,6 @@ export async function GET(request: NextRequest) {
       { label: 'Accommodation Requests', href: '/accommodation', icon: 'BedDouble' },
       { label: 'Expense Claims', href: '/claims', icon: 'FileText' }
     ];
-
-    console.log('Navigation API: Returning basic navigation items');
-    return NextResponse.json(basicNavigation);
-  } catch (error) {
-    console.error('Navigation API error:', error);
-    return NextResponse.json([], { status: 500 });
+    return NextResponse.json(fallbackNavigation);
   }
 }

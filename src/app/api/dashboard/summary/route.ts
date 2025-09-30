@@ -19,8 +19,10 @@ export async function GET(request: NextRequest) {
     const userIdentifier = {
       userId: session.user.id || session.user.email,
       email: session.user.email,
-      staffId: session.user.id
+      staffId: session.user.staffId || session.user.id
     };
+
+    console.log('DASHBOARD_SUMMARY_DEBUG: Using staffId:', session.user.staffId, 'from session:', session.user.id);
     
     console.log('DASHBOARD_SUMMARY_USER_ID: Got user identifier:', userIdentifier);
 
@@ -151,24 +153,30 @@ async function fetchDashboardData(userIdentifier: any, session: any) {
       
       console.log('SUMMARY_DEBUG: Final counts:', counts);
 
-      return {
+      const finalCounts = {
         pendingTsrs: parseInt(counts.pending_trfs?.toString() || '0'),
         visaUpdates: parseInt(counts.visa_updates?.toString() || '0'),
         draftClaims: parseInt(counts.draft_claims?.toString() || '0'),
         pendingAccommodation: parseInt(counts.accommodation_bookings?.toString() || '0'),
         pendingTransport: parseInt(counts.pending_transport?.toString() || '0')
       };
+
+      console.log('SUMMARY_DEBUG: Returning final counts to frontend:', finalCounts);
+      return finalCounts;
       
     } catch (error) {
       console.error('Error in optimized dashboard summary query:', error);
       
       // Fallback to minimal counts if optimized query fails
-      return {
+      const fallbackCounts = {
         pendingTsrs: 0,
-        visaUpdates: 0,  
+        visaUpdates: 0,
         draftClaims: 0,
         pendingAccommodation: 0,
         pendingTransport: 0
       };
+
+      console.log('SUMMARY_DEBUG: Returning fallback counts to frontend:', fallbackCounts);
+      return fallbackCounts;
     }
 }

@@ -207,20 +207,20 @@ export async function GET(request: Request) {
             
             // Find which month this accommodation belongs to
             console.log(`Checking accommodation date: ${accommodationDate.toISOString()} - Month: ${accommodationDate.getMonth()}, Year: ${accommodationDate.getFullYear()}`);
-            
-            // IMPORTANT: Match by month only to ensure accommodations from any year are included
-            const monthIndex = months.findIndex(m => m.monthNum === accommodationDate.getMonth());
+
+            // Match by both month AND year to ensure accurate reporting
+            const monthIndex = months.findIndex(m =>
+              m.monthNum === accommodationDate.getMonth() &&
+              m.year === accommodationDate.getFullYear()
+            );
             
             if (monthIndex !== -1) {
               console.log(`✅ MATCH FOUND: Accommodation from ${accommodationDate.toISOString()} matches to ${months[monthIndex].month} ${months[monthIndex].year}`);
-              
-              // Only count approved/confirmed accommodations as occupied
-              const status = (accommodation.status?.toLowerCase() || '').trim();
-              
-              if (status.includes('approved') || status.includes('confirmed')) {
-                occupancyByMonth[monthIndex].occupied++;
-                console.log(`  - Counted as OCCUPIED in ${months[monthIndex].month}`);
-              }
+
+              // Count all accommodations, not just approved ones
+              // This gives a better picture of accommodation demand/usage
+              occupancyByMonth[monthIndex].occupied++;
+              console.log(`  - Counted as OCCUPIED in ${months[monthIndex].month} (Status: ${accommodation.status || 'Unknown'})`);
             } else {
               accommodationsOutsideRange++;
               console.log(`  - Accommodation date outside of reporting range: ${accommodationDate.toISOString()}`);

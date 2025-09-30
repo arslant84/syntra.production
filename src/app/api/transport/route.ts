@@ -1,138 +1,95 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAuth, canViewAllData, canViewDomainData } from '@/lib/api-protection';
+import { hasPermission } from '@/lib/session-utils';
+import { withRateLimit, RATE_LIMITS } from '@/lib/rate-limiter';
+import { generateRequestFingerprint, checkAndMarkRequest, markRequestCompleted } from '@/lib/request-deduplication';
+import { withCache, userCacheKey, CACHE_TTL } from '@/lib/cache';
+import { TransportService } from '@/lib/transport-service';
+import { shouldBypassUserFilter } from '@/lib/universal-user-matching';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function(request: NextRequest) {
   try {
-    console.log('API_TRANSPORT_GET: Returning fallback transport data');
-
+    const session = (request as any).user;
     const { searchParams } = new URL(request.url);
     const summary = searchParams.get('summary');
+    const statusesToFetch = searchParams.get('statuses')?.split(',').map(s => s.trim()).filter(Boolean);
 
-    // Return fallback data to avoid 503 errors
+    // Use the same universal user filtering approach as TRF
+    // Only bypass user filter if user has permission AND is viewing approval queue with specific statuses
+    const shouldShowAllData = shouldBypassUserFilter(session, statusesToFetch ? statusesToFetch.join(',') : null);
+    const userId = shouldShowAllData ? undefined : session.id;
+
+    console.log('API_TRANSPORT_GET: shouldShowAllData:', shouldShowAllData, 'userId:', userId, 'role:', session.role);
+
+    // Handle summary request for reports
     if (summary === 'true') {
-      const fallbackSummary = {
-        totalRequests: 0,
-        pendingRequests: 0,
-        approvedRequests: 0,
-        rejectedRequests: 0,
-        monthlyData: [],
-        statusBreakdown: {
-          'Pending': 0,
-          'Approved': 0,
-          'Rejected': 0
-        }
-      };
-      return NextResponse.json(fallbackSummary);
-    }
+      console.log('API_TRANSPORT_GET: Fetching transport summary data for reports');
 
-    // Return empty array for non-summary requests
-    return NextResponse.json([]);
-    
-    /* Temporarily disabled complex logic
+      const year = searchParams.get('year') || new Date().getFullYear().toString();
+      const fromDate = searchParams.get('fromDate');
+      const toDate = searchParams.get('toDate');
 
-    if (summary === 'true') {
-      let allTransportRequests;
-      
-      // Universal filtering for summary - same as main logic
-      const userIdentifier = await getUserIdentifier(session);
-      let userId = userIdentifier.userId; // Default: filter by user
-      
-      // Summary pages are personal views, so never bypass user filtering regardless of role
-      console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport summary with strict filtering`);
-      // ALL users (including System Administrators) see only their own requests in summary
-      
+      // Fetch transport requests
+      let transportRequests;
       if (fromDate && toDate) {
-        allTransportRequests = await TransportService.getTransportRequestsByDateRange(
-          new Date(fromDate), 
+        transportRequests = await TransportService.getTransportRequestsByDateRange(
+          new Date(fromDate),
           new Date(toDate),
           userId,
           session
         );
       } else {
-        allTransportRequests = await TransportService.getAllTransportRequests(userId, session);
+        transportRequests = await TransportService.getAllTransportRequests(
+          userId,
+          session
+        );
       }
 
-      const statusByMonth: { [key: string]: { month: string; pending: number; approved: number; rejected: number } } = {};
+      // Group by month and count by status
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const statusByMonth = months.map((monthName, index) => ({
+        month: monthName,
+        pending: 0,
+        approved: 0,
+        rejected: 0
+      }));
 
-      allTransportRequests.forEach((request) => {
-        const month = new Date(request.submittedAt).toLocaleString('default', { month: 'short' });
-        if (!statusByMonth[month]) {
-          statusByMonth[month] = { month, pending: 0, approved: 0, rejected: 0 };
-        }
+      transportRequests.forEach((request: any) => {
+        const date = new Date(request.submittedAt);
+        const monthIndex = date.getMonth();
+
         if (request.status.includes('Pending')) {
-          statusByMonth[month].pending++;
-        } else if (request.status.includes('Approved')) {
-          statusByMonth[month].approved++;
+          statusByMonth[monthIndex].pending++;
+        } else if (request.status.includes('Approved') || request.status === 'Completed') {
+          statusByMonth[monthIndex].approved++;
         } else if (request.status.includes('Rejected')) {
-          statusByMonth[month].rejected++;
+          statusByMonth[monthIndex].rejected++;
         }
       });
 
-      const sortedMonths = Object.values(statusByMonth).sort((a, b) => {
-        const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
-      });
-
-      return NextResponse.json({ statusByMonth: sortedMonths });
-    }
-    
-    // Universal user filtering system - same as TSR API
-    const userIdentifier = await getUserIdentifier(session);
-    let userId = userIdentifier.userId; // Default: always filter by user
-    
-    console.log(`API_TRANSPORT_GET: Session details - role: ${session.role}, userId: ${userId}, email: ${session.email}`);
-    console.log(`API_TRANSPORT_GET: User identifier details - staffId: ${userIdentifier.staffId}, name: ${session.name}, department: ${session.department}`);
-    
-    // Use the same shouldBypassUserFilter logic as TSR API for consistency
-    if (shouldBypassUserFilter(session, statuses)) {
-      console.log(`API_TRANSPORT_GET: Admin ${session.role} viewing approval queue - no user filter`);
-      userId = null; // Admins viewing approval queue see all requests
-    } else {
-      console.log(`API_TRANSPORT_GET: User ${session.role} viewing own transport requests with strict filtering (${userId})`);
-      // ALL users (including System Administrators) see only their own requests on personal pages
-      // Personal pages should never bypass user filtering regardless of role
-    }
-    
-    // If statuses are specified, fetch all transport requests with those statuses (for approval queue)
-    if (statuses) {
-      const statusArray = statuses.split(',').map(s => s.trim());
-      const transportRequests = await TransportService.getTransportRequestsByStatuses(
-        statusArray, 
-        limit ? parseInt(limit) : undefined,
-        userId
-      );
-      return NextResponse.json({ transportRequests });
+      return NextResponse.json({ statusByMonth });
     }
 
-    // For transport listing page, show transport requests based on role with caching
-    console.log(`API_TRANSPORT_GET: Calling TransportService.getAllTransportRequests with userId: ${userId}`);
-    
-    // Use different cache keys for personal vs admin views to prevent cross-contamination
-    const cacheKey = userId 
-      ? userCacheKey(userId, 'transport-requests-personal')
-      : userCacheKey('admin', 'transport-requests-admin');
-    
-    const transportRequests = await withCache(
-      cacheKey,
-      () => TransportService.getAllTransportRequests(userId, session),
-      CACHE_TTL.USER_REQUESTS
+    // Handle regular transport requests fetch
+    console.log('API_TRANSPORT_GET: Fetching transport requests for user:', userId || 'all users');
+    const transportRequests = await TransportService.getAllTransportRequests(
+      userId,
+      session
     );
-    
+
     return NextResponse.json(transportRequests);
   } catch (error) {
-    console.error('Error fetching transport requests:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch transport requests' },
-      { status: 500 }
-    );
+    console.error('Error in transport API GET:', error);
+    return NextResponse.json({ error: 'Failed to fetch transport data' }, { status: 500 });
   }
 });
 
 export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function(request: NextRequest) {
   let requestFingerprint: string | undefined;
-  
+
   try {
     const session = (request as any).user;
-    
+
     // Session is already validated by withAuth middleware
 
     // Check if user has permission to create transport requests
@@ -141,7 +98,7 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     }
 
     const body = await request.json();
-    
+
     // Check for duplicate submission using request deduplication
     requestFingerprint = generateRequestFingerprint(
       session.id,
@@ -158,58 +115,54 @@ export const POST = withRateLimit(RATE_LIMITS.API_WRITE)(withAuth(async function
     const deduplicationResult = checkAndMarkRequest(requestFingerprint, 30000); // 30 seconds TTL
     if (deduplicationResult.isDuplicate) {
       console.warn(`API_TRANSPORT_POST_DUPLICATE: Duplicate transport submission detected for user ${session.id}. Time remaining: ${deduplicationResult.timeRemaining}s`);
-      return NextResponse.json({ 
-        error: 'Duplicate submission detected', 
+      return NextResponse.json({
+        error: 'Duplicate submission detected',
         message: `Please wait ${deduplicationResult.timeRemaining} seconds before submitting again.`,
         details: 'You recently submitted a similar transport request. To prevent duplicates, please wait before trying again.'
       }, { status: 429 });
     }
     const userId = session.id || session.email;
-    
+
     // Ensure proper user identification - use session data for critical fields
-    const requestData = { 
-      ...body, 
+    const requestData = {
+      ...body,
       userId,
       // Override form data with session data to ensure correct user association
       staffId: session.staffId || session.id || body.staffId,
       requestorName: session.name || body.requestorName,
       department: session.department || body.department
     };
-    
+
     console.log('🚗 TRANSPORT_API: Creating transport request via TransportService...');
     const transportRequest = await TransportService.createTransportRequest(requestData);
     console.log(`✅ TRANSPORT_API: Transport request created with ID: ${transportRequest.id}`);
-    
+
     // Clear relevant caches to ensure fresh data
     const { clearUserCache } = require('@/lib/cache');
     clearUserCache(userId, 'transport-requests-personal');
     clearUserCache(userId, 'sidebar-counts');
-    
+
     // Mark deduplication request as completed (successful submission)
     if (requestFingerprint) {
       markRequestCompleted(requestFingerprint);
     }
-    
+
     // Note: Notifications are handled within TransportService.createTransportRequest
-    
+
     return NextResponse.json(transportRequest, { status: 201 });
   } catch (error) {
     // Clean up deduplication on error
     if (requestFingerprint) {
       markRequestCompleted(requestFingerprint);
     }
-    
+
     console.error('Error creating transport request:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to create transport request',
         details: error.message
       },
       { status: 500 }
     );
-    */
-  } catch (error) {
-    console.error('Error in transport API:', error);
-    return NextResponse.json({ error: 'Failed to fetch transport data' }, { status: 500 });
   }
-} 
+}));

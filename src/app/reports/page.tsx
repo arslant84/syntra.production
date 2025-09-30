@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart2, FileText, ReceiptText, BedDouble, Users2, Filter, CalendarDays, StickyNote, Activity, Loader2, Car } from "lucide-react";
+import { BarChart2, FileText, ReceiptText, BedDouble, Users2, Filter, CalendarDays, StickyNote, Loader2, Car } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -63,12 +63,6 @@ interface TransportData {
   rejected: number;
 }
 
-interface UserActivityData {
-  month: string;
-  logins: number;
-  trf_submitted: number;
-  claim_created: number;
-}
 
 const trfChartConfig = {
   pending: { label: "Pending", color: "hsl(var(--chart-1))" },
@@ -99,11 +93,6 @@ const transportChartConfig = {
   rejected: { label: "Rejected", color: "hsl(var(--chart-3))" },
 } satisfies ChartConfig;
 
-const userActivityChartConfig = {
-  logins: { label: "Logins", color: "hsl(var(--chart-1))" },
-      trf_submitted: { label: "TSR Submitted", color: "hsl(var(--chart-2))" },
-  claim_created: { label: "Claim Created", color: "hsl(var(--chart-3))" },
-} satisfies ChartConfig;
 
 
 export default function ReportsPage() {
@@ -112,7 +101,6 @@ export default function ReportsPage() {
   const [accommodationData, setAccommodationData] = useState<AccommodationData[]>([]);
   const [visaData, setVisaData] = useState<VisaData[]>([]);
   const [transportData, setTransportData] = useState<TransportData[]>([]);
-  const [userActivityData, setUserActivityData] = useState<UserActivityData[]>([]);
 
   const [isLoadingTrf, setIsLoadingTrf] = useState(false);
   const [errorTrf, setErrorTrf] = useState<string | null>(null);
@@ -129,8 +117,6 @@ export default function ReportsPage() {
   const [isLoadingTransport, setIsLoadingTransport] = useState(false);
   const [errorTransport, setErrorTransport] = useState<string | null>(null);
 
-  const [isLoadingUserActivity, setIsLoadingUserActivity] = useState(false);
-  const [errorUserActivity, setErrorUserActivity] = useState<string | null>(null);
 
   const [year, setYear] = useState<string>(new Date().getFullYear().toString());
   
@@ -437,8 +423,9 @@ export default function ReportsPage() {
       setErrorVisa(null);
       try {
         // Include date range in query if available
-        let url = '/api/visa/summary';
+        let url = '/api/visa';
         const params = new URLSearchParams();
+        params.append('summary', 'true');
         params.append('year', year);
         
         if (dateRange?.from && dateRange?.to) {
@@ -914,53 +901,6 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
         
-        {/* User Activity Reports Card */}
-        <Card className="shadow-lg w-full">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Activity /> User Activity Reports</CardTitle>
-            <CardDescription>Monitor user actions, form submissions, and system access patterns.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-             <div className="flex flex-col sm:flex-row gap-2">
-              <Input type="text" placeholder="Search by User / Action" className="w-full sm:flex-1" disabled/>
-              <Select disabled>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filter by Activity Type" />
-                </SelectTrigger>
-                 <SelectContent>
-                  <SelectItem value="trf_submitted">TSR Submitted</SelectItem>
-                  <SelectItem value="claim_created">Claim Created</SelectItem>
-                  <SelectItem value="user_login">User Login</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="h-[250px] w-full pt-4">
-              {isLoadingUserActivity ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-muted-foreground">Loading data...</span>
-                </div>
-              ) : errorUserActivity ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-destructive">{errorUserActivity}</p>
-                </div>
-              ) : (
-                <ChartContainer config={userActivityChartConfig} className="h-full w-full">
-                  <BarChart accessibilityLayer data={userActivityData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} />
-                    <YAxis tickLine={false} axisLine={false} tickMargin={8} />
-                    <Tooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="logins" fill="var(--color-logins)" radius={4} />
-                    <Bar dataKey="trf_submitted" fill="var(--color-trf_submitted)" radius={4} />
-                    <Bar dataKey="claim_created" fill="var(--color-claim_created)" radius={4} />
-                  </BarChart>
-                </ChartContainer>
-              )}
-            </div>
-            <Button variant="outline" className="w-full" disabled>View User Activity Report</Button>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

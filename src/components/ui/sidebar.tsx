@@ -69,6 +69,26 @@ const SidebarProvider = React.forwardRef<
     const [openMobile, setOpenMobile] = React.useState(false)
     const [_isPinned, _setIsPinned] = React.useState(defaultOpen)
     const [isHoverExpanded, setIsHoverExpanded] = React.useState(false)
+    const [isHydrated, setIsHydrated] = React.useState(false)
+
+    // Read cookie on client-side after hydration to sync state
+    React.useEffect(() => {
+      setIsHydrated(true)
+      if (typeof document !== 'undefined') {
+        const cookies = document.cookie.split(';')
+        const sidebarCookie = cookies.find(cookie =>
+          cookie.trim().startsWith(`${SIDEBAR_COOKIE_NAME}=`)
+        )
+
+        if (sidebarCookie) {
+          const value = sidebarCookie.split('=')[1].trim()
+          const cookieValue = value === 'true'
+          if (cookieValue !== _isPinned) {
+            _setIsPinned(cookieValue)
+          }
+        }
+      }
+    }, [])
 
     const isPinned = isPinnedProp ?? _isPinned
     const setIsPinned = React.useCallback(
@@ -107,14 +127,15 @@ const SidebarProvider = React.forwardRef<
       return () => window.removeEventListener("keydown", handleKeyDown)
     }, [toggleSidebar])
 
-    const visualOpen = isMobile ? openMobile : (isPinned || isHoverExpanded)
+    // Use defaultOpen for SSR to match client hydration
+    const visualOpen = isMobile ? openMobile : (isHydrated ? (isPinned || isHoverExpanded) : defaultOpen)
     const visualState = visualOpen ? "expanded" : "collapsed"
 
     const contextValue = React.useMemo<SidebarContextType>(
       () => ({
         state: visualState,
         open: visualOpen,
-        isPinned: isPinned,
+        isPinned: isHydrated ? isPinned : defaultOpen,
         setIsPinned: setIsPinned,
         setIsHoverExpanded: setIsHoverExpanded,
         isMobile,
@@ -122,7 +143,7 @@ const SidebarProvider = React.forwardRef<
         setOpenMobile,
         toggleSidebar,
       }),
-      [visualState, visualOpen, isPinned, setIsPinned, setIsHoverExpanded, isMobile, openMobile, setOpenMobile, toggleSidebar]
+      [visualState, visualOpen, isPinned, isHydrated, defaultOpen, setIsPinned, setIsHoverExpanded, isMobile, openMobile, setOpenMobile, toggleSidebar]
     )
 
     return (
@@ -172,18 +193,62 @@ const Sidebar = React.forwardRef<
     ref
   ) => {
     const sidebarContext = useSidebar()
-    
+
     if (!sidebarContext) {
+      // Return the same structure as the collapsible="none" case for consistency
+      if (collapsible === "none") {
+        return (
+          <div
+            className={cn(
+              "flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground border-r",
+              className
+            )}
+            ref={ref}
+            {...props}
+          >
+            {children}
+          </div>
+        )
+      }
+      // For other collapsible types, render a minimal version that matches the expected structure
       return (
-         <div
-          className={cn(
-            "flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground",
-            className
-          )}
+        <div
           ref={ref}
-          {...props}
+          className="group peer hidden md:block text-sidebar-foreground"
+          data-state="collapsed"
+          data-collapsible={collapsible}
+          data-variant={variant}
+          data-side={side}
         >
-          {children}
+          <div
+            className={cn(
+              "duration-200 relative h-svh w-[--sidebar-width] bg-transparent transition-[width] ease-linear",
+              "group-data-[collapsible=icon]:w-[--sidebar-width-icon]",
+              variant === "floating" || variant === "inset"
+                ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]"
+                : "group-data-[collapsible=icon]:w-[--sidebar-width-icon]"
+            )}
+          />
+          <div
+            className={cn(
+              "duration-200 fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] transition-[left,right,width] ease-linear md:flex",
+              side === "left"
+                ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
+                : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+              variant === "floating" || variant === "inset"
+                ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
+                : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l",
+              className
+            )}
+            {...props}
+          >
+            <div
+              data-sidebar="sidebar"
+              className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
+            >
+              {children}
+            </div>
+          </div>
         </div>
       );
     }
@@ -206,7 +271,7 @@ const Sidebar = React.forwardRef<
       return (
         <div
           className={cn(
-            "flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground",
+            "flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground border-r",
             className
           )}
           ref={ref}
@@ -242,7 +307,7 @@ const Sidebar = React.forwardRef<
         ref={ref}
         className="group peer hidden md:block text-sidebar-foreground"
         data-state={state} // This state is now driven by (isPinned || isHoverExpanded)
-        data-collapsible={state === "collapsed" ? collapsible : ""}
+        data-collapsible={state === "collapsed" ? collapsible : null}
         data-variant={variant}
         data-side={side}
         onMouseEnter={handleMouseEnter}

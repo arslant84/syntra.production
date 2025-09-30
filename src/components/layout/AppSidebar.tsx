@@ -58,20 +58,21 @@ const iconMap = {
 };
 
 const getMainNavItems = (navItems: NavItem[]) => {
-  // Filter out items that are already in the top navbar and dashboard
-  const topNavbarItems = [
+  // Filter to show only admin-specific items in sidebar
+  // User functions (Dashboard, Travel Requests, etc.) are handled by the header navbar
+  const userFunctionItems = [
     'Dashboard',
-    'Travel Requests', 
+    'Travel Requests',
     'Transport Requests',
-    'Visa Applications', 
+    'Visa Applications',
     'Accommodation Requests',
     'Expense Claims',
     'Reports'
   ];
-  
-  return navItems.filter(item => 
-    item.label !== 'System Settings' && 
-    !topNavbarItems.includes(item.label)
+
+  return navItems.filter(item =>
+    item.label !== 'System Settings' && // System Settings goes in footer
+    !userFunctionItems.includes(item.label) // Exclude user functions (handled by header)
   );
 };
 
